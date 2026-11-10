@@ -30,6 +30,8 @@ WITH staging_data AS (
     FROM {{ ref('stg_census_data') }}
 ),
 
+{{ census_plan_calendar('staging_data') }},
+
 -- CRITICAL VALIDATION RULES (Zero Tolerance)
 critical_validations AS (
     -- ANN_001: Annualized compensation must equal gross compensation (data contract)
@@ -101,9 +103,9 @@ error_validations AS (
         ) AS validation_message
     FROM staging_data sd
     WHERE (
-        sd.employee_hire_date > CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+        sd.employee_hire_date > (SELECT plan_end FROM plan_calendar)
         OR (sd.employee_termination_date IS NOT NULL
-            AND sd.employee_termination_date < CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE))
+            AND sd.employee_termination_date < (SELECT plan_start FROM plan_calendar))
     )
     AND sd.employee_plan_year_compensation != 0
 ),
@@ -125,9 +127,9 @@ warning_validations AS (
             ' by more than 0.3%'
         ) AS validation_message
     FROM staging_data
-    WHERE employee_hire_date <= CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)
+    WHERE employee_hire_date <= (SELECT plan_start FROM plan_calendar)
       AND (employee_termination_date IS NULL
-           OR employee_termination_date >= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE))
+           OR employee_termination_date >= (SELECT plan_end FROM plan_calendar))
       AND employee_gross_compensation > 0
       AND ABS(employee_plan_year_compensation - employee_gross_compensation) / employee_gross_compensation > 0.003
 

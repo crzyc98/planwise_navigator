@@ -64,9 +64,9 @@ def roll_forward_census(
     """Simulate from the census year to ``target_year`` and save the bridge census.
 
     ``database_path`` holds the bridge simulation and must not be a database
-    in use by anything else; it is kept so the bridge can be inspected. Runs
-    using the bridge census need ``setup.plan_year_start_date`` and
-    ``plan_year_end_date`` set to ``target_year``.
+    in use by anything else; it is kept so the bridge can be inspected. A
+    config that sets ``setup.plan_year_start_date``/``plan_year_end_date`` by
+    hand must move them to ``target_year`` to use the bridge census.
     """
     census_year = _census_year_before(census_path, target_year)
     bridge_config = _bridge_config(config, census_path, census_year + 1, target_year)

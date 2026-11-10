@@ -67,7 +67,7 @@ def roll_forward(
     )
     console.print(f"Bridge census: {result.census_path}")
     console.print(
-        "To use it, set setup.census_parquet_path to the bridge census and "
-        f"setup.plan_year_start_date: {year}-01-01, "
-        f"setup.plan_year_end_date: {year}-12-31."
+        "To use it, set setup.census_parquet_path to the bridge census. If the "
+        "config sets setup.plan_year_start_date/plan_year_end_date, move them "
+        f"to {year}."
     )

@@ -80,6 +80,9 @@ raw_data AS (
   FROM parquet_with_schema
 ),
 
+-- Census year and census plan year (macros/utils/census_plan_calendar.sql).
+{{ census_plan_calendar('raw_data') }},
+
 -- Census compensation defaults to earnings; annual_rate is an explicit opt-in.
 {% set census_pay_basis = var('census_pay_basis', 'earnings') %}
 {% if census_pay_basis not in ['annual_rate', 'earnings'] %}
@@ -87,17 +90,6 @@ raw_data AS (
 {% endif %}
 {% if census_pay_basis == 'earnings' %}
 -- Preserve census-year earnings and infer annual rates for active census-year hires.
-census_hire_years AS (
-  SELECT YEAR(employee_hire_date) AS hire_year, COUNT(*) AS hire_count
-  FROM raw_data
-  GROUP BY YEAR(employee_hire_date)
-),
-census_calendar AS (
-  SELECT MAKE_DATE(MAX(hire_year), 1, 1) AS year_start,
-    MAKE_DATE(MAX(hire_year) + 1, 1, 1) AS year_end
-  FROM census_hire_years
-  WHERE hire_count >= GREATEST(1, (SELECT COUNT(*) FROM raw_data) * 0.01)
-),
 earnings_days AS (
   SELECT r.*,
     YEAR(r.employee_hire_date) = YEAR(c.year_start) AND r.employee_termination_date IS NULL AS census_year_active_hire,
@@ -131,28 +123,29 @@ comp_data AS (
 -- which is used downstream to calculate plan-year compensation (prorated portion of the annual rate).
 annualized_data AS (
   SELECT
-      *,
-      -- Define plan year boundaries
-      CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE) AS plan_start,
-      CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)   AS plan_end,
+      r.*,
+      -- Plan year boundaries
+      pc.plan_start,
+      pc.plan_end,
 
       -- Compute effective active window within the plan year
-      GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)) AS active_start,
-      LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)) AS active_end,
+      GREATEST(r.employee_hire_date, pc.plan_start) AS active_start,
+      LEAST(COALESCE(r.employee_termination_date, pc.plan_end), pc.plan_end) AS active_end,
 
       -- Days active in plan year (0 if no overlap)
       CASE
-        WHEN employee_hire_date > CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
-          OR (employee_termination_date IS NOT NULL AND employee_termination_date < CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE))
+        WHEN r.employee_hire_date > pc.plan_end
+          OR (r.employee_termination_date IS NOT NULL AND r.employee_termination_date < pc.plan_start)
         THEN 0
         ELSE GREATEST(0, DATE_DIFF('day',
-                   GREATEST(employee_hire_date, CAST('{{ var("plan_year_start_date", "2024-01-01") }}' AS DATE)),
-                   LEAST(COALESCE(employee_termination_date, CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)), CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE))
+                   GREATEST(r.employee_hire_date, pc.plan_start),
+                   LEAST(COALESCE(r.employee_termination_date, pc.plan_end), pc.plan_end)
                ) + 1)
       END AS days_active_in_year
 
-  FROM raw_data
-  WHERE rn = 1
+  FROM raw_data r
+  CROSS JOIN plan_calendar pc
+  WHERE r.rn = 1
 ),
 
 -- Derive two compensation fields from the annual salary rate:
@@ -186,14 +179,14 @@ eligibility_data AS (
       CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) AS employee_eligibility_date,
       -- Determine current eligibility status based on eligibility date vs census year end
       CASE
-          WHEN CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) <= CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+          WHEN CAST(DATE_ADD(ad.employee_hire_date, INTERVAL {{ var('eligibility_waiting_period_days', 30) }} DAY) AS DATE) <= (SELECT plan_end FROM plan_calendar)
           THEN 'eligible'
           ELSE 'pending'
       END AS current_eligibility_status,
       -- Set enrollment date to end of census year only if employee has positive deferral rate
       CASE
           WHEN ad.employee_deferral_rate > 0
-          THEN CAST('{{ var("plan_year_end_date", "2024-12-31") }}' AS DATE)
+          THEN (SELECT plan_end FROM plan_calendar)
           ELSE NULL
       END AS employee_enrollment_date
   FROM comp_data ad
