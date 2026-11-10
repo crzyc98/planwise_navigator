@@ -85,6 +85,7 @@ from .commands.optimize import run_optimize  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
 from .commands.gc import gc_command  # noqa: E402
 from .commands.validate_change import run_validate_change  # noqa: E402
+from .commands.census import census_app  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
 # its full typer signature, so register it directly.
@@ -706,6 +707,7 @@ def sync_disconnect_cmd():
 
 # Add sync subcommand to main app
 app.add_typer(sync_app, name="sync")
+app.add_typer(census_app, name="census")
 
 
 def cli_main():

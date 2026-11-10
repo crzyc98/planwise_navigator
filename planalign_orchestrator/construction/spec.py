@@ -43,6 +43,7 @@ EntryPoint = Literal[
     "invariant_test",
     "perf_harness",
     "backtest",
+    "census_roll_forward",
 ]
 
 

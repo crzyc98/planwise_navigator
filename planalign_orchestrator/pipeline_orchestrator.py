@@ -20,11 +20,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import time
 
+import duckdb
+
 if TYPE_CHECKING:
     from .construction.signature import ConstructionSignature, WorkSchedule
 
 from .config import PlanDesignAssignmentSettings, SimulationConfig, to_dbt_vars
 from .config.dbt_var_validation import validate_dbt_vars
+from .census_year import census_gap_message, infer_census_year
 from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
 from .orchestrator_setup import (
@@ -1061,6 +1064,23 @@ class PipelineOrchestrator:
             self.config.simulation.random_seed,
             self.config.simulation.target_growth_rate * 100,
         )
+        self._warn_on_census_gap(start_year)
+
+    def _warn_on_census_gap(self, start_year: int) -> None:
+        """Warn when the census is more than a year behind the start (#1078)."""
+        census = self._dbt_vars.get("census_parquet_path")
+        if not census or not Path(str(census)).exists():
+            return
+        try:
+            census_year = infer_census_year(Path(str(census)))
+        except duckdb.Error as e:
+            logger.warning("Could not read the census year from %s: %s", census, e)
+            return
+        if census_year is None:
+            return
+        message = census_gap_message(census_year, start_year)
+        if message:
+            logger.warning(message)
 
     def update_compensation_parameters(
         self, *, cola_rate: Optional[float] = None, merit_budget: Optional[float] = None
