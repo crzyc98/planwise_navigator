@@ -36,9 +36,14 @@ def infer_census_year(census_path: Path) -> Optional[int]:
     return int(row[0]) if row and row[0] is not None else None
 
 
+def census_is_behind(census_year: int, start_year: int) -> bool:
+    """True when at least one year lies between the census and the start."""
+    return start_year > census_year + 1
+
+
 def census_gap_message(census_year: int, start_year: int) -> Optional[str]:
     """Explain a gap between the census and the first simulated year, if any."""
-    if start_year <= census_year + 1:
+    if not census_is_behind(census_year, start_year):
         return None
     missing = (
         str(census_year + 1)

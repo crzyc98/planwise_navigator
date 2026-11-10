@@ -1746,6 +1746,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/census/roll-forward": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Roll an old census forward to the year before the start year */
+        post: operations["start_census_roll_forward_api_workspaces__workspace_id__census_roll_forward_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/census/roll-forward/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status of a census roll-forward */
+        get: operations["get_census_roll_forward_api_workspaces__workspace_id__census_roll_forward__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/census/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare the census year with the simulation start year */
+        get: operations["get_census_status_api_workspaces__workspace_id__census_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/comparison": {
         parameters: {
             query?: never;
@@ -4481,6 +4532,34 @@ export interface components {
              * @description Eligible employees with a deferral rate of zero or null
              */
             zero_deferral_count: number;
+        };
+        /**
+         * CensusStatus
+         * @description Whether the workspace census is behind its simulation start.
+         */
+        CensusStatus: {
+            /** @description A roll-forward still queued or running */
+            active_job: components["schemas"]["RollForwardJob"] | null;
+            /**
+             * Behind
+             * @description The census is more than one year before the start year
+             */
+            behind: boolean;
+            /**
+             * Bridge Year
+             * @description The year a roll-forward would reach (start year - 1)
+             */
+            bridge_year: number | null;
+            /**
+             * Census Year
+             * @description Census year, or null when it can't be read
+             */
+            census_year: number | null;
+            /**
+             * Start Year
+             * @description Workspace simulation start year
+             */
+            start_year: number;
         };
         /** Citation */
         Citation: {
@@ -8581,6 +8660,74 @@ export interface components {
             simulation_year: number | null;
             /** Threshold Value */
             threshold_value: number;
+        };
+        /**
+         * RollForwardJob
+         * @description A roll-forward run for one workspace.
+         */
+        RollForwardJob: {
+            /** Bridge Year */
+            bridge_year: number;
+            /** Completed At */
+            completed_at: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            summary: components["schemas"]["RollForwardSummary"] | null;
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /**
+         * RollForwardSummary
+         * @description What a finished roll-forward produced.
+         */
+        RollForwardSummary: {
+            /**
+             * Bridge Year
+             * @description Year the census was rolled to
+             */
+            bridge_year: number;
+            /**
+             * Census Path
+             * @description The saved bridge census
+             */
+            census_path: string;
+            /**
+             * Census Year
+             * @description Year of the original census
+             */
+            census_year: number;
+            /**
+             * Ending Headcount
+             * @description Employees in the bridge census
+             */
+            ending_headcount: number;
+            /**
+             * Hires
+             * @description Hires in the bridge years
+             */
+            hires: number;
+            /**
+             * Simulated Employees
+             * @description Bridge census employees the simulation hired
+             */
+            simulated_employees: number;
+            /**
+             * Terminations
+             * @description Terminations in the bridge years
+             */
+            terminations: number;
         };
         /**
          * RunDetails
@@ -14224,6 +14371,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchJob"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_census_roll_forward_api_workspaces__workspace_id__census_roll_forward_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollForwardJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_census_roll_forward_api_workspaces__workspace_id__census_roll_forward__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollForwardJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_census_status_api_workspaces__workspace_id__census_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CensusStatus"];
                 };
             };
             /** @description Validation Error */
