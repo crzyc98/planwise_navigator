@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Batch Processing now has a Cancel button for each scenario that is waiting or running, and shows cancelled scenarios as Cancelled.
+
 - Studio now runs simulations one at a time (#1086). Runs started while another is in progress wait as queued and can be cancelled before they start. Batches always run in sequence, and Batch Processing no longer shows an execution mode. A server can allow more at once with `PLANALIGN_API_MAX_CONCURRENT_SIMULATIONS`. After an API restart, scenarios left queued or running are marked failed instead of staying stuck.
 
 - Contributions used the year-end deferral rate for the whole year. They now weight each rate by the days it was in effect, using the year's enrollment, escalation, match-response, enrollment-change and deferral-change events (#989). A September enrollee now contributes for about 4 months, not 12. A 07-01 escalation weights the old and new rates about 50/50. A participant enrolled in a prior year who opts out mid-year now contributes until the opt-out. Same-year enroll→opt-out windowing and deferral-change-only results are unchanged. Baseline impact (default config, 2025–2027): employee contributions −0.9%/−0.5%/−0.4% and employer match −0.3%/−0.2%/−0.2%, mostly from mid-year enrollees. With `deferral_auto_escalation.effective_day: "07-01"`: contributions −3.5%/−3.6%/−3.5% and match −0.8%/−1.7%/−1.6%. Event counts are unchanged.
