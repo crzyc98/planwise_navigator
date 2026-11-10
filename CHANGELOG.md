@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-10
+
 ### Added
 
 - Studio's Data Import page now warns when the census is more than a year behind the start year, and offers to roll it forward (#1078). Rolling forward simulates the missing year once under the workspace's settings, waits behind any running simulation, then saves the bridge census, lists it in Imported Files and makes it the workspace census. The original census stays listed, so "Use as Census" switches back.
