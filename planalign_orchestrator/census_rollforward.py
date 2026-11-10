@@ -17,9 +17,9 @@ back into an annual rate. People the simulation hired carry
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import duckdb
 
@@ -53,6 +53,10 @@ class RollForwardResult:
     ending_headcount: int
     simulated_employees: int
 
+    def to_dict(self) -> Dict[str, Any]:
+        """JSON-ready fields, with the census path as a string."""
+        return {**asdict(self), "census_path": str(self.census_path)}
+
 
 def roll_forward_census(
     config: SimulationConfig,
@@ -60,6 +64,7 @@ def roll_forward_census(
     target_year: int,
     output_path: Path,
     database_path: Path,
+    dbt_project_dir: Optional[Path] = None,
 ) -> RollForwardResult:
     """Simulate from the census year to ``target_year`` and save the bridge census.
 
@@ -70,7 +75,7 @@ def roll_forward_census(
     """
     census_year = _census_year_before(census_path, target_year)
     bridge_config = _bridge_config(config, census_path, census_year + 1, target_year)
-    _simulate(bridge_config, database_path)
+    _simulate(bridge_config, database_path, dbt_project_dir)
     pay_basis = str(_setup(config).get("census_pay_basis", "earnings"))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with duckdb.connect(str(database_path), read_only=True) as conn:
@@ -120,12 +125,15 @@ def _bridge_config(
     return config.model_copy(update={"simulation": simulation, "setup": setup})
 
 
-def _simulate(config: SimulationConfig, database_path: Path) -> None:
+def _simulate(
+    config: SimulationConfig, database_path: Path, dbt_project_dir: Optional[Path]
+) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     result = build_orchestrator(
         ConstructionSpec(
             config=config,
             database=DatabaseConnectionManager(database_path),
+            dbt_project_dir=dbt_project_dir,
             entry_point="census_roll_forward",
         )
     )

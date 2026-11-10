@@ -3851,6 +3851,65 @@
         "title": "CensusSegmentMetrics",
         "type": "object"
       },
+      "CensusStatus": {
+        "description": "Whether the workspace census is behind its simulation start.",
+        "properties": {
+          "active_job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RollForwardJob"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A roll-forward still queued or running"
+          },
+          "behind": {
+            "description": "The census is more than one year before the start year",
+            "title": "Behind",
+            "type": "boolean"
+          },
+          "bridge_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The year a roll-forward would reach (start year - 1)",
+            "title": "Bridge Year"
+          },
+          "census_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census year, or null when it can't be read",
+            "title": "Census Year"
+          },
+          "start_year": {
+            "description": "Workspace simulation start year",
+            "title": "Start Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "census_year",
+          "start_year",
+          "behind",
+          "bridge_year",
+          "active_job"
+        ],
+        "title": "CensusStatus",
+        "type": "object"
+      },
       "Citation": {
         "additionalProperties": false,
         "properties": {
@@ -12960,6 +13019,134 @@
           "reason"
         ],
         "title": "RiskStatement",
+        "type": "object"
+      },
+      "RollForwardJob": {
+        "description": "A roll-forward run for one workspace.",
+        "properties": {
+          "bridge_year": {
+            "title": "Bridge Year",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RollForwardSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "bridge_year",
+          "status",
+          "submitted_at",
+          "completed_at",
+          "summary",
+          "error_message"
+        ],
+        "title": "RollForwardJob",
+        "type": "object"
+      },
+      "RollForwardSummary": {
+        "description": "What a finished roll-forward produced.",
+        "properties": {
+          "bridge_year": {
+            "description": "Year the census was rolled to",
+            "title": "Bridge Year",
+            "type": "integer"
+          },
+          "census_path": {
+            "description": "The saved bridge census",
+            "title": "Census Path",
+            "type": "string"
+          },
+          "census_year": {
+            "description": "Year of the original census",
+            "title": "Census Year",
+            "type": "integer"
+          },
+          "ending_headcount": {
+            "description": "Employees in the bridge census",
+            "title": "Ending Headcount",
+            "type": "integer"
+          },
+          "hires": {
+            "description": "Hires in the bridge years",
+            "title": "Hires",
+            "type": "integer"
+          },
+          "simulated_employees": {
+            "description": "Bridge census employees the simulation hired",
+            "title": "Simulated Employees",
+            "type": "integer"
+          },
+          "terminations": {
+            "description": "Terminations in the bridge years",
+            "title": "Terminations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "census_year",
+          "bridge_year",
+          "hires",
+          "terminations",
+          "ending_headcount",
+          "simulated_employees",
+          "census_path"
+        ],
+        "title": "RollForwardSummary",
         "type": "object"
       },
       "RunDetails": {
@@ -24595,6 +24782,141 @@
         "summary": "List Batch Jobs",
         "tags": [
           "Batch Processing"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/census/roll-forward": {
+      "post": {
+        "operationId": "start_census_roll_forward_api_workspaces__workspace_id__census_roll_forward_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollForwardJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Roll an old census forward to the year before the start year",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/census/roll-forward/{job_id}": {
+      "get": {
+        "operationId": "get_census_roll_forward_api_workspaces__workspace_id__census_roll_forward__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollForwardJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Status of a census roll-forward",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/census/status": {
+      "get": {
+        "operationId": "get_census_status_api_workspaces__workspace_id__census_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CensusStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare the census year with the simulation start year",
+        "tags": [
+          "Files"
         ]
       }
     },

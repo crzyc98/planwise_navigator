@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Studio's Data Import page now warns when the census is more than a year behind the start year, and offers to roll it forward (#1078). Rolling forward simulates the missing year once under the workspace's settings, waits behind any running simulation, then saves the bridge census, lists it in Imported Files and makes it the workspace census. The original census stays listed, so "Use as Census" switches back.
+
 - `planalign census roll-forward` turns a census more than a year old into a bridge census (#1078). It simulates the missing year once under the given settings and saves the employees still active at year-end, with made-up hires flagged as `simulated_employee`. Pay is each person's year-end rate, under the same pay setting as the original census. Starting 2026 from a 2024 census rolled forward to 2025 matched a continuous 2025–2026 run's 2026 hires, terminations and headcount exactly, and its average pay to within 0.3%. Starting 2026 straight from the 2024 census had 17% fewer terminations. Runs now log a warning when the census is more than a year behind the start year.
 
 ### Removed

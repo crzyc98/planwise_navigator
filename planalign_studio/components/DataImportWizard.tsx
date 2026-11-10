@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Upload, Map, Eye, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
@@ -8,6 +8,7 @@ import FileUploadStep from './imports/FileUploadStep';
 import FieldMappingStep from './imports/FieldMappingStep';
 import PreviewStep from './imports/PreviewStep';
 import ImportedFilesList from './imports/ImportedFilesList';
+import CensusRollForwardBanner from './imports/CensusRollForwardBanner';
 import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 
 type WizardStep = 'upload' | 'mapping' | 'preview' | 'done';
@@ -56,8 +57,16 @@ export default function DataImportWizard() {
   const [mappingDirty, setMappingDirty] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [showFilesView, setShowFilesView] = useState(false);
+  const [filesVersion, setFilesVersion] = useState(0);
 
   const workspaceId = activeWorkspace?.id;
+  const censusPath = activeWorkspace?.base_config?.setup?.census_parquet_path as string | undefined;
+
+  // A roll-forward switches the workspace census server-side (#1078).
+  const handleRolledForward = useCallback(() => {
+    setFilesVersion((v) => v + 1);
+    void refreshActiveWorkspace();
+  }, [refreshActiveWorkspace]);
 
   if (!workspaceId) {
     return (
@@ -111,7 +120,8 @@ export default function DataImportWizard() {
         >
           <ArrowLeft size={14} /> Back to Import Wizard
         </button>
-        <ImportedFilesList workspaceId={workspaceId} />
+        <CensusRollForwardBanner workspaceId={workspaceId} censusPath={censusPath} onRolledForward={handleRolledForward} />
+        <ImportedFilesList key={filesVersion} workspaceId={workspaceId} />
       </div>
     );
   }
@@ -130,6 +140,8 @@ export default function DataImportWizard() {
           View Imported Files
         </button>
       </div>
+
+      <CensusRollForwardBanner workspaceId={workspaceId} censusPath={censusPath} onRolledForward={handleRolledForward} />
 
       <StepIndicator current={step} />
 

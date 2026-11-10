@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -36,6 +37,12 @@ def roll_forward(
     database: Optional[Path] = typer.Option(
         None, "--database", help="Database for the bridge simulation"
     ),
+    dbt_project_dir: Optional[Path] = typer.Option(
+        None, "--dbt-project-dir", help="Isolated dbt project for the bridge run"
+    ),
+    summary_json: Optional[Path] = typer.Option(
+        None, "--summary-json", help="Also write the summary to this JSON file"
+    ),
 ) -> None:
     """Simulate the years a census is missing and save a bridge census."""
     import duckdb
@@ -54,7 +61,9 @@ def roll_forward(
     database_path = database or output_path.with_suffix(".duckdb")
 
     try:
-        result = roll_forward_census(cfg, census_path, year, output_path, database_path)
+        result = roll_forward_census(
+            cfg, census_path, year, output_path, database_path, dbt_project_dir
+        )
     except (ValueError, duckdb.Error) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
@@ -66,6 +75,8 @@ def roll_forward(
         f"({result.simulated_employees:,} simulated)."
     )
     console.print(f"Bridge census: {result.census_path}")
+    if summary_json is not None:
+        summary_json.write_text(json.dumps(result.to_dict(), indent=2))
     console.print(
         "To use it, set setup.census_parquet_path to the bridge census. If the "
         "config sets setup.plan_year_start_date/plan_year_end_date, move them "

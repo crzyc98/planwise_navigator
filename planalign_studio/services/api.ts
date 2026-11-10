@@ -889,6 +889,32 @@ export async function setCensusPath(
   return handleResponse<{ success: boolean; file_path: string; row_count: number }>(response);
 }
 
+// #1078: Census more than a year behind the start year, and rolling it forward
+export type CensusStatus = Schemas['CensusStatus'];
+export type CensusRollForwardJob = Schemas['RollForwardJob'];
+
+export async function getCensusStatus(workspaceId: string): Promise<CensusStatus> {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/census/status`);
+  return handleResponse<CensusStatus>(response);
+}
+
+export async function startCensusRollForward(workspaceId: string): Promise<CensusRollForwardJob> {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/census/roll-forward`, {
+    method: 'POST',
+  });
+  return handleResponse<CensusRollForwardJob>(response);
+}
+
+export async function getCensusRollForward(
+  workspaceId: string,
+  jobId: string
+): Promise<CensusRollForwardJob> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/census/roll-forward/${jobId}`
+  );
+  return handleResponse<CensusRollForwardJob>(response);
+}
+
 // E082: Analyze age distribution from census data
 export type AgeDistributionAnalysis = Schemas['AgeDistributionResponse'];
 
