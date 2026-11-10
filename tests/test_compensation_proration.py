@@ -15,9 +15,10 @@ def render_ctes(
     path: str, start: str, end: str, year: int, census_pay_basis: str = "earnings"
 ) -> str:
     source = (DBT / path).read_text().split(start, 1)[1].split(end, 1)[0]
+    macros = (DBT / "macros/utils/census_plan_calendar.sql").read_text()
     return (
         Environment(undefined=StrictUndefined)
-        .from_string(start + source)
+        .from_string(macros + start + source)
         .render(
             simulation_year=year,
             var=lambda name, default=None: {
@@ -153,7 +154,7 @@ def test_census_plan_year_compensation(year: int) -> None:
     ctes = (
         render_ctes(
             "models/staging/stg_census_data.sql",
-            "{% set census_pay_basis",
+            "-- Census year and census plan year",
             "-- Calculate eligibility and enrollment fields",
             year,
             census_pay_basis="annual_rate",

@@ -30,6 +30,19 @@ def test_config(basis: str) -> None:
     assert "census_pay_basis" not in to_dbt_vars(SimulationConfig.model_validate(cfg))
 
 
+def staging_ctes(dbt_vars: dict[str, object]) -> str:
+    """The production staging CTEs from the census calendar to comp_data."""
+    macro = Path("dbt/macros/utils/census_plan_calendar.sql").read_text()
+    source = Path("dbt/models/staging/stg_census_data.sql").read_text()
+    body = source.split("-- Census year and census plan year", 1)[1]
+    body = body.split("\n", 1)[1].split("-- Calculate eligibility", 1)[0]
+    return (
+        Environment()
+        .from_string(macro + body)
+        .render(var=lambda key, default=None: dbt_vars.get(key, default))
+    )
+
+
 def seed(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("""CREATE TABLE raw_data AS SELECT *, 1 AS rn FROM (VALUES
       ('july', DATE '2028-07-01', NULL::DATE, 18400., TRUE),
@@ -43,16 +56,8 @@ def seed(conn: duckdb.DuckDBPyConnection) -> None:
 
 @pytest.mark.parametrize("basis", [None, "annual_rate", "earnings"])
 def test_staging(basis: str | None) -> None:
-    source = Path("dbt/models/staging/stg_census_data.sql").read_text()
-    source = source.split("{% set census_pay_basis", 1)[1].split(
-        "-- Calculate eligibility", 1
-    )[0]
     exported = {} if basis is None else {"census_pay_basis": basis}
-    sql = (
-        Environment()
-        .from_string("{% set census_pay_basis" + source)
-        .render(var=lambda key, default=None: exported.get(key, default))
-    )
+    sql = staging_ctes(exported)
     with duckdb.connect(":memory:") as conn:
         seed(conn)
         rows = conn.execute(
@@ -76,20 +81,7 @@ def test_staging(basis: str | None) -> None:
 
 
 def test_staging_no_qualifying_hires() -> None:
-    source = Path("dbt/models/staging/stg_census_data.sql").read_text()
-    source = source.split("{% set census_pay_basis", 1)[1].split(
-        "-- Calculate eligibility", 1
-    )[0]
-    sql = (
-        Environment()
-        .from_string("{% set census_pay_basis" + source)
-        .render(
-            var=lambda key, default=None: {
-                "census_pay_basis": "earnings",
-                "census_pay_min_days": 200,
-            }.get(key, default)
-        )
-    )
+    sql = staging_ctes({"census_pay_basis": "earnings", "census_pay_min_days": 200})
     with duckdb.connect(":memory:") as conn:
         seed(conn)
         rows = conn.execute(
@@ -102,19 +94,7 @@ def test_staging_no_qualifying_hires() -> None:
 
 
 def test_future_outliers_and_text_active() -> None:
-    source = Path("dbt/models/staging/stg_census_data.sql").read_text()
-    source = source.split("{% set census_pay_basis", 1)[1].split(
-        "-- Calculate eligibility", 1
-    )[0]
-    sql = (
-        Environment()
-        .from_string("{% set census_pay_basis" + source)
-        .render(
-            var=lambda key, default=None: {"census_pay_basis": "earnings"}.get(
-                key, default
-            )
-        )
-    )
+    sql = staging_ctes({"census_pay_basis": "earnings"})
     with duckdb.connect(":memory:") as conn:
         conn.execute("""CREATE TABLE raw_data AS
           SELECT 'prior_' || i AS employee_id, DATE '2020-01-01' AS employee_hire_date,
@@ -135,3 +115,48 @@ def test_future_outliers_and_text_active() -> None:
         ).fetchone()
     assert row is not None
     assert row[0] == pytest.approx(36500)
+
+
+def plan_year(dbt_vars: dict[str, object]) -> tuple:
+    with duckdb.connect(":memory:") as conn:
+        seed(conn)
+        row = conn.execute(
+            "WITH "
+            + staging_ctes(dbt_vars).rstrip().removesuffix(",")
+            + " SELECT plan_start, plan_end FROM plan_calendar"
+        ).fetchone()
+    assert row is not None
+    return tuple(str(d) for d in row)
+
+
+def test_plan_year_defaults_to_the_census_year() -> None:
+    assert plan_year({}) == ("2028-01-01", "2028-12-31")
+
+
+def test_explicit_plan_year_dates_win() -> None:
+    dates = {"plan_year_start_date": "2024-01-01", "plan_year_end_date": "2024-12-31"}
+    assert plan_year(dates) == ("2024-01-01", "2024-12-31")
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [{"plan_year_start_date": "2025-07-01"}, {"plan_year_end_date": "2026-06-30"}],
+)
+def test_one_plan_year_date_implies_the_other(dates: dict[str, object]) -> None:
+    assert plan_year(dates) == ("2025-07-01", "2026-06-30")
+
+
+def test_annual_rate_prorates_within_the_census_plan_year() -> None:
+    with duckdb.connect(":memory:") as conn:
+        seed(conn)
+        rows = dict(
+            conn.execute(
+                "WITH "
+                + staging_ctes({"census_pay_basis": "annual_rate"})
+                .rstrip()
+                .removesuffix(",")
+                + " SELECT employee_id, days_active_in_year FROM annualized_data"
+            ).fetchall()
+        )
+    assert rows["july"] == 184
+    assert rows["full"] == 366

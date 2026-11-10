@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Census staging no longer assumes a 2024 plan year when none is set (#1163). Studio never sets one, so a 2025 census showed its 2025 hires as not yet eligible at the start of the simulation. The plan year now defaults to the census year, and dates set in `setup` still win. On a 2025 study census, the start-of-simulation eligible count went from 3,284 to 4,084 of 4,124 active. Events, enrollment, pay and contributions were unchanged, and a 2024 census gives identical results. A bridge census from `planalign census roll-forward` no longer needs the dates moved.
+
 - Batch Processing now has a Cancel button for each scenario that is waiting or running, and shows cancelled scenarios as Cancelled.
 
 - Studio now runs simulations one at a time (#1086). Runs started while another is in progress wait as queued and can be cancelled before they start. Batches always run in sequence, and Batch Processing no longer shows an execution mode. A server can allow more at once with `PLANALIGN_API_MAX_CONCURRENT_SIMULATIONS`. After an API restart, scenarios left queued or running are marked failed instead of staying stuck.

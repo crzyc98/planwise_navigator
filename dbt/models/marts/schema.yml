@@ -312,8 +312,9 @@ models:
 
           The start-year value preserves the census observation as of the
           pre-simulation census cutoff (`stg_census_data` compares
-          `hire_date + eligibility_waiting_period_days` against
-          `plan_year_end_date`), so `pending` may coexist with a target
+          `hire_date + eligibility_waiting_period_days` against the census
+          plan-year end: `plan_year_end_date` when set, otherwise the end of
+          the census year), so `pending` may coexist with a target
           `employee_eligibility_date` inside the first simulation year.
 
           After the start year, an immutable `eligibility` event is the
