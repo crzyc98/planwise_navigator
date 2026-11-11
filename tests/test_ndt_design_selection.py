@@ -270,3 +270,73 @@ def test_legacy_year_discovery_has_no_design_candidates(tmp_path: Path) -> None:
     result = NDTService(Mock(), db_resolver=resolver).get_available_years("w", "s")
     assert result.years == [2025]
     assert result.plan_design_ids == []
+
+
+# Frozen #1035 reproducer: the same employees in designs A and B. Matching prior
+# pay on employee ID alone once doubled every row and let A's failure pass.
+_REPRO_PAY = {"H": 200000.0, "Z": 100000.0, "N": 100000.0}
+_REPRO_RATES = {
+    "A": {"H": 0.05, "Z": 0.0, "N": 0.04},
+    "B": {"H": 0.05, "Z": 0.0, "N": 0.08},
+}
+
+
+def _design_service(
+    tmp_path: Path, designs_by_year: dict[int, list[str]]
+) -> NDTService:
+    path = tmp_path / "repro.duckdb"
+    with duckdb.connect(str(path)) as conn:
+        _create_test_db(conn)
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN scenario_id VARCHAR DEFAULT 'S'"
+        )
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN plan_design_id VARCHAR"
+        )
+        for year, designs in designs_by_year.items():
+            for design in designs:
+                for employee, pay in _REPRO_PAY.items():
+                    conn.execute(
+                        "INSERT INTO fct_workforce_snapshot VALUES "
+                        "(?, ?, ?, ?, ?, 0, 0, 'eligible', true, 'active', 5.0, 50, 'S', ?)",
+                        [
+                            employee,
+                            year,
+                            pay,
+                            pay,
+                            pay * _REPRO_RATES[design][employee],
+                            design,
+                        ],
+                    )
+    resolver = Mock()
+    resolver.resolve.return_value = ResolvedDatabasePath(path=path, source="scenario")
+    return NDTService(Mock(), db_resolver=resolver)
+
+
+@pytest.mark.parametrize(
+    ("design", "nhce_mean", "threshold", "outcome"),
+    [("A", 0.02, 0.04, "fail"), ("B", 0.04, 0.06, "pass")],
+)
+def test_frozen_reproducer_tests_each_design_separately(
+    tmp_path: Path, design: str, nhce_mean: float, threshold: float, outcome: str
+) -> None:
+    service = _design_service(tmp_path, {2024: ["A", "B"], 2025: ["A", "B"]})
+    result = service.run_adp_test("w", "studio", "t", 2025, plan_design_id=design)
+    assert (result.hce_count, result.nhce_count) == (1, 2)
+    assert result.nhce_average_adp == pytest.approx(nhce_mean)
+    assert result.applied_threshold == pytest.approx(threshold)
+    assert result.test_result == outcome
+    combined = service.run_adp_test("w", "studio", "t", 2025)
+    assert combined.test_result == "error"
+
+
+def test_design_transition_never_borrows_the_old_design(tmp_path: Path) -> None:
+    service = _design_service(tmp_path, {2024: ["A"], 2025: ["B"]})
+    current = service.run_adp_test("w", "studio", "t", 2025, plan_design_id="B")
+    assert (current.hce_count, current.nhce_count) == (1, 2)
+    assert "current compensation" in current.test_message
+    prior = service.run_adp_test(
+        "w", "studio", "t", 2025, plan_design_id="B", testing_method="prior"
+    )
+    assert prior.test_result == "error"
+    assert "no usable prior-year NHCE baseline" in prior.test_message
