@@ -52,6 +52,15 @@ overview refresh. Missing limits or required inputs are unavailable, not zero.
 - **NDT:** reuses ADP current-year testing without a safe-harbor election, ACP,
   and 415. Open the existing ADP view to apply alternate testing assumptions.
   These remain modeled test previews subject to their existing coverage.
+- **HCE classification:** compensation only, compared with the prior year's HCE
+  threshold. Ownership and the top-paid group election aren't modeled. When an
+  employee has no prior-year pay in the run, as in the first simulated year or
+  for a new hire, current pay stands in. ADP, ACP and 401(a)(4) report how many
+  employees were classified each way (`prior_pay_observed_count`,
+  `prior_pay_fallback_count`) and say so in the result message. Each employee row
+  shows `prior_year_compensation` only when it was actually observed, and
+  `hce_pay_basis` says which pay was used. A fallback classification is a modeled
+  assumption, not evidence of the plan's actual HCE group.
 
 Statuses are mutually exclusive: below threshold, near limit (default 95%), at
 limit, over limit, or unavailable. Dollar boundaries are rounded to cents.

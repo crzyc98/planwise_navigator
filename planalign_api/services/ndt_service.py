@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 import logging
 import statistics
-from typing import List, Optional
+from typing import List, Literal, Optional, TypeVar
 
 import yaml
 from pydantic import Field, model_validator
@@ -31,6 +31,39 @@ from .database_path_resolver import (
 )
 
 logger = logging.getLogger(__name__)
+
+HCEPayBasis = Literal["prior_year", "current_pay_fallback"]
+_FALLBACK_NOTE = (
+    "HCE classification uses current compensation for {count} employee(s) missing "
+    "prior-year compensation; this is a modeled assumption, not observed prior-year pay."
+)
+_ResultT = TypeVar("_ResultT", bound="PriorPayProvenance")
+
+
+@dataclass
+class _PriorPayBasis:
+    """Counts tested employees by the pay their HCE status was based on (#1037)."""
+
+    observed: int = 0
+    fallback: int = 0
+
+    def record(self, prior_comp: Optional[float]) -> HCEPayBasis:
+        if prior_comp is None:
+            self.fallback += 1
+            return "current_pay_fallback"
+        self.observed += 1
+        return "prior_year"
+
+    def apply(self, result: _ResultT) -> _ResultT:
+        """Stamp the counts on a result and disclose any current-pay fallback."""
+        result.prior_pay_observed_count = self.observed
+        result.prior_pay_fallback_count = self.fallback
+        if self.fallback:
+            note = _FALLBACK_NOTE.format(count=self.fallback)
+            result.test_message = " ".join(
+                part for part in (result.test_message, note) if part
+            )
+        return result
 
 
 def _effective_core_family(config: object, design_id: str | None) -> str | None:
@@ -84,6 +117,7 @@ class _ADPPopulation:
     nhce: List[NHCEQNECInput] = field(default_factory=list)
     employees: List["ADPEmployeeDetail"] = field(default_factory=list)
     excluded_count: int = 0
+    basis: _PriorPayBasis = field(default_factory=_PriorPayBasis)
 
 
 def _collect_adp_population(
@@ -95,6 +129,7 @@ def _collect_adp_population(
         if comp is None or comp <= 0:
             population.excluded_count += 1
             continue
+        pay_basis = population.basis.record(prior_comp)
         if is_hce:
             population.hce_adps.append(adp)
             population.hce_compensations.append(float(comp))
@@ -114,6 +149,7 @@ def _collect_adp_population(
                     prior_year_compensation=(
                         float(prior_comp) if prior_comp is not None else None
                     ),
+                    hce_pay_basis=pay_basis,
                 )
             )
     return population
@@ -124,6 +160,25 @@ def _collect_adp_population(
 # ==============================================================================
 
 
+class PriorPayProvenance(APIModel):
+    """Which pay each tested employee's HCE status was based on."""
+
+    test_message: Optional[str] = None
+    prior_pay_observed_count: int = Field(
+        default=0,
+        description="Tested employees classified on observed prior-year pay",
+    )
+    prior_pay_fallback_count: int = Field(
+        default=0,
+        description="Tested employees classified on current pay because prior-year pay was missing; a modeled assumption",
+    )
+
+
+_PRIOR_PAY_DESCRIPTION = (
+    "Observed prior-year pay; null when HCE status used current pay instead"
+)
+
+
 class ACPEmployeeDetail(APIModel):
     employee_id: str
     is_hce: bool
@@ -131,10 +186,13 @@ class ACPEmployeeDetail(APIModel):
     employer_match_amount: float
     eligible_compensation: float
     individual_acp: float
-    prior_year_compensation: Optional[float] = None
+    prior_year_compensation: Optional[float] = Field(
+        default=None, description=_PRIOR_PAY_DESCRIPTION
+    )
+    hce_pay_basis: Optional[HCEPayBasis] = None
 
 
-class ACPScenarioResult(APIModel):
+class ACPScenarioResult(PriorPayProvenance):
     plan_design_id: str | None = Field(
         default=None,
         description="Explicitly requested design; null retains legacy unselected behavior",
@@ -189,9 +247,13 @@ class Section401a4EmployeeDetail(APIModel):
     plan_compensation: float = 0.0
     contribution_rate: float = 0.0
     years_of_service: float = 0.0
+    prior_year_compensation: Optional[float] = Field(
+        default=None, description=_PRIOR_PAY_DESCRIPTION
+    )
+    hce_pay_basis: Optional[HCEPayBasis] = None
 
 
-class Section401a4ScenarioResult(APIModel):
+class Section401a4ScenarioResult(PriorPayProvenance):
     plan_design_id: str | None = Field(
         default=None,
         description="Explicitly requested design; null retains legacy unselected behavior",
@@ -320,10 +382,13 @@ class ADPEmployeeDetail(APIModel):
     employee_deferrals: float
     plan_compensation: float
     individual_adp: float
-    prior_year_compensation: Optional[float] = None
+    prior_year_compensation: Optional[float] = Field(
+        default=None, description=_PRIOR_PAY_DESCRIPTION
+    )
+    hce_pay_basis: Optional[HCEPayBasis] = None
 
 
-class ADPScenarioResult(APIModel):
+class ADPScenarioResult(PriorPayProvenance):
     plan_design_id: str | None = Field(
         default=None,
         description="Explicitly requested design; null retains legacy unselected behavior",
@@ -462,15 +527,6 @@ class NDTService:
 
                 hce_threshold = int(hce_threshold_row[0])
 
-                # Check if prior year data exists
-                prior_year_count_row = conn.execute(
-                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year - 1],
-                ).fetchone()
-                prior_year_exists = (
-                    prior_year_count_row is not None and prior_year_count_row[0] > 0
-                )
-
                 after_tax_expression = "0.0"
                 after_tax_columns = (
                     "employee_after_tax_contributions",
@@ -522,7 +578,7 @@ class NDTService:
                              s.prorated_annual_compensation,
                              il.compensation_limit
                          ) END AS testing_comp_414s_capped,
-                    COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
+                    p.prior_year_comp AS prior_year_comp,
                     CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
@@ -551,7 +607,7 @@ class NDTService:
             ORDER BY is_hce DESC, individual_acp DESC
             """.format(after_tax_expression=after_tax_expression)
 
-                prior_year_param = year - 1 if prior_year_exists else year
+                prior_year_param = year - 1
                 rows = conn.execute(
                     query, [prior_year_param, year, hce_threshold, year]
                 ).fetchall()
@@ -577,12 +633,14 @@ class NDTService:
             employees = []
             eligible_not_enrolled = 0
             excluded_count = 0
+            basis = _PriorPayBasis()
 
             for row in rows:
                 emp_id, is_hce, is_enrolled, match_amt, comp, acp, prior_comp = row
                 if comp is None or comp <= 0:
                     excluded_count += 1
                     continue
+                pay_basis = basis.record(prior_comp)
 
                 if is_hce:
                     hce_acps.append(acp)
@@ -602,34 +660,40 @@ class NDTService:
                             prior_year_compensation=(
                                 float(prior_comp) if prior_comp is not None else None
                             ),
+                            hce_pay_basis=pay_basis,
                         )
                     )
 
             # Edge case: no NHCE employees
             if not nhce_acps:
-                return ACPScenarioResult(
+                result = ACPScenarioResult(
                     plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="error",
-                    test_message="Insufficient NHCE population. " + assumption,
+                    test_message=" ".join(
+                        filter(None, ("Insufficient NHCE population.", assumption))
+                    ),
                     hce_count=len(hce_acps),
                     nhce_count=0,
                     hce_threshold_used=hce_threshold,
                     employees=employees if include_employees else None,
                 )
+                return basis.apply(result)
 
             # Edge case: no HCE employees -> auto-pass
             if not hce_acps:
                 nhce_avg = sum(nhce_acps) / len(nhce_acps)
-                return ACPScenarioResult(
+                result = ACPScenarioResult(
                     plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="pass",
-                    test_message="No HCE employees in population. " + assumption,
+                    test_message=" ".join(
+                        filter(None, ("No HCE employees in population.", assumption))
+                    ),
                     hce_count=0,
                     nhce_count=len(nhce_acps),
                     hce_average_acp=0.0,
@@ -638,6 +702,7 @@ class NDTService:
                     eligible_not_enrolled_count=eligible_not_enrolled,
                     employees=employees if include_employees else None,
                 )
+                return basis.apply(result)
 
             # Compute pass/fail
             result = self._compute_test_result(
@@ -654,7 +719,7 @@ class NDTService:
 
             result.test_message = assumption or None
             result.plan_design_id = plan_design_id
-            return result
+            return basis.apply(result)
 
         except Exception as e:
             logger.error(f"Failed to run ACP test: {e}")
@@ -778,15 +843,7 @@ class NDTService:
 
                 hce_threshold = int(hce_threshold_row[0])
 
-                # Check prior year data
-                prior_year_exists_row = conn.execute(
-                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year - 1],
-                ).fetchone()
-                assert prior_year_exists_row is not None
-                prior_year_exists = prior_year_exists_row[0] > 0
-
-                prior_year_param = year - 1 if prior_year_exists else year
+                prior_year_param = year - 1
 
                 # Main query for 401(a)(4) test. prorated_annual_compensation is the
                 # uncapped 414(s) testing compensation proxy; cap it at query time.
@@ -814,7 +871,7 @@ class NDTService:
                     COALESCE(s.employer_core_amount, 0) AS employer_core_amount,
                     COALESCE(s.employer_match_amount, 0) AS employer_match_amount,
                     s.current_tenure,
-                    COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
+                    p.prior_year_comp AS prior_year_comp,
                     CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
@@ -829,7 +886,8 @@ class NDTService:
                 employer_core_amount,
                 employer_match_amount,
                 testing_comp_414s_capped,
-                current_tenure
+                current_tenure,
+                prior_year_comp
             FROM current_year
             WHERE (employer_core_amount > 0 OR employer_match_amount > 0)
             ORDER BY is_hce DESC
@@ -857,13 +915,15 @@ class NDTService:
             nhce_tenures: List[float] = []
             employees: List[Section401a4EmployeeDetail] = []
             excluded_count = 0
+            basis = _PriorPayBasis()
 
             for row in rows:
-                emp_id, is_hce, core_amt, match_amt, plan_comp, tenure = row
+                emp_id, is_hce, core_amt, match_amt, plan_comp, tenure, prior_comp = row
 
                 if plan_comp is None or plan_comp <= 0:
                     excluded_count += 1
                     continue
+                pay_basis = basis.record(prior_comp)
 
                 if include_match:
                     total_employer = core_amt + match_amt
@@ -892,6 +952,10 @@ class NDTService:
                             plan_compensation=float(plan_comp),
                             contribution_rate=float(rate),
                             years_of_service=float(tenure or 0),
+                            prior_year_compensation=(
+                                float(prior_comp) if prior_comp is not None else None
+                            ),
+                            hce_pay_basis=pay_basis,
                         )
                     )
 
@@ -919,7 +983,7 @@ class NDTService:
                     nhce_tenures,
                     resolved,
                 )
-                return result
+                return basis.apply(result)
 
             # Edge case: no HCE employees -> auto-pass
             if not hce_rates:
@@ -945,7 +1009,7 @@ class NDTService:
                     nhce_tenures,
                     resolved,
                 )
-                return result
+                return basis.apply(result)
 
             # Edge case: no employer contributions at all
             if all(abs(r) < 1e-9 for r in hce_rates) and all(
@@ -973,7 +1037,7 @@ class NDTService:
                     nhce_tenures,
                     resolved,
                 )
-                return result
+                return basis.apply(result)
 
             # Compute pass/fail
             result = self._compute_401a4_result(
@@ -995,7 +1059,7 @@ class NDTService:
             )
 
             result.plan_design_id = plan_design_id
-            return result
+            return basis.apply(result)
 
         except Exception as e:
             logger.error(f"Failed to run 401(a)(4) test: {e}")
@@ -1516,7 +1580,7 @@ class NDTService:
                              s.prorated_annual_compensation,
                              il.compensation_limit
                          ) END AS testing_comp_414s_capped,
-                    COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
+                    p.prior_year_comp AS prior_year_comp,
                     CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
@@ -1554,29 +1618,10 @@ class NDTService:
                     if limit_row and limit_row[0] is not None
                     else None
                 )
-                prior_year_param = year - 1 if prior_year_exists else year
+                prior_year_param = year - 1
                 rows = conn.execute(
                     query, [prior_year_param, year, hce_threshold, year]
                 ).fetchall()
-                missing_prior_count = conn.execute(
-                    """SELECT COUNT(*) FROM fct_workforce_snapshot s
-                    LEFT JOIN fct_workforce_snapshot p
-                      ON s.employee_id = p.employee_id AND p.simulation_year = ?
-                    WHERE s.simulation_year = ?
-                      AND (s.current_eligibility_status = 'eligible'
-                           OR s.current_eligibility_status IS NULL)
-                      AND s.prorated_annual_compensation > 0
-                      AND p.current_compensation IS NULL""",
-                    [year - 1, year],
-                ).fetchall()[0][0]
-
-            evidence_message = (
-                f"HCE classification uses current compensation for {missing_prior_count} "
-                "employee(s) missing prior-year compensation; this is a modeled "
-                "assumption, not observed prior-year pay."
-                if missing_prior_count
-                else ""
-            )
 
             if not rows:
                 return ADPScenarioResult(
@@ -1595,13 +1640,13 @@ class NDTService:
 
             # Edge case: no NHCE
             if not nhce_adps:
-                return ADPScenarioResult(
+                result = ADPScenarioResult(
                     plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="error",
-                    test_message="Insufficient NHCE population. " + evidence_message,
+                    test_message="Insufficient NHCE population.",
                     hce_count=len(hce_adps),
                     nhce_count=0,
                     excluded_count=excluded_count,
@@ -1609,17 +1654,18 @@ class NDTService:
                     testing_method=actual_testing_method,
                     employees=employees if include_employees else None,
                 )
+                return population.basis.apply(result)
 
             # Edge case: no HCE -> auto-pass
             if not hce_adps:
                 nhce_avg = sum(nhce_adps) / len(nhce_adps)
-                return ADPScenarioResult(
+                result = ADPScenarioResult(
                     plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="pass",
-                    test_message="No HCE employees in population. " + evidence_message,
+                    test_message="No HCE employees in population.",
                     hce_count=0,
                     nhce_count=len(nhce_adps),
                     excluded_count=excluded_count,
@@ -1629,6 +1675,7 @@ class NDTService:
                     testing_method=actual_testing_method,
                     employees=employees if include_employees else None,
                 )
+                return population.basis.apply(result)
 
             # Compute pass/fail
             nhce_baseline = (
@@ -1636,12 +1683,9 @@ class NDTService:
                 if actual_testing_method == "prior" and prior_year_nhce_adp is not None
                 else None
             )
-            test_message = evidence_message or None
+            test_message = None
             if testing_method == "prior" and actual_testing_method == "current":
-                test_message = (
-                    "Prior year data not available — fell back to current year testing method. "
-                    + evidence_message
-                )
+                test_message = "Prior year data not available — fell back to current year testing method."
 
             result = self._compute_adp_result(
                 scenario_id=scenario_id,
@@ -1661,7 +1705,7 @@ class NDTService:
             )
 
             result.plan_design_id = plan_design_id
-            return result
+            return population.basis.apply(result)
 
         except Exception as e:
             logger.error(f"Failed to run ADP test: {e}")
