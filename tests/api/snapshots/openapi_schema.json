@@ -15,6 +15,21 @@
             "title": "Employer Match Amount",
             "type": "number"
           },
+          "hce_pay_basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "prior_year",
+                  "current_pay_fallback"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hce Pay Basis"
+          },
           "individual_acp": {
             "title": "Individual Acp",
             "type": "number"
@@ -36,6 +51,7 @@
                 "type": "null"
               }
             ],
+            "description": "Observed prior-year pay; null when HCE status used current pay instead",
             "title": "Prior Year Compensation"
           }
         },
@@ -46,7 +62,8 @@
           "employer_match_amount",
           "eligible_compensation",
           "individual_acp",
-          "prior_year_compensation"
+          "prior_year_compensation",
+          "hce_pay_basis"
         ],
         "title": "ACPEmployeeDetail",
         "type": "object"
@@ -139,6 +156,18 @@
             "description": "Explicitly requested design; null retains legacy unselected behavior",
             "title": "Plan Design Id"
           },
+          "prior_pay_fallback_count": {
+            "default": 0,
+            "description": "Tested employees classified on current pay because prior-year pay was missing; a modeled assumption",
+            "title": "Prior Pay Fallback Count",
+            "type": "integer"
+          },
+          "prior_pay_observed_count": {
+            "default": 0,
+            "description": "Tested employees classified on observed prior-year pay",
+            "title": "Prior Pay Observed Count",
+            "type": "integer"
+          },
           "scenario_id": {
             "title": "Scenario Id",
             "type": "string"
@@ -168,6 +197,8 @@
           }
         },
         "required": [
+          "prior_pay_observed_count",
+          "prior_pay_fallback_count",
           "plan_design_id",
           "scenario_id",
           "scenario_name",
@@ -228,6 +259,21 @@
             "title": "Employee Id",
             "type": "string"
           },
+          "hce_pay_basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "prior_year",
+                  "current_pay_fallback"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hce Pay Basis"
+          },
           "individual_adp": {
             "title": "Individual Adp",
             "type": "number"
@@ -249,6 +295,7 @@
                 "type": "null"
               }
             ],
+            "description": "Observed prior-year pay; null when HCE status used current pay instead",
             "title": "Prior Year Compensation"
           }
         },
@@ -258,7 +305,8 @@
           "employee_deferrals",
           "plan_compensation",
           "individual_adp",
-          "prior_year_compensation"
+          "prior_year_compensation",
+          "hce_pay_basis"
         ],
         "title": "ADPEmployeeDetail",
         "type": "object"
@@ -455,6 +503,18 @@
             "description": "Explicitly requested design; null retains legacy unselected behavior",
             "title": "Plan Design Id"
           },
+          "prior_pay_fallback_count": {
+            "default": 0,
+            "description": "Tested employees classified on current pay because prior-year pay was missing; a modeled assumption",
+            "title": "Prior Pay Fallback Count",
+            "type": "integer"
+          },
+          "prior_pay_observed_count": {
+            "default": 0,
+            "description": "Tested employees classified on observed prior-year pay",
+            "title": "Prior Pay Observed Count",
+            "type": "integer"
+          },
           "qnec_estimate": {
             "anyOf": [
               {
@@ -504,6 +564,8 @@
           }
         },
         "required": [
+          "prior_pay_observed_count",
+          "prior_pay_fallback_count",
           "plan_design_id",
           "scenario_id",
           "scenario_name",
@@ -14440,6 +14502,21 @@
             "title": "Employer Nec Amount",
             "type": "number"
           },
+          "hce_pay_basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "prior_year",
+                  "current_pay_fallback"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hce Pay Basis"
+          },
           "is_hce": {
             "title": "Is Hce",
             "type": "boolean"
@@ -14448,6 +14525,18 @@
             "default": 0.0,
             "title": "Plan Compensation",
             "type": "number"
+          },
+          "prior_year_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Observed prior-year pay; null when HCE status used current pay instead",
+            "title": "Prior Year Compensation"
           },
           "total_employer_amount": {
             "default": 0.0,
@@ -14468,7 +14557,9 @@
           "total_employer_amount",
           "plan_compensation",
           "contribution_rate",
-          "years_of_service"
+          "years_of_service",
+          "prior_year_compensation",
+          "hce_pay_basis"
         ],
         "title": "Section401a4EmployeeDetail",
         "type": "object"
@@ -14570,6 +14661,18 @@
             "description": "Explicitly requested design; null retains legacy unselected behavior",
             "title": "Plan Design Id"
           },
+          "prior_pay_fallback_count": {
+            "default": 0,
+            "description": "Tested employees classified on current pay because prior-year pay was missing; a modeled assumption",
+            "title": "Prior Pay Fallback Count",
+            "type": "integer"
+          },
+          "prior_pay_observed_count": {
+            "default": 0,
+            "description": "Tested employees classified on observed prior-year pay",
+            "title": "Prior Pay Observed Count",
+            "type": "integer"
+          },
           "ratio": {
             "default": 0.0,
             "description": "Legacy NHCE/HCE average-rate ratio; meaningful only when heuristic_result is non-null.",
@@ -14628,6 +14731,8 @@
           }
         },
         "required": [
+          "prior_pay_observed_count",
+          "prior_pay_fallback_count",
           "plan_design_id",
           "scenario_id",
           "scenario_name",

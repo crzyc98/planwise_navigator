@@ -1503,7 +1503,9 @@ function ADPSingleResult({
                     <td className="py-2 px-3 text-sm text-right text-ink-muted">{formatCurrency(emp.plan_compensation)}</td>
                     <td className="py-2 px-3 text-sm text-right font-medium text-ink">{formatPercent(emp.individual_adp)}</td>
                     <td className="py-2 px-3 text-sm text-right text-ink-muted">
-                      {emp.prior_year_compensation != null ? formatCurrency(emp.prior_year_compensation) : '—'}
+                      {emp.prior_year_compensation != null
+                        ? formatCurrency(emp.prior_year_compensation)
+                        : emp.hce_pay_basis === 'current_pay_fallback' ? 'Current pay used' : '—'}
                     </td>
                   </tr>
                 ))}

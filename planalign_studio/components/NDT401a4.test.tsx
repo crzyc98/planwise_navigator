@@ -11,6 +11,7 @@ const base: Section401a4ScenarioResult = {
   hce_median_rate: .1, nhce_median_rate: .09, ratio: .6999999999999998,
   applied_test: 'general', margin: .2, ratio_test_threshold: .7,
   include_match: false, service_risk_flag: false, excluded_count: 0, hce_threshold_used: 155000,
+  prior_pay_observed_count: 5, prior_pay_fallback_count: 0,
 };
 
 describe('401a4 evidence presentation', () => {

@@ -2750,13 +2750,18 @@ export interface components {
             employee_id: string;
             /** Employer Match Amount */
             employer_match_amount: number;
+            /** Hce Pay Basis */
+            hce_pay_basis: ("prior_year" | "current_pay_fallback") | null;
             /** Individual Acp */
             individual_acp: number;
             /** Is Enrolled */
             is_enrolled: boolean;
             /** Is Hce */
             is_hce: boolean;
-            /** Prior Year Compensation */
+            /**
+             * Prior Year Compensation
+             * @description Observed prior-year pay; null when HCE status used current pay instead
+             */
             prior_year_compensation: number | null;
         };
         /** ACPScenarioResult */
@@ -2828,6 +2833,18 @@ export interface components {
              * @description Explicitly requested design; null retains legacy unselected behavior
              */
             plan_design_id: string | null;
+            /**
+             * Prior Pay Fallback Count
+             * @description Tested employees classified on current pay because prior-year pay was missing; a modeled assumption
+             * @default 0
+             */
+            prior_pay_fallback_count: number;
+            /**
+             * Prior Pay Observed Count
+             * @description Tested employees classified on observed prior-year pay
+             * @default 0
+             */
+            prior_pay_observed_count: number;
             /** Scenario Id */
             scenario_id: string;
             /** Scenario Name */
@@ -2857,13 +2874,18 @@ export interface components {
             employee_deferrals: number;
             /** Employee Id */
             employee_id: string;
+            /** Hce Pay Basis */
+            hce_pay_basis: ("prior_year" | "current_pay_fallback") | null;
             /** Individual Adp */
             individual_adp: number;
             /** Is Hce */
             is_hce: boolean;
             /** Plan Compensation */
             plan_compensation: number;
-            /** Prior Year Compensation */
+            /**
+             * Prior Year Compensation
+             * @description Observed prior-year pay; null when HCE status used current pay instead
+             */
             prior_year_compensation: number | null;
         };
         /** ADPQNECEstimate */
@@ -2993,6 +3015,18 @@ export interface components {
              * @description Explicitly requested design; null retains legacy unselected behavior
              */
             plan_design_id: string | null;
+            /**
+             * Prior Pay Fallback Count
+             * @description Tested employees classified on current pay because prior-year pay was missing; a modeled assumption
+             * @default 0
+             */
+            prior_pay_fallback_count: number;
+            /**
+             * Prior Pay Observed Count
+             * @description Tested employees classified on observed prior-year pay
+             * @default 0
+             */
+            prior_pay_observed_count: number;
             qnec_estimate: components["schemas"]["ADPQNECEstimate"] | null;
             /**
              * Safe Harbor
@@ -9317,6 +9351,8 @@ export interface components {
              * @default 0
              */
             employer_nec_amount: number;
+            /** Hce Pay Basis */
+            hce_pay_basis: ("prior_year" | "current_pay_fallback") | null;
             /** Is Hce */
             is_hce: boolean;
             /**
@@ -9324,6 +9360,11 @@ export interface components {
              * @default 0
              */
             plan_compensation: number;
+            /**
+             * Prior Year Compensation
+             * @description Observed prior-year pay; null when HCE status used current pay instead
+             */
+            prior_year_compensation: number | null;
             /**
              * Total Employer Amount
              * @default 0
@@ -9406,6 +9447,18 @@ export interface components {
              * @description Explicitly requested design; null retains legacy unselected behavior
              */
             plan_design_id: string | null;
+            /**
+             * Prior Pay Fallback Count
+             * @description Tested employees classified on current pay because prior-year pay was missing; a modeled assumption
+             * @default 0
+             */
+            prior_pay_fallback_count: number;
+            /**
+             * Prior Pay Observed Count
+             * @description Tested employees classified on observed prior-year pay
+             * @default 0
+             */
+            prior_pay_observed_count: number;
             /**
              * Ratio
              * @description Legacy NHCE/HCE average-rate ratio; meaningful only when heuristic_result is non-null.
