@@ -197,7 +197,6 @@
           }
         },
         "required": [
-          "test_message",
           "prior_pay_observed_count",
           "prior_pay_fallback_count",
           "plan_design_id",
@@ -205,6 +204,7 @@
           "scenario_name",
           "simulation_year",
           "test_result",
+          "test_message",
           "hce_count",
           "nhce_count",
           "excluded_count",
@@ -564,7 +564,6 @@
           }
         },
         "required": [
-          "test_message",
           "prior_pay_observed_count",
           "prior_pay_fallback_count",
           "plan_design_id",
@@ -572,6 +571,7 @@
           "scenario_name",
           "simulation_year",
           "test_result",
+          "test_message",
           "hce_count",
           "nhce_count",
           "excluded_count",
@@ -14731,7 +14731,6 @@
           }
         },
         "required": [
-          "test_message",
           "prior_pay_observed_count",
           "prior_pay_fallback_count",
           "plan_design_id",
@@ -14740,6 +14739,7 @@
           "simulation_year",
           "test_result",
           "heuristic_result",
+          "test_message",
           "applied_test",
           "hce_count",
           "nhce_count",

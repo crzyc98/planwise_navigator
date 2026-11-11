@@ -11,7 +11,12 @@ import duckdb
 import pytest
 
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
-from planalign_api.services.ndt_service import NDTService
+from planalign_api.services.ndt_service import (
+    ACPScenarioResult,
+    ADPScenarioResult,
+    NDTService,
+    Section401a4ScenarioResult,
+)
 from tests.test_ndt_415 import _create_test_db, _insert_employee
 
 pytestmark = [pytest.mark.fast]
@@ -49,7 +54,9 @@ def _service(
     return NDTService(Mock(), db_resolver=resolver)
 
 
-def _run(service: NDTService, kind: str):  # noqa: ANN202 - three result types
+def _run(
+    service: NDTService, kind: str
+) -> ADPScenarioResult | ACPScenarioResult | Section401a4ScenarioResult:
     return getattr(service, f"run_{kind}_test")(
         "w", "s", "t", 2025, include_employees=True
     )
@@ -93,3 +100,16 @@ def test_no_hce_outcome_still_reports_its_basis(tmp_path: Path, kind: str) -> No
     assert result.hce_count == 0
     assert (result.prior_pay_observed_count, result.prior_pay_fallback_count) == (1, 1)
     assert "current compensation for 1 employee(s)" in result.test_message
+
+
+def test_prior_method_discloses_baseline_classified_on_current_pay(
+    tmp_path: Path,
+) -> None:
+    result = _service(tmp_path, CROSSING).run_adp_test(
+        "w", "s", "t", 2025, testing_method="prior"
+    )
+
+    assert result.testing_method == "prior"
+    assert "baseline classifies 3 2024 employee(s) on current pay" in (
+        result.test_message or ""
+    )

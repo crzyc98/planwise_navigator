@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 import logging
 import statistics
-from typing import List, Literal, Optional, TypeVar
+from typing import List, Literal, Optional, Protocol, TypeVar
 
 import yaml
 from pydantic import Field, model_validator
@@ -37,7 +37,15 @@ _FALLBACK_NOTE = (
     "HCE classification uses current compensation for {count} employee(s) missing "
     "prior-year compensation; this is a modeled assumption, not observed prior-year pay."
 )
-_ResultT = TypeVar("_ResultT", bound="PriorPayProvenance")
+
+
+class _ProvenanceResult(Protocol):
+    prior_pay_observed_count: int
+    prior_pay_fallback_count: int
+    test_message: Optional[str]
+
+
+_ResultT = TypeVar("_ResultT", bound=_ProvenanceResult)
 
 
 @dataclass
@@ -163,7 +171,6 @@ def _collect_adp_population(
 class PriorPayProvenance(APIModel):
     """Which pay each tested employee's HCE status was based on."""
 
-    test_message: Optional[str] = None
     prior_pay_observed_count: int = Field(
         default=0,
         description="Tested employees classified on observed prior-year pay",
@@ -1475,6 +1482,7 @@ class NDTService:
 
                 # Prior year testing method: get NHCE ADP from prior year
                 prior_year_nhce_adp = None
+                baseline_fallback = 0
                 actual_testing_method = testing_method
                 if testing_method == "prior":
                     if prior_year_exists:
@@ -1504,38 +1512,30 @@ class NDTService:
                                      il.compensation_limit
                                  ) END AS comp,
                             CASE WHEN COALESCE(h.comp, s.current_compensation) > ?
-                                 THEN TRUE ELSE FALSE END AS is_hce
+                                 THEN TRUE ELSE FALSE END AS is_hce,
+                            h.comp IS NULL AS used_current_pay
                         FROM fct_workforce_snapshot s
                         LEFT JOIN prior_hce h ON s.employee_id = h.employee_id
                         CROSS JOIN irs_limits il
                         WHERE s.simulation_year = ?
                           AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
                     )
-                    SELECT deferrals / comp AS adp
+                    SELECT deferrals / comp AS adp, is_hce, used_current_pay
                     FROM prior_data
-                    WHERE is_hce = FALSE
-                      AND comp > 0
+                    WHERE comp > 0
                     """
-                        # For prior year NHCE baseline, use year-2 for HCE determination of year-1
-                        year_minus_2_count_row = conn.execute(
-                            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                            [year - 2],
-                        ).fetchone()
-                        year_minus_2_exists = (
-                            year_minus_2_count_row is not None
-                            and year_minus_2_count_row[0] > 0
-                        )
-                        prior_hce_year = year - 2 if year_minus_2_exists else year - 1
-
-                        prior_nhce_rows = conn.execute(
+                        # Year-1 HCE status uses year-2 pay; without it, current pay.
+                        prior_rows = conn.execute(
                             prior_nhce_query,
-                            [prior_hce_year, year - 1, hce_threshold, year - 1],
+                            [year - 2, year - 1, hce_threshold, year - 1],
                         ).fetchall()
+                        baseline_fallback = sum(1 for r in prior_rows if r[2])
+                        prior_nhce_rows = [r[0] for r in prior_rows if not r[1]]
 
                         if prior_nhce_rows:
-                            prior_year_nhce_adp = sum(
-                                r[0] for r in prior_nhce_rows
-                            ) / len(prior_nhce_rows)
+                            prior_year_nhce_adp = sum(prior_nhce_rows) / len(
+                                prior_nhce_rows
+                            )
                         else:
                             actual_testing_method = "current"
                     else:
@@ -1686,6 +1686,12 @@ class NDTService:
             test_message = None
             if testing_method == "prior" and actual_testing_method == "current":
                 test_message = "Prior year data not available — fell back to current year testing method."
+            elif nhce_baseline is not None and baseline_fallback:
+                test_message = (
+                    f"The prior-year NHCE baseline classifies {baseline_fallback} "
+                    f"{year - 1} employee(s) on current pay because {year - 2} pay "
+                    "is missing; this is a modeled assumption."
+                )
 
             result = self._compute_adp_result(
                 scenario_id=scenario_id,
