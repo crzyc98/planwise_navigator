@@ -64,6 +64,26 @@
           "description": "Event publication's delete-then-insert into fct_yearly_events fails ('another transaction has altered this table') when the existing table's column types differ from the rebuilt rows, e.g. in a copied calibration database."
         }
       ]
+    },
+    {
+      "id": "hire-pay-2025-multipliers",
+      "intro": "12ec637f",
+      "bugs": [
+        {
+          "fix": "265a8bb5",
+          "description": "The 2025 HIRE market_adjustment_multiplier rows in comp_levers.csv were cut to 0.25-0.35 while 2026 onward stay near 1.0, so runs starting in 2025 pay first-year hires about a third of later years' hires."
+        }
+      ]
+    },
+    {
+      "id": "calibration-budget-status",
+      "intro": "ee5909cd",
+      "bugs": [
+        {
+          "fix": "c829cdda",
+          "description": "When the two-dial calibration uses its whole evaluation budget with the horizon mean on target, it reports not_converged instead of best_achievable, so a search whose only miss is year-to-year swing looks like a failure."
+        }
+      ]
     }
   ],
   "controls": [
