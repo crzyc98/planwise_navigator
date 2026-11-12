@@ -86,6 +86,13 @@ below); they don't block ingestion.
 | `auto_escalation_opt_out` | boolean | Per-employee opt-out of auto-escalation; defaults to `false` (participates) if omitted | *(no aliases — must match exactly)* |
 | `eligibility_override` | boolean | Per-employee plan eligibility override: `true`=eligible, `false`=ineligible, omitted/null=unspecified (calculated normally) | *(no aliases — must match exactly)* |
 
+**Age and census eligibility.** Census employees are taken as given. Anyone past
+the waiting period (or with an `eligibility_entry_date`) is eligible whatever
+their age, and the plan's minimum age is not reapplied to them. The minimum age
+applies to employees the simulation hires. New-hire ages start at 21, the highest
+minimum age a plan may require, so no simulated hire is too young to become
+eligible. Studio and config validation reject new-hire ages under 21.
+
 ## Value formatting rules
 
 - **Dates:** ISO 8601, `YYYY-MM-DD` (e.g. `2019-03-15`). Other formats may

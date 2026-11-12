@@ -17,6 +17,10 @@ from .participant_behavior import (
     EasyEnrollSettings,
 )
 
+# Plans may require age 21 at most, so no simulated hire is ever too young to
+# be eligible. Census employees are trusted as given, whatever their age (#1040).
+MIN_NEW_HIRE_AGE = 21
+
 
 class DbtVarProblem(TypedDict):
     section: str
@@ -204,7 +208,21 @@ def _problem(field: str, message: str) -> DbtVarProblem:
     return {"section": "engine_variables", "field": field, "message": message}
 
 
+def _validate_new_hire_ages(value: Any) -> str | None:
+    if not isinstance(value, list):
+        return "must be a JSON-compatible list"
+    for item in value:
+        age = item.get("age") if isinstance(item, dict) else None
+        if not isinstance(age, (int, float)) or isinstance(age, bool):
+            return "each entry needs a numeric age"
+        if age < MIN_NEW_HIRE_AGE:
+            return f"new-hire ages must be at least {MIN_NEW_HIRE_AGE}"
+    return None
+
+
 def _validate_scalar(field: str, value: Any) -> str | None:
+    if field == "new_hire_age_distribution":
+        return _validate_new_hire_ages(value)
     if field in {"reenrollment_sweep_interval_years", "reenrollment_sweep_first_year"}:
         if field == "reenrollment_sweep_first_year" and value is None:
             return None

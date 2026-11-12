@@ -1063,7 +1063,7 @@ export default function CalibrationPanel() {
                     <label className="flex items-center gap-1 text-xs text-ink-muted">
                       Age
                       <input
-                        type="number" min={16} max={80} value={row.age}
+                        type="number" min={21} max={80} value={row.age}
                         onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
                         className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-brand-green focus:ring-brand-green"
                       />

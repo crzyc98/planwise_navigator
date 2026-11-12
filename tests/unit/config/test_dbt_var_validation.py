@@ -48,6 +48,21 @@ def test_boolean_rate_and_enum_are_checked():
     }
 
 
+@pytest.mark.parametrize(
+    ("distribution", "ok"),
+    [
+        ([{"age": 21, "weight": 0.5}, {"age": 35, "weight": 0.5}], True),
+        ([{"age": 20, "weight": 0.1}, {"age": 35, "weight": 0.9}], False),
+        ([{"weight": 1.0}], False),
+        ("22", False),
+    ],
+)
+def test_new_hires_are_never_under_21(distribution, ok):
+    """#1040: plans can require at most age 21, so simulated hires start there."""
+    problems = validate_dbt_vars({"new_hire_age_distribution": distribution})
+    assert (problems == []) is ok
+
+
 def test_simulation_rejects_invalid_export_before_dbt(tmp_path):
     payload = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
     payload.setdefault("setup", {})["plan_year_start_date"] = "2025-02-30"
