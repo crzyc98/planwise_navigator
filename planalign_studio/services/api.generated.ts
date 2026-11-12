@@ -5226,12 +5226,12 @@ export interface components {
             participation_rate: number;
             /**
              * Pre Tax Contributions
-             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive predates source reporting
+             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive has no source columns
              */
             pre_tax_contributions: number | null;
             /**
              * Roth Contributions
-             * @description Estimated Roth share of employee deferrals, including modeled required Roth catch-up; null when the archive predates source reporting. Pre-tax plus Roth can be below total deferrals by disallowed catch-up
+             * @description Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up
              */
             roth_contributions: number | null;
             /**
@@ -5578,12 +5578,12 @@ export interface components {
             total_enrolled: number;
             /**
              * Total Pre Tax Contributions
-             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive predates source reporting
+             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive has no source columns
              */
             total_pre_tax_contributions: number | null;
             /**
              * Total Roth Contributions
-             * @description Estimated Roth share of employee deferrals, including modeled required Roth catch-up; null when the archive predates source reporting. Pre-tax plus Roth can be below total deferrals by disallowed catch-up
+             * @description Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up
              */
             total_roth_contributions: number | null;
         };

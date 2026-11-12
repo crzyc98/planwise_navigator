@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Studio's DC Plan Analytics now shows estimated pre-tax and Roth totals beneath employee deferrals, in both the single-scenario cards and the comparison table. They come from each run's assumed source split (85% pre-tax / 15% Roth by default, plus any modeled required Roth catch-up), so they are estimates, not payroll data. Runs from before source reporting show "—".
+- Studio's DC Plan Analytics now shows estimated pre-tax and Roth totals beneath employee deferrals, in both the single-scenario cards and the comparison table. They come from each run's assumed source split (85% pre-tax / 15% Roth by default, plus any required Roth catch-up the run modeled), so they are estimates, not payroll data.
 
 ### Fixed
 

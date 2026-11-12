@@ -19,12 +19,13 @@ class RateBases(NamedTuple):
 
 _PRE_TAX_DESCRIPTION = (
     "Estimated pre-tax share of employee deferrals under the run's assumed "
-    "source split; null when the archive predates source reporting"
+    "source split; null when the archive has no source columns"
 )
 _ROTH_DESCRIPTION = (
-    "Estimated Roth share of employee deferrals, including modeled required "
-    "Roth catch-up; null when the archive predates source reporting. Pre-tax "
-    "plus Roth can be below total deferrals by disallowed catch-up"
+    "Estimated Roth share of employee deferrals under the run's assumed source "
+    "split, plus any required Roth catch-up the run modeled; null when the "
+    "archive has no source columns. Pre-tax plus Roth can fall short of total "
+    "deferrals by disallowed catch-up"
 )
 
 

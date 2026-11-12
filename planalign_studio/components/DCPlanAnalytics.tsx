@@ -266,8 +266,12 @@ export default function DCPlanAnalytics() {
     if (!analytics || selectedYear === null) return null;
     return analytics.contribution_by_year.find((y) => y.year === selectedYear) ?? null;
   }, [analytics, selectedYear]);
-  const preTax = activeYearData ? activeYearData.pre_tax_contributions : analytics?.total_pre_tax_contributions;
-  const roth = activeYearData ? activeYearData.roth_contributions : analytics?.total_roth_contributions;
+  const preTax = selectedYear !== null
+    ? activeYearData?.pre_tax_contributions
+    : analytics?.total_pre_tax_contributions;
+  const roth = selectedYear !== null
+    ? activeYearData?.roth_contributions
+    : analytics?.total_roth_contributions;
 
   // Derived: deferral distribution for selected year (or final-year aggregate)
   const activeDeferralDistribution = useMemo(() => {
@@ -761,7 +765,7 @@ export default function DCPlanAnalytics() {
                         : null;
                       return (
                         <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                          {formatEstimate(yd ? yd.pre_tax_contributions : a.total_pre_tax_contributions)}
+                          {formatEstimate(selectedYear !== null ? yd?.pre_tax_contributions : a.total_pre_tax_contributions)}
                         </td>
                       );
                     })}
@@ -774,7 +778,7 @@ export default function DCPlanAnalytics() {
                         : null;
                       return (
                         <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                          {formatEstimate(yd ? yd.roth_contributions : a.total_roth_contributions)}
+                          {formatEstimate(selectedYear !== null ? yd?.roth_contributions : a.total_roth_contributions)}
                         </td>
                       );
                     })}
@@ -876,7 +880,7 @@ export default function DCPlanAnalytics() {
                   {activeYearData
                     ? `${activeYearData.participant_count.toLocaleString()} participants`
                     : `${analytics.total_enrolled.toLocaleString()} participants`}
-                  {roth != null && (
+                  {preTax != null && roth != null && (
                     <span className="block">
                       Est. {formatEstimate(preTax)} pre-tax · {formatEstimate(roth)} Roth
                     </span>

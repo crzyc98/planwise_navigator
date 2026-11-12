@@ -251,6 +251,12 @@ class AnalyticsService:
 
         return {
             "total_employee": total_employee,
+            "total_pre_tax": _sum_known(
+                c.pre_tax_contributions for c in contribution_by_year
+            ),
+            "total_roth": _sum_known(
+                c.roth_contributions for c in contribution_by_year
+            ),
             "total_match": total_match,
             "total_core": total_core,
             "total_all": total_all,
@@ -327,7 +333,8 @@ class AnalyticsService:
         }
         if {"pre_tax_contributions", "roth_contributions"} <= columns:
             return (
-                "SUM(pre_tax_contributions) AS pre_tax, SUM(roth_contributions) AS roth"
+                "COALESCE(SUM(pre_tax_contributions), 0) AS pre_tax, "
+                "COALESCE(SUM(roth_contributions), 0) AS roth"
             )
         return "NULL::DOUBLE AS pre_tax, NULL::DOUBLE AS roth"
 
@@ -660,12 +667,8 @@ class AnalyticsService:
                 participation_by_method=participation["by_method"],
                 contribution_by_year=contribution_by_year,
                 total_employee_contributions=totals["total_employee"],
-                total_pre_tax_contributions=_sum_known(
-                    c.pre_tax_contributions for c in contribution_by_year
-                ),
-                total_roth_contributions=_sum_known(
-                    c.roth_contributions for c in contribution_by_year
-                ),
+                total_pre_tax_contributions=totals["total_pre_tax"],
+                total_roth_contributions=totals["total_roth"],
                 total_employer_match=totals["total_match"],
                 total_employer_core=totals["total_core"],
                 total_all_contributions=totals["total_all"],
