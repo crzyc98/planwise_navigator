@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from typing_extensions import NotRequired, TypedDict
 
 from planalign_orchestrator.config import load_simulation_config
-from planalign_orchestrator.config.dbt_var_validation import MIN_NEW_HIRE_AGE
+from planalign_orchestrator.config.dbt_var_validation import new_hire_age_problem
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.config.seed_coverage import validate_seed_coverage
 from planalign_orchestrator.dbt_runner import DbtRunner
@@ -160,17 +160,9 @@ class CalibrationParameterSet(BaseModel):
     ) -> Optional[List[AgeWeight]]:
         if value is None:
             return value
-        for item in value:
-            if not MIN_NEW_HIRE_AGE <= float(item["age"]) <= 100:
-                raise ValueError(
-                    f"new_hire_age_distribution ages must be {MIN_NEW_HIRE_AGE}-100"
-                )
-            if float(item["weight"]) < 0:
-                raise ValueError("new_hire_age_distribution weights must be >= 0")
-        if sum(float(item["weight"]) for item in value) <= 0:
-            raise ValueError(
-                "new_hire_age_distribution weights must sum to a positive value"
-            )
+        problem = new_hire_age_problem(value)
+        if problem:
+            raise ValueError(f"new_hire_age_distribution: {problem}")
         return value
 
 

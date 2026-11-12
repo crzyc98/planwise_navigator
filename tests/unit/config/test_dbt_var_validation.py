@@ -54,13 +54,23 @@ def test_boolean_rate_and_enum_are_checked():
         ([{"age": 21, "weight": 0.5}, {"age": 35, "weight": 0.5}], True),
         ([{"age": 20, "weight": 0.1}, {"age": 35, "weight": 0.9}], False),
         ([{"weight": 1.0}], False),
+        ([{"age": 22.5, "weight": 1.0}], False),
+        ([{"age": float("nan"), "weight": 1.0}], False),
+        ([{"age": True, "weight": 1.0}], False),
+        ([{"age": 25, "weight": 0}], False),
+        (["25"], False),
         ("22", False),
     ],
 )
-def test_new_hires_are_never_under_21(distribution, ok):
+def test_new_hires_are_never_under_21(distribution: object, ok: bool) -> None:
     """#1040: plans can require at most age 21, so simulated hires start there."""
     problems = validate_dbt_vars({"new_hire_age_distribution": distribution})
     assert (problems == []) is ok
+
+
+@pytest.mark.parametrize(("age", "ok"), [(18, True), (21, True), (22, False)])
+def test_plan_minimum_age_is_capped_at_21(age: int, ok: bool) -> None:
+    assert (validate_dbt_vars({"minimum_age": age}) == []) is ok
 
 
 def test_simulation_rejects_invalid_export_before_dbt(tmp_path):

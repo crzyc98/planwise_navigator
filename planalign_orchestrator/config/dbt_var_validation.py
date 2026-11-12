@@ -208,21 +208,48 @@ def _problem(field: str, message: str) -> DbtVarProblem:
     return {"section": "engine_variables", "field": field, "message": message}
 
 
-def _validate_new_hire_ages(value: Any) -> str | None:
+def _hire_age_problem(age: Any) -> str | None:
+    if not isinstance(age, (int, float)) or isinstance(age, bool):
+        return "each entry needs a numeric age"
+    if not math.isfinite(age) or age != int(age):
+        return "new-hire ages must be whole numbers"
+    if not MIN_NEW_HIRE_AGE <= age <= 100:
+        return f"new-hire ages must be {MIN_NEW_HIRE_AGE}-100"
+    return None
+
+
+def new_hire_age_problem(value: Any) -> str | None:
+    """Check a new-hire age distribution; shared by config and calibration."""
     if not isinstance(value, list):
         return "must be a JSON-compatible list"
+    weights = []
     for item in value:
-        age = item.get("age") if isinstance(item, dict) else None
-        if not isinstance(age, (int, float)) or isinstance(age, bool):
-            return "each entry needs a numeric age"
-        if age < MIN_NEW_HIRE_AGE:
-            return f"new-hire ages must be at least {MIN_NEW_HIRE_AGE}"
+        if not isinstance(item, Mapping):
+            return "each entry must be an {age, weight} object"
+        problem = _hire_age_problem(item.get("age"))
+        if problem:
+            return problem
+        weight = item.get("weight")
+        if (
+            not isinstance(weight, (int, float))
+            or isinstance(weight, bool)
+            or not math.isfinite(weight)
+            or weight < 0
+        ):
+            return "new-hire age weights must be finite and >= 0"
+        weights.append(weight)
+    if sum(weights) <= 0:
+        return "new-hire age weights must sum to a positive value"
     return None
 
 
 def _validate_scalar(field: str, value: Any) -> str | None:
     if field == "new_hire_age_distribution":
-        return _validate_new_hire_ages(value)
+        return new_hire_age_problem(value)
+    if field in {"minimum_age", "plan_eligibility_minimum_age"} and (
+        isinstance(value, int) and value > MIN_NEW_HIRE_AGE
+    ):
+        return f"a plan's minimum age can't exceed {MIN_NEW_HIRE_AGE}"
     if field in {"reenrollment_sweep_interval_years", "reenrollment_sweep_first_year"}:
         if field == "reenrollment_sweep_first_year" and value is None:
             return None
