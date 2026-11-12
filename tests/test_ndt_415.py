@@ -519,14 +519,15 @@ class TestPlanLevelSummary:
 
 
 # ==============================================================================
-# Test 9: Edge case - zero compensation excluded
+# Test 9: Edge case - zero compensation is a data error (#1036)
 # ==============================================================================
 
 
-class TestZeroCompExcluded415:
-    """Zero compensation employees excluded from 415 test."""
+class TestZeroCompIsDataError415:
+    """Every employee has pay, so a $0-pay row is bad data, not an exclusion."""
 
-    def test_zero_comp_excluded(self, service_with_db):
+    @pytest.mark.parametrize("contributions", [0.0, 20000.0])
+    def test_zero_comp_is_data_error(self, service_with_db, contributions: float):
         service, conn, mock_resolver = service_with_db
 
         _insert_employee(
@@ -547,7 +548,7 @@ class TestZeroCompExcluded415:
             2025,
             0.0,
             0.0,
-            contributions=0.0,
+            contributions=contributions,
             match_amount=0.0,
             core_amount=0.0,
             tenure=1.0,
@@ -562,6 +563,7 @@ class TestZeroCompExcluded415:
 
         assert result.test_result == "error"
         assert "zero current_compensation" in result.test_message
+        assert "check the census or run data" in result.test_message
 
 
 # ==============================================================================

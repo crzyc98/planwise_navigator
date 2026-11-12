@@ -644,7 +644,7 @@ class TestNoEmployerContributions:
 
 
 # ==============================================================================
-# Test 10: Edge case - zero compensation excluded
+# Test 10: Edge case - non-benefiting employees excluded
 # ==============================================================================
 
 
@@ -732,14 +732,14 @@ class TestNonBenefitingExcluded:
 
 
 # ==============================================================================
-# Test 11: Edge case - zero compensation excluded
+# Test 11: Edge case - zero compensation is a data error (#1036)
 # ==============================================================================
 
 
-class TestZeroCompExcluded:
-    """Zero compensation employees excluded from calculation."""
+class TestZeroCompIsDataError:
+    """Every employee has pay, so a $0-pay row is bad data, not an exclusion."""
 
-    def test_zero_comp_excluded(self, service_with_db):
+    def test_zero_comp_is_data_error(self, service_with_db):
         service, conn, mock_resolver = service_with_db
 
         _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
@@ -761,9 +761,9 @@ class TestZeroCompExcluded:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        # Zero-comp employee passes benefiting filter but excluded by comp check
         assert result.test_result == "error"
         assert "zero prorated_annual_compensation" in result.test_message
+        assert "check the census or run data" in result.test_message
         assert result.employees is None
 
 
