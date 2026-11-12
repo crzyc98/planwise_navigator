@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Studio's DC Plan Analytics now shows estimated pre-tax and Roth totals beneath employee deferrals, in both the single-scenario cards and the comparison table. They come from each run's assumed source split (85% pre-tax / 15% Roth by default, plus any modeled required Roth catch-up), so they are estimates, not payroll data. Runs from before source reporting show "—".
+
 ### Fixed
 
 - ACP and 401(a)(4) results now say when an employee's HCE status used current pay because prior-year pay was missing, as ADP already did (#1037). All three report how many employees were classified on observed prior-year pay versus current pay. Employee details no longer show current pay as prior-year pay: `prior_year_compensation` is empty for those employees, and a new `hce_pay_basis` field says which pay was used.

@@ -5225,6 +5225,16 @@ export interface components {
              */
             participation_rate: number;
             /**
+             * Pre Tax Contributions
+             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive predates source reporting
+             */
+            pre_tax_contributions: number | null;
+            /**
+             * Roth Contributions
+             * @description Estimated Roth share of employee deferrals, including modeled required Roth catch-up; null when the archive predates source reporting. Pre-tax plus Roth can be below total deferrals by disallowed catch-up
+             */
+            roth_contributions: number | null;
+            /**
              * Total All Contributions
              * @description Total of all contributions
              */
@@ -5566,6 +5576,16 @@ export interface components {
              * @description Total enrolled employees
              */
             total_enrolled: number;
+            /**
+             * Total Pre Tax Contributions
+             * @description Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive predates source reporting
+             */
+            total_pre_tax_contributions: number | null;
+            /**
+             * Total Roth Contributions
+             * @description Estimated Roth share of employee deferrals, including modeled required Roth catch-up; null when the archive predates source reporting. Pre-tax plus Roth can be below total deferrals by disallowed catch-up
+             */
+            total_roth_contributions: number | null;
         };
         /**
          * DCPlanComparisonResponse

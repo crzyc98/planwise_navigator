@@ -1,8 +1,9 @@
 """Analytics service for DC Plan contribution analysis."""
 
 import logging
+import math
 from decimal import Decimal
-from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple
 
 from ..models.analytics import (
     ContributionYearSummary,
@@ -113,6 +114,24 @@ DEFERRAL_BUCKET_ORDER = (
     "9%",
     "10%+",
 )
+
+
+def _optional_float(value: float | Decimal | None) -> Optional[float]:
+    """Convert a nullable SQL aggregate, treating NaN as missing."""
+    if value is None:
+        return None
+    number = float(value)
+    return None if math.isnan(number) else number
+
+
+def _sum_known(values: Iterable[Optional[float]]) -> Optional[float]:
+    """Sum yearly amounts, or None when any year is unavailable."""
+    total = 0.0
+    for value in values:
+        if value is None:
+            return None
+        total += value
+    return total
 
 
 class AnalyticsService:
@@ -298,11 +317,28 @@ class AnalyticsService:
         )
 
     @staticmethod
+    def _source_totals_sql(conn) -> str:
+        """Sum the estimated deferral sources, or NULLs for older archives."""
+        columns = {
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE {TABLE_FCT_WORKFORCE_SNAPSHOT}"
+            ).fetchall()
+        }
+        if {"pre_tax_contributions", "roth_contributions"} <= columns:
+            return (
+                "SUM(pre_tax_contributions) AS pre_tax, SUM(roth_contributions) AS roth"
+            )
+        return "NULL::DOUBLE AS pre_tax, NULL::DOUBLE AS roth"
+
+    @staticmethod
     def _empty_contribution_year(year: int) -> ContributionYearSummary:
         """Represent an available year with no employees in the population."""
         return ContributionYearSummary(
             year=year,
             total_employee_contributions=0.0,
+            pre_tax_contributions=0.0,
+            roth_contributions=0.0,
             total_employer_match=0.0,
             total_employer_core=0.0,
             total_all_contributions=0.0,
@@ -624,6 +660,12 @@ class AnalyticsService:
                 participation_by_method=participation["by_method"],
                 contribution_by_year=contribution_by_year,
                 total_employee_contributions=totals["total_employee"],
+                total_pre_tax_contributions=_sum_known(
+                    c.pre_tax_contributions for c in contribution_by_year
+                ),
+                total_roth_contributions=_sum_known(
+                    c.roth_contributions for c in contribution_by_year
+                ),
                 total_employer_match=totals["total_match"],
                 total_employer_core=totals["total_core"],
                 total_all_contributions=totals["total_all"],
@@ -808,6 +850,7 @@ class AnalyticsService:
             where_clause = self._combine_where(
                 status_filter, population_filter, cohort_filter
             )
+            source_totals = self._source_totals_sql(conn)
             participation_rate_expr = (
                 "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
                 "/ NULLIF(COUNT(*), 0), 0)"
@@ -817,6 +860,7 @@ class AnalyticsService:
                 SELECT
                     snapshot.simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
+                    {source_totals},
                     {GROSS_MATCH_SQL} as total_match,
                     {GROSS_CORE_SQL} as total_core,
                     {GROSS_EMPLOYER_COST_SQL} as total_employer_cost,
@@ -879,6 +923,8 @@ class AnalyticsService:
                 summary = ContributionYearSummary(
                     year=int(row["year"]),
                     total_employee_contributions=total_employee,
+                    pre_tax_contributions=_optional_float(row["pre_tax"]),
+                    roth_contributions=_optional_float(row["roth"]),
                     total_employer_match=total_match,
                     total_employer_core=total_core,
                     total_all_contributions=float(row["total_all"]),

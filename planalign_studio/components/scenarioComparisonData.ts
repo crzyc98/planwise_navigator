@@ -20,9 +20,14 @@ export function buildScenarioColors(
   return Object.fromEntries(scenarios.map((scenario, index) => [scenario.id, colorAt(index)]));
 }
 
+// Only always-present numeric metrics can be charted as a trend.
+type DCTrendMetric = {
+  [K in keyof ContributionYearSummary]-?: ContributionYearSummary[K] extends number ? K : never;
+}[keyof ContributionYearSummary];
+
 export function buildDCTrendData(
   analytics: Array<Pick<DCPlanAnalytics, 'scenario_id' | 'contribution_by_year'>>,
-  metricKey: keyof ContributionYearSummary,
+  metricKey: DCTrendMetric,
   multiplier: number = 1,
 ): Array<{ year: number; [key: string]: number }> {
   const years = [...new Set(analytics.flatMap(a =>

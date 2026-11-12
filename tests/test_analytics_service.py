@@ -21,7 +21,7 @@ import duckdb
 import pytest
 
 from planalign_api.models.analytics import ContributionYearSummary
-from planalign_api.services.analytics_service import AnalyticsService
+from planalign_api.services.analytics_service import AnalyticsService, _sum_known
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
 # =============================================================================
@@ -527,6 +527,49 @@ class TestContributionTotalsIncludeAll:
         assert results[0].total_employee_contributions == 8000.0  # 5000 + 3000
         assert results[0].total_employer_match == 4000.0  # 2500 + 1500
         assert results[0].total_employer_core == 1500.0  # 1000 + 500
+
+
+class TestDeferralSourceTotals:
+    """Studio shows the run's estimated pre-tax/Roth split of deferrals."""
+
+    def test_sums_sources_when_the_archive_reports_them(self, in_memory_conn):
+        in_memory_conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN pre_tax_contributions "
+            "DECIMAL(18,2); ALTER TABLE fct_workforce_snapshot "
+            "ADD COLUMN roth_contributions DECIMAL(18,2)"
+        )
+        _seed_employees(
+            in_memory_conn,
+            [
+                {"employee_id": e, "year": 2025, "status": "ACTIVE", "enrolled": True}
+                for e in ("A1", "A2")
+            ],
+        )
+        in_memory_conn.execute(
+            "UPDATE fct_workforce_snapshot SET pre_tax_contributions = 850, "
+            "roth_contributions = 150"
+        )
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        [year] = service._get_contribution_by_year(in_memory_conn)
+
+        assert (year.pre_tax_contributions, year.roth_contributions) == (1700, 300)
+
+    def test_older_archive_reports_sources_as_unavailable(self, in_memory_conn):
+        _seed_employees(
+            in_memory_conn,
+            [{"employee_id": "A1", "year": 2025, "status": "ACTIVE", "enrolled": True}],
+        )
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        [year] = service._get_contribution_by_year(in_memory_conn)
+
+        assert year.pre_tax_contributions is None
+        assert year.roth_contributions is None
+
+    def test_grand_total_is_unavailable_if_any_year_is(self):
+        assert _sum_known([100.0, 50.0]) == 150.0
+        assert _sum_known([100.0, None]) is None
 
 
 # =============================================================================
