@@ -14,12 +14,12 @@ See CHANGELOG.md for detailed version history.
 
 from __future__ import annotations
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 _major, _minor, _patch = (int(x) for x in __version__.split("."))
 __version_info__: tuple[int, int, int] = (_major, _minor, _patch)
 
 # Release metadata
-__release_date__ = "2026-11-10"
+__release_date__ = "2026-11-12"
 __release_name__ = ""
 
 # Git information (can be populated by CI/CD or build scripts)
