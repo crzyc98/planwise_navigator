@@ -5332,6 +5332,30 @@
             "title": "Participation Rate",
             "type": "number"
           },
+          "pre_tax_contributions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive has no source columns",
+            "title": "Pre Tax Contributions"
+          },
+          "roth_contributions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up",
+            "title": "Roth Contributions"
+          },
           "total_all_contributions": {
             "description": "Total of all contributions",
             "title": "Total All Contributions",
@@ -5391,6 +5415,8 @@
         "required": [
           "year",
           "total_employee_contributions",
+          "pre_tax_contributions",
+          "roth_contributions",
           "total_employer_match",
           "total_employer_core",
           "total_all_contributions",
@@ -5988,6 +6014,30 @@
             "description": "Total enrolled employees",
             "title": "Total Enrolled",
             "type": "integer"
+          },
+          "total_pre_tax_contributions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated pre-tax share of employee deferrals under the run's assumed source split; null when the archive has no source columns",
+            "title": "Total Pre Tax Contributions"
+          },
+          "total_roth_contributions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up",
+            "title": "Total Roth Contributions"
           }
         },
         "required": [
@@ -6001,6 +6051,8 @@
           "participation_by_method",
           "contribution_by_year",
           "total_employee_contributions",
+          "total_pre_tax_contributions",
+          "total_roth_contributions",
           "total_employer_match",
           "total_employer_core",
           "total_all_contributions",

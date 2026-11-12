@@ -17,6 +17,18 @@ class RateBases(NamedTuple):
     total: float
 
 
+_PRE_TAX_DESCRIPTION = (
+    "Estimated pre-tax share of employee deferrals under the run's assumed "
+    "source split; null when the archive has no source columns"
+)
+_ROTH_DESCRIPTION = (
+    "Estimated Roth share of employee deferrals under the run's assumed source "
+    "split, plus any required Roth catch-up the run modeled; null when the "
+    "archive has no source columns. Pre-tax plus Roth can fall short of total "
+    "deferrals by disallowed catch-up"
+)
+
+
 class ContributionYearSummary(APIModel):
     """Contribution summary for a single year."""
 
@@ -26,6 +38,12 @@ class ContributionYearSummary(APIModel):
 
     year: int = Field(description="Simulation year")
     total_employee_contributions: float = Field(description="Total employee deferrals")
+    pre_tax_contributions: Optional[float] = Field(
+        default=None, description=_PRE_TAX_DESCRIPTION
+    )
+    roth_contributions: Optional[float] = Field(
+        default=None, description=_ROTH_DESCRIPTION
+    )
     total_employer_match: float = Field(
         description="Total employer match contributions"
     )
@@ -177,6 +195,12 @@ class DCPlanAnalytics(APIModel):
     # Grand totals (sum across all years)
     total_employee_contributions: float = Field(
         description="Grand total employee contributions"
+    )
+    total_pre_tax_contributions: Optional[float] = Field(
+        default=None, description=_PRE_TAX_DESCRIPTION
+    )
+    total_roth_contributions: Optional[float] = Field(
+        default=None, description=_ROTH_DESCRIPTION
     )
     total_employer_match: float = Field(description="Grand total employer match")
     total_employer_core: float = Field(description="Grand total employer core")

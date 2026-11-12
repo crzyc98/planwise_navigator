@@ -61,7 +61,7 @@ function yearSummary(deferral: number): ContributionYearSummary {
     total_contribution_rate: 10, participant_count: 80, total_eligible_count: 100,
     total_all_contributions: 1000, total_compensation: 10000, total_capped_compensation: 10000,
     total_employee_contributions: 600, total_employer_match: 300, total_employer_core: 100,
-    total_employer_cost: 400,
+    total_employer_cost: 400, pre_tax_contributions: 510, roth_contributions: 90,
   };
 }
 

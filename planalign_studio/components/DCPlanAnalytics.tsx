@@ -51,6 +51,10 @@ const formatCurrency = (value: number): string => {
   return `$${value.toFixed(0)}`;
 };
 
+// Pre-tax and Roth come from the run's assumed source split, so they're estimates.
+const formatEstimate = (value: number | null | undefined): string =>
+  value == null ? '—' : formatCurrency(value);
+
 const KPI_ICON_STYLES: Record<string, string> = {
   blue: 'bg-info-surface text-info-ink',
   green: 'bg-success-surface text-success-ink',
@@ -262,6 +266,12 @@ export default function DCPlanAnalytics() {
     if (!analytics || selectedYear === null) return null;
     return analytics.contribution_by_year.find((y) => y.year === selectedYear) ?? null;
   }, [analytics, selectedYear]);
+  const preTax = selectedYear !== null
+    ? activeYearData?.pre_tax_contributions
+    : analytics?.total_pre_tax_contributions;
+  const roth = selectedYear !== null
+    ? activeYearData?.roth_contributions
+    : analytics?.total_roth_contributions;
 
   // Derived: deferral distribution for selected year (or final-year aggregate)
   const activeDeferralDistribution = useMemo(() => {
@@ -748,6 +758,32 @@ export default function DCPlanAnalytics() {
                     })}
                   </tr>
                   <tr>
+                    <td className="py-3 px-4 pl-8 text-ink-muted">Est. Pre-tax</td>
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {formatEstimate(selectedYear !== null ? yd?.pre_tax_contributions : a.total_pre_tax_contributions)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-4 pl-8 text-ink-muted">Est. Roth</td>
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {formatEstimate(selectedYear !== null ? yd?.roth_contributions : a.total_roth_contributions)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <tr>
                     <td className="py-3 px-4 text-ink-muted">Total Employer Match</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
@@ -840,9 +876,16 @@ export default function DCPlanAnalytics() {
                 activeYearData?.total_employee_contributions ?? analytics.total_employee_contributions
               )}
               subtext={
-                activeYearData
-                  ? `${activeYearData.participant_count.toLocaleString()} participants`
-                  : `${analytics.total_enrolled.toLocaleString()} participants`
+                <>
+                  {activeYearData
+                    ? `${activeYearData.participant_count.toLocaleString()} participants`
+                    : `${analytics.total_enrolled.toLocaleString()} participants`}
+                  {preTax != null && roth != null && (
+                    <span className="block">
+                      Est. {formatEstimate(preTax)} pre-tax · {formatEstimate(roth)} Roth
+                    </span>
+                  )}
+                </>
               }
               icon={DollarSign}
               color="blue"
