@@ -113,6 +113,13 @@ seeds:
         hire_age: integer
         age_weight: decimal(5,4)
         description: varchar
+    columns:
+      - name: hire_age
+        description: "New-hire age; at least 21, the highest minimum age a plan may require (#1040)"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 21
 
   - name: config_promotion_hazard_base
     description: "Base promotion hazard rates"

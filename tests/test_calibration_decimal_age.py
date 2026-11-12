@@ -60,3 +60,9 @@ def test_calibration_rejects_fractional_age_without_rounding() -> None:
         CalibrationParameterSet(
             new_hire_age_distribution=[{"age": 22.5, "weight": 1.0}]
         )
+
+
+@pytest.mark.parametrize("age", [16, 20])
+def test_calibration_rejects_new_hires_under_21(age: int) -> None:
+    with pytest.raises(ValidationError, match="21-100"):
+        CalibrationParameterSet(new_hire_age_distribution=[{"age": age, "weight": 1.0}])

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- New-hire ages must be at least 21 (#1040). Calibration's age editor, calibration requests and scenario configs reject younger ages, so no simulated hire is too young for a plan's minimum age. The defaults and Match Census already start at 22, so default results don't change. A plan's minimum age is likewise capped at 21. A saved scenario with a new-hire age under 21 must be updated before it runs: use Match Census, or edit the ages in Calibration and apply. Census employees are still taken as given, whatever their age; see the census file format guide.
+
 ### Added
 
 - Studio's DC Plan Analytics now shows estimated pre-tax and Roth totals beneath employee deferrals, in both the single-scenario cards and the comparison table. They come from each run's assumed source split (85% pre-tax / 15% Roth by default, plus any required Roth catch-up the run modeled), so they are estimates, not payroll data.
