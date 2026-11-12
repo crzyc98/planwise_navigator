@@ -441,15 +441,18 @@ class TestADPPriorYearFallback:
 
 
 # ==============================================================================
-# T025: test_adp_zero_compensation_excluded
+# T025: zero pay is a data error, never a silent exclusion (#1036)
 # ==============================================================================
 
 
-class TestADPZeroCompExcluded:
-    """T025: Participant with zero comp is excluded."""
+class TestADPZeroCompIsDataError:
+    """Every employee has pay, so a $0-pay row is bad data."""
 
-    def test_adp_zero_compensation_excluded(self, adp_service_with_db):
-        """Zero prorated_annual_compensation -> excluded, not in HCE/NHCE groups."""
+    @pytest.mark.parametrize("prior_pay", [50000.0, 200000.0], ids=["nhce", "hce"])
+    def test_adp_zero_compensation_is_data_error(
+        self, adp_service_with_db, prior_pay: float
+    ) -> None:
+        """A $0-pay HCE must not turn into a no-HCE pass."""
         service, conn, mock_resolver = adp_service_with_db
 
         # Normal HCE
@@ -458,8 +461,8 @@ class TestADPZeroCompExcluded:
         # Normal NHCE
         _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
-        # Zero comp participant (should be excluded)
-        _insert_employee(conn, "ZERO1", 2024, 50000.0, 50000.0, 0.0)
+        # Zero comp participant: bad data
+        _insert_employee(conn, "ZERO1", 2024, prior_pay, prior_pay, 0.0)
         _insert_employee(conn, "ZERO1", 2025, 50000.0, 0.0, 0.0)
 
         mock_resolver.resolve.return_value = ResolvedDatabasePath(
@@ -471,6 +474,7 @@ class TestADPZeroCompExcluded:
 
         assert result.test_result == "error"
         assert "zero prorated_annual_compensation" in result.test_message
+        assert "check the census or run data" in result.test_message
 
 
 # ==============================================================================

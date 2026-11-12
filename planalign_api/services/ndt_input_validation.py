@@ -165,5 +165,5 @@ def validate_eligibility_and_denominator(
     if zero:
         raise ValueError(
             f"NDT input unavailable: {zero} eligible row(s) have zero {denominator} "
-            f"in {year}; no exclusion policy or zero-denominator determination is established"
+            f"in {year}. Every employee should have pay, so check the census or run data"
         )
