@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-13
+
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
