@@ -130,6 +130,18 @@ def test_new_workspaces_start_on_the_shared_pay_scale() -> None:
     assert "new_hire" not in shared or "shared_pay_scale" not in shared["new_hire"]
 
 
+def test_new_workspaces_model_2026_to_2030() -> None:
+    shared = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    defaults = new_workspace_defaults(shared)
+    assert (
+        defaults["simulation"]["start_year"],
+        defaults["simulation"]["end_year"],
+    ) == (
+        2026,
+        2030,
+    )
+
+
 def test_default_pay_scale_matches_the_seeded_job_levels() -> None:
     seeded = duckdb.sql(
         f"SELECT level_id, min_compensation, max_compensation "
