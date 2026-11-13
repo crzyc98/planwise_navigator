@@ -107,9 +107,23 @@ def with_shared_pay_scale(config: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+NEW_WORKSPACE_YEARS = (2026, 2030)
+
+
+def with_new_workspace_years(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Start a new workspace on the 2026-2030 horizon.
+
+    Only new workspaces get this. Saved workspaces and scenario files keep their years.
+    """
+    merged = deepcopy(config)
+    simulation = merged.setdefault("simulation", {})
+    simulation["start_year"], simulation["end_year"] = NEW_WORKSPACE_YEARS
+    return merged
+
+
 def new_workspace_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     """The Studio defaults a new workspace starts from, on top of the shared config."""
-    return with_shared_pay_scale(with_raise_budget(config))
+    return with_new_workspace_years(with_shared_pay_scale(with_raise_budget(config)))
 
 
 class WorkspaceService:
