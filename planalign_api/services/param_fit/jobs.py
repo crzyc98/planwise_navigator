@@ -72,7 +72,7 @@ class JobStore:
         directory.mkdir(parents=True, exist_ok=True)
         payload = job.model_dump(mode="json", exclude={"result"})
         with _write_lock:
-            _atomic_write_json(directory / JOB_FILENAME, payload)
+            atomic_write_json(directory / JOB_FILENAME, payload)
 
     def load(self, workspace_id: str, job_id: str) -> Optional[ParamFitJob]:
         if not _is_safe_id(job_id):
@@ -111,7 +111,7 @@ class JobStore:
     def record_process(self, workspace_id: str, job_id: str, pid: int) -> None:
         """Remember the child's pid so a restarted API can stop an orphan."""
         path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
-        _atomic_write_json(path, {"pid": pid})
+        atomic_write_json(path, {"pid": pid})
 
     def recorded_process(self, workspace_id: str, job_id: str) -> Optional[int]:
         path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
@@ -158,7 +158,7 @@ class JobStore:
         return removed
 
 
-def _atomic_write_json(path: Path, payload: Any) -> None:
+def atomic_write_json(path: Path, payload: Any) -> None:
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".job-", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:

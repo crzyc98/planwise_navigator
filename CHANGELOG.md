@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Studio's API can now run a seed ensemble for a scenario: it estimates the run count, time and disk first, then queues the ensemble behind other simulations, reports progress per seed, and can cancel it. Each ensemble's results stay in the workspace, and a run where some seeds fail is reported as partial. `planalign simulate --seeds` also takes `--parallel` to cap how many seeds run at once.
+
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.

@@ -141,6 +141,7 @@ SCENARIO_READ_ROUTES = {
     "get_scenario_evidence_pack",
     "get_cross_scenario_evidence_pack",
     "list_events",
+    "list_ensemble_jobs",
 }
 
 
@@ -219,13 +220,16 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     from .services.calibration_jobs import get_job_runner
+    from .services.ensemble_jobs import fail_interrupted_ensembles
     from .services.simulation.recovery import fail_interrupted_simulations
     from .storage.workspace_storage import WorkspaceStorage
 
     # Startup: ensure workspaces directory exists
     settings.workspaces_root.mkdir(parents=True, exist_ok=True)
     get_job_runner().recover()
-    fail_interrupted_simulations(WorkspaceStorage(settings.workspaces_root))
+    storage = WorkspaceStorage(settings.workspaces_root)
+    fail_interrupted_simulations(storage)
+    fail_interrupted_ensembles(storage)
 
     try:
         yield

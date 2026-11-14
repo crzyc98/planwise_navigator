@@ -7514,6 +7514,320 @@
         "title": "EnsembleDatabaseSummary",
         "type": "object"
       },
+      "EnsembleError": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "seeds_failed",
+              "no_seeds",
+              "interrupted",
+              "unexpected"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "message"
+        ],
+        "title": "EnsembleError",
+        "type": "object"
+      },
+      "EnsembleEstimate": {
+        "description": "What an ensemble will cost, known before any seed starts.",
+        "properties": {
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "estimated_disk_mib": {
+            "description": "Peak disk while seeds run; only the aggregate is kept after",
+            "title": "Estimated Disk Mib",
+            "type": "number"
+          },
+          "estimated_seconds": {
+            "title": "Estimated Seconds",
+            "type": "number"
+          },
+          "run_count": {
+            "title": "Run Count",
+            "type": "integer"
+          },
+          "seconds_per_run": {
+            "title": "Seconds Per Run",
+            "type": "number"
+          },
+          "seed_count": {
+            "title": "Seed Count",
+            "type": "integer"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "time_basis": {
+            "description": "'measured' scales the scenario's last completed run; 'default' uses a fixed per-run-year rate because no run was found",
+            "enum": [
+              "measured",
+              "default"
+            ],
+            "title": "Time Basis",
+            "type": "string"
+          },
+          "workers": {
+            "description": "Seeds run at once (max_concurrent_simulations)",
+            "title": "Workers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed_count",
+          "seeds",
+          "start_year",
+          "end_year",
+          "run_count",
+          "workers",
+          "seconds_per_run",
+          "estimated_seconds",
+          "time_basis",
+          "estimated_disk_mib"
+        ],
+        "title": "EnsembleEstimate",
+        "type": "object"
+      },
+      "EnsembleJob": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnsembleError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/EnsembleEstimate"
+          },
+          "failed_seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Failed Seeds",
+            "type": "array"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnsembleOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/EnsembleProgress"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "seed_count": {
+            "title": "Seed Count",
+            "type": "integer"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "workspace_id",
+          "scenario_id",
+          "scenario_name",
+          "status",
+          "seed_count",
+          "seeds",
+          "start_year",
+          "end_year",
+          "estimate",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "progress",
+          "failed_seeds",
+          "error",
+          "output"
+        ],
+        "title": "EnsembleJob",
+        "type": "object"
+      },
+      "EnsembleOutput": {
+        "description": "Where a finished ensemble's aggregate lives, for the reader endpoints.",
+        "properties": {
+          "database_path": {
+            "title": "Database Path",
+            "type": "string"
+          },
+          "ensemble_id": {
+            "title": "Ensemble Id",
+            "type": "string"
+          },
+          "ensemble_scenario_id": {
+            "title": "Ensemble Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "database_path",
+          "ensemble_id",
+          "ensemble_scenario_id"
+        ],
+        "title": "EnsembleOutput",
+        "type": "object"
+      },
+      "EnsembleProgress": {
+        "properties": {
+          "current_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Seed"
+          },
+          "seeds_completed": {
+            "default": 0,
+            "title": "Seeds Completed",
+            "type": "integer"
+          },
+          "seeds_failed": {
+            "default": 0,
+            "title": "Seeds Failed",
+            "type": "integer"
+          },
+          "seeds_total": {
+            "title": "Seeds Total",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "seeds_total",
+          "seeds_completed",
+          "seeds_failed",
+          "current_seed",
+          "updated_at"
+        ],
+        "title": "EnsembleProgress",
+        "type": "object"
+      },
+      "EnsembleRequest": {
+        "properties": {
+          "seed_count": {
+            "default": 10,
+            "maximum": 50.0,
+            "minimum": 2.0,
+            "title": "Seed Count",
+            "type": "integer"
+          }
+        },
+        "title": "EnsembleRequest",
+        "type": "object"
+      },
       "EscalationMetrics": {
         "description": "Deferral escalation metrics.",
         "properties": {
@@ -25410,6 +25724,206 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/ensembles": {
+      "get": {
+        "description": "A workspace's ensemble jobs, newest first, optionally for one scenario.",
+        "operationId": "list_ensemble_jobs_api_workspaces__workspace_id__ensembles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EnsembleJob"
+                  },
+                  "title": "Response List Ensemble Jobs Api Workspaces  Workspace Id  Ensembles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List Ensemble Jobs",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}": {
+      "get": {
+        "operationId": "get_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ensemble Job",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}/cancel": {
+      "post": {
+        "description": "Stop a queued or running ensemble and its whole process tree.",
+        "operationId": "cancel_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Ensemble Job",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/evidence-pack/compare": {
       "get": {
         "operationId": "get_cross_scenario_evidence_pack_api_workspaces__workspace_id__evidence_pack_compare_get",
@@ -28154,6 +28668,130 @@
         "summary": "Get Employee Timeline",
         "tags": [
           "Timeline"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles": {
+      "post": {
+        "description": "Queue a seed ensemble; it waits for a simulation slot like any run.",
+        "operationId": "start_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Ensemble",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles/estimate": {
+      "post": {
+        "description": "Seeds, run count, time and disk an ensemble would take; starts nothing.",
+        "operationId": "estimate_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_estimate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleEstimate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estimate Ensemble",
+        "tags": [
+          "Ensembles"
         ]
       }
     },
