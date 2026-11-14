@@ -1,0 +1,126 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  ComparisonIntegrityResponse,
+  getComparisonIntegrity,
+  IntegrityReason,
+  ScenarioIntegrity,
+} from '../services/api';
+import { ComparisonIntegrityLines } from './ComparisonIntegrityBanner';
+import { formatSetting, planDesignSummary, summarizeIntegrity } from './comparisonIntegrity';
+
+function reason(overrides: Partial<IntegrityReason>): IntegrityReason {
+  return {
+    code: 'config_differs', effect: 'breaks', anchor_value: null, scenario_value: null,
+    path: null, group: null, scenario_id: null, ...overrides,
+  };
+}
+
+function scenario(overrides: Partial<ScenarioIntegrity>): ScenarioIntegrity {
+  return {
+    scenario_id: 'b', scenario_name: 'Richer match', verdict: 'like_for_like', reasons: [],
+    unevaluated: [], plan_design_differences: [], engine_version: '3.2.0', ...overrides,
+  };
+}
+
+function response(scenarios: ScenarioIntegrity[]): ComparisonIntegrityResponse {
+  return { anchor_scenario_id: 'a', anchor_scenario_name: 'Baseline', anchor_engine_version: '3.2.0', scenarios };
+}
+
+describe('like-for-like copy', () => {
+  it('confirms a like-for-like scenario quietly and names what differs', () => {
+    const [line] = summarizeIntegrity(response([scenario({
+      plan_design_differences: [{ path: 'dc_plan.match_tiers', a: [], b: [], status: 'changed' }],
+    })])).lines;
+    expect(line.tone).toBe('ok');
+    expect(line.headline).toBe('Richer match is like-for-like with Baseline. Only the employer match differs.');
+    expect(line.details).toEqual([]);
+  });
+
+  it('names each breaking reason with both values', () => {
+    const [line] = summarizeIntegrity(response([scenario({
+      verdict: 'not_like_for_like',
+      reasons: [
+        reason({ code: 'seed_differs', anchor_value: 42, scenario_value: 7 }),
+        reason({ code: 'census_differs', anchor_value: 'census_a.parquet', scenario_value: 'census_b.parquet' }),
+        reason({ code: 'engine_version_differs', anchor_value: '3.2.0', scenario_value: '3.1.9' }),
+        reason({ path: 'simulation.target_growth_rate', anchor_value: 0.03, scenario_value: 0.05, group: 'workforce_and_pay' }),
+      ],
+    })])).lines;
+    expect(line.tone).toBe('warning');
+    expect(line.headline).toContain('part of the difference is not the plan design');
+    expect(line.details).toEqual([
+      'Random seed: 42 vs 7',
+      'Census: census_a.parquet vs census_b.parquet',
+      'Engine version: 3.2.0 vs 3.1.9',
+      'Headcount growth: 3% vs 5%',
+    ]);
+  });
+
+  it('reads unknown as "can\'t tell" with the cause', () => {
+    const [line] = summarizeIntegrity(response([scenario({
+      verdict: 'unknown',
+      unevaluated: [{ check: 'census', scenario_id: 'b', cause: 'not_recorded' }],
+    })])).lines;
+    expect(line.tone).toBe('unknown');
+    expect(line.headline).toBe("Can't tell whether Richer match is like-for-like with Baseline: Richer match's run did not record its census.");
+  });
+
+  it('keeps notes separate and shows anchor notes once', () => {
+    const summary = summarizeIntegrity(response([scenario({
+      reasons: [
+        reason({ code: 'edited_since_run', effect: 'note', scenario_id: 'a' }),
+        reason({ code: 'mixed_generation', effect: 'note', scenario_id: 'b' }),
+      ],
+    })]));
+    expect(summary.anchorNotes).toEqual(['Baseline was edited after its result ran. This compares the settings it ran with.']);
+    expect(summary.lines[0].notes).toEqual(["Richer match's result mixes rows from runs with different settings or seeds."]);
+    expect(summary.lines[0].tone).toBe('ok');
+  });
+
+  it('caps long setting lists', () => {
+    const reasons = Array.from({ length: 6 }, (_, index) => reason({ path: `workforce.knob_${index}`, anchor_value: index, scenario_value: index + 1 }));
+    const [line] = summarizeIntegrity(response([scenario({ verdict: 'not_like_for_like', reasons })])).lines;
+    expect(line.details).toHaveLength(5);
+    expect(line.details.at(-1)).toBe('and 2 more settings');
+  });
+
+  it('formats settings in plain words', () => {
+    expect(formatSetting('compensation.merit_budget_percent', 3.5)).toBe('3.5%');
+    expect(formatSetting('workforce.total_termination_rate', 0.12)).toBe('12%');
+    expect(formatSetting('dc_plan.auto_enroll', true)).toBe('on');
+    expect(formatSetting('new_hire.age_distribution', [{ age: 25 }])).toBeNull();
+    expect(planDesignSummary([])).toBe('No settings differ.');
+    expect(planDesignSummary([
+      { path: 'dc_plan.core_contribution_rate_percent', a: 2, b: 3, status: 'changed' },
+      { path: 'dc_plan.escalation_cap_percent', a: 6, b: 10, status: 'changed' },
+    ])).toBe('Only the employer core contribution and auto-escalation differ.');
+  });
+});
+
+describe('ComparisonIntegrityLines', () => {
+  it('links each line to the workspace-scoped two-scenario diff', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <ComparisonIntegrityLines diffBase="/w/ws" result={response([scenario({})])} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('href="/w/ws/analytics/diff?a=a&amp;b=b"');
+    expect(html).toContain('Richer match is like-for-like with Baseline.');
+    expect(html).not.toMatch(/provenance|fingerprint/i);
+  });
+});
+
+describe('getComparisonIntegrity', () => {
+  it('requests the selection and the anchor', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(response([])), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('window', { dispatchEvent: vi.fn() });
+    try {
+      await getComparisonIntegrity('ws', ['a', 'b'], 'b');
+      expect(fetch.mock.calls[0][0]).toContain('/api/workspaces/ws/analytics/compare/integrity?scenarios=a%2Cb&anchor=b');
+    } finally { vi.unstubAllGlobals(); }
+  });
+});

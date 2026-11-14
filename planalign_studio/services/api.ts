@@ -175,6 +175,11 @@ export type ScenarioProvenance = Schemas['ScenarioProvenance'];
 
 export type ConfigDiffResponse = Schemas['ConfigDiffResponse'];
 
+export type ComparisonIntegrityResponse = Schemas['ComparisonIntegrityResponse'];
+export type ScenarioIntegrity = Schemas['ScenarioIntegrity'];
+export type IntegrityReason = Schemas['IntegrityReason'];
+export type UnevaluatedCheck = Schemas['UnevaluatedCheck'];
+
 // ============================================================================
 // API Error Handling
 // ============================================================================
@@ -606,6 +611,21 @@ export async function getScenarioConfigDiff(
     `${API_BASE}/api/workspaces/${workspaceId}/comparison/config-diff?${params}`
   );
   return handleResponse<ConfigDiffResponse>(response);
+}
+
+/** Whether each scenario differs from the anchor only in plan design (#1179). */
+export async function getComparisonIntegrity(
+  workspaceId: string,
+  scenarioIds: string[],
+  anchorId: string,
+  signal?: AbortSignal
+): Promise<ComparisonIntegrityResponse> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), anchor: anchorId });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/compare/integrity?${params}`,
+    { signal }
+  );
+  return handleResponse<ComparisonIntegrityResponse>(response);
 }
 
 // ============================================================================

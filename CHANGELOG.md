@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
 - The scenario report (PDF, PowerPoint, HTML) now leads with each plan design in plain words and its employer cost against an anchor scenario, followed by cost by year, cost as % of capped pay, participation and average deferral, with cost definitions as notes and provenance in an appendix. Pick the anchor with `anchor=` on the report download or `planalign report --anchor`; a selected scenario without a usable result is listed as missing instead of dropped. Headcount and average pay are no longer in the report. A custom `--template-dir` template now fills only `{{ title }}`, `{{ body }}` and `{{ trace }}`; one written for the old `{{ rows }}`, `{{ charts }}`, `{{ provenance }}` or `{{ warnings }}` placeholders is rejected with an error instead of rendering without figures.
 
+### Added
+
+- Studio's comparison pages now say whether each scenario is like-for-like with the anchor, meaning only its plan design differs (#1178). When the census, seed, simulated years, engine version, or a workforce, pay or employee-behavior setting differs, the page names each difference with both values, so part of the cost difference isn't read as the plan change. When a result didn't record enough to check, it says it can't tell.
+
 ### Fixed
 
 - Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. The match template must be one of simple, tiered, stretch, safe harbor or QACA, the escalation effective date must be a real `MM-DD`, and age and tenure band labels can't contain a single quote. Existing scenarios use values that already pass, so their results don't change.
