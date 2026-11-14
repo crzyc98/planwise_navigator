@@ -9,6 +9,7 @@ import {
   RefreshCw, AlertCircle, ChevronDown, Database, Loader2, ArrowUpRight, Copy, Check
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
+import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import {
   listScenarios,
   getDCPlanAnalytics,
@@ -716,6 +717,12 @@ export default function DCPlanAnalytics() {
       ) : comparisonData ? (
         /* Comparison View */
         <>
+          {/* The first column is the reference, so it anchors the like-for-like check (#1181) */}
+          <ComparisonIntegrityBanner
+            workspaceId={activeWorkspace?.id}
+            scenarioIds={comparisonData.analytics.map(a => a.scenario_id)}
+            anchorId={comparisonData.analytics[0]?.scenario_id}
+          />
           <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
             <h3 className="text-lg font-semibold text-ink mb-4">Scenario Comparison</h3>
             <div className="overflow-x-auto">

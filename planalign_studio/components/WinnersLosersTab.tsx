@@ -13,6 +13,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import WinnersLosersDetails, { BandImpactTable, ImpactFilters, impactCurrency } from './WinnersLosersDetails';
 import { hasComparisonResult, restoreComparisonSelection } from './comparisonSelection';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
+import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import {
   listScenarios,
   getWinnersLosersComparison,
@@ -273,6 +274,12 @@ export default function WinnersLosersTab() {
         />
       ) : (
         <>
+          {/* Plan A is the reference, so it anchors the like-for-like check (#1181) */}
+          <ComparisonIntegrityBanner
+            workspaceId={activeWorkspace?.id}
+            scenarioIds={[results.plan_a_scenario_id, results.plan_b_scenario_id]}
+            anchorId={results.plan_a_scenario_id}
+          />
           <div className="rounded-lg border border-border bg-surface-raised p-4 text-sm text-ink-muted">
             Comparing both plans in simulation year {results.final_year}.
             {(results.final_year !== results.plan_a_final_year || results.final_year !== results.plan_b_final_year) && (

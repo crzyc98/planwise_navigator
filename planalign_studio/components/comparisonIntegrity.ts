@@ -192,3 +192,24 @@ export function summarizeIntegrity(result: ComparisonIntegrityResponse): Integri
     })),
   };
 }
+
+export interface IntegrityRequest {
+  workspaceId: string;
+  anchorId: string;
+  /** Anchor first, then the others in page order, without repeats. */
+  scenarioIds: string[];
+  /** Changes whenever the selection or anchor does, so the banner refetches. */
+  key: string;
+}
+
+/** The check a page asks for, or null when there is nothing to compare. */
+export function integrityRequest(
+  workspaceId: string | undefined,
+  scenarioIds: string[],
+  anchorId: string | undefined,
+): IntegrityRequest | null {
+  if (!workspaceId || !anchorId) return null;
+  const ids = [...new Set([anchorId, ...scenarioIds.filter(Boolean)])];
+  if (ids.length < 2) return null;
+  return { workspaceId, anchorId, scenarioIds: ids, key: `${workspaceId}|${anchorId}|${ids.join(',')}` };
+}

@@ -9,7 +9,7 @@ import {
   ScenarioIntegrity,
 } from '../services/api';
 import { ComparisonIntegrityLines } from './ComparisonIntegrityBanner';
-import { formatSetting, planDesignSummary, summarizeIntegrity } from './comparisonIntegrity';
+import { formatSetting, integrityRequest, planDesignSummary, summarizeIntegrity } from './comparisonIntegrity';
 
 function reason(overrides: Partial<IntegrityReason>): IntegrityReason {
   return {
@@ -110,6 +110,27 @@ describe('ComparisonIntegrityLines', () => {
     expect(html).toContain('href="/w/ws/analytics/diff?a=a&amp;b=b"');
     expect(html).toContain('Richer match is like-for-like with Baseline.');
     expect(html).not.toMatch(/provenance|fingerprint/i);
+  });
+});
+
+describe('integrityRequest', () => {
+  it('asks the same question for the same scenarios on every page', () => {
+    // Cost Comparison: selection plus its chosen anchor.
+    const cost = integrityRequest('ws', ['b', 'a'], 'a');
+    // Winners & Losers: Plan A is the reference.
+    const winnersLosers = integrityRequest('ws', ['a', 'b'], 'a');
+    // DC Plan comparison: the first column is the reference.
+    const dcPlan = integrityRequest('ws', ['a', 'b'], 'a');
+    expect(cost).toEqual(winnersLosers);
+    expect(dcPlan).toEqual(winnersLosers);
+    expect(cost?.scenarioIds).toEqual(['a', 'b']);
+  });
+
+  it('refetches when the anchor changes and skips single selections', () => {
+    expect(integrityRequest('ws', ['a', 'b'], 'a')?.key).not.toBe(integrityRequest('ws', ['a', 'b'], 'b')?.key);
+    expect(integrityRequest('ws', ['a'], 'a')).toBeNull();
+    expect(integrityRequest(undefined, ['a', 'b'], 'a')).toBeNull();
+    expect(integrityRequest('ws', ['a', 'b'], '')).toBeNull();
   });
 });
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, HelpCircle } from 'lucide-react';
 import { ComparisonIntegrityResponse, getComparisonIntegrity } from '../services/api';
-import { IntegrityLine, IntegrityTone, summarizeIntegrity } from './comparisonIntegrity';
+import { integrityRequest, IntegrityLine, IntegrityTone, summarizeIntegrity } from './comparisonIntegrity';
 
 const TONE_STYLES: Record<IntegrityTone, { line: string; Icon: typeof CheckCircle; icon: string }> = {
   ok: { line: 'text-ink-muted', Icon: CheckCircle, icon: 'text-success-ink' },
@@ -77,15 +77,17 @@ export default function ComparisonIntegrityBanner({
   anchorId,
 }: Readonly<{ workspaceId: string | undefined; scenarioIds: string[]; anchorId: string | undefined }>) {
   const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>();
-  const ids = anchorId ? [...new Set([anchorId, ...scenarioIds])] : [];
-  const idList = ids.join(',');
-  const key = workspaceId && anchorId && ids.length >= 2 ? `${workspaceId}|${anchorId}|${idList}` : '';
+  const request = integrityRequest(workspaceId, scenarioIds, anchorId);
+  const key = request?.key ?? '';
+  const requestWorkspace = request?.workspaceId ?? '';
+  const requestAnchor = request?.anchorId ?? '';
+  const idList = request?.scenarioIds.join(',') ?? '';
   const [state, setState] = useState<FetchState>({ status: 'idle' });
 
   useEffect(() => {
-    if (!key || !workspaceId || !anchorId) return undefined;
+    if (!key) return undefined;
     const controller = new AbortController();
-    getComparisonIntegrity(workspaceId, idList.split(','), anchorId, controller.signal)
+    getComparisonIntegrity(requestWorkspace, idList.split(','), requestAnchor, controller.signal)
       .then(result => setState({ status: 'ready', key, result }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -94,7 +96,7 @@ export default function ComparisonIntegrityBanner({
         }
       });
     return () => controller.abort();
-  }, [key, idList, workspaceId, anchorId]);
+  }, [key, requestWorkspace, requestAnchor, idList]);
 
   if (!key || state.status === 'idle' || state.key !== key) return null;
   if (state.status === 'failed') {
