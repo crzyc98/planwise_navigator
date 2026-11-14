@@ -4,6 +4,7 @@ import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCir
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
+import EngineVersionBadge from './EngineVersionBadge';
 
 export default function ScenariosPage() {
   const navigate = useWorkspaceNavigate();
@@ -425,6 +426,11 @@ export default function ScenariosPage() {
                         <span className={`ml-3 px-2 py-0.5 text-xs rounded-full ${getStatusColor(scenario.status)}`}>
                           {getStatusLabel(scenario.status)}
                         </span>
+                        {!selectMode && (
+                          <span className="ml-2">
+                            <EngineVersionBadge scenario={scenario} rerunDisabled={isSimulationRunning} />
+                          </span>
+                        )}
                       </div>
                       {scenario.description && (
                         <p className="text-sm text-ink-muted mt-1 truncate">{scenario.description}</p>

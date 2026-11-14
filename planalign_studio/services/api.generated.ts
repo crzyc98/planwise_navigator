@@ -9537,6 +9537,16 @@ export interface components {
             provenance: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Result Engine Version
+             * @description Engine version that produced the selected result
+             */
+            result_engine_version: string | null;
+            /**
+             * Result Engine Version Gap
+             * @description How far the selected result's engine version is behind the running one
+             */
+            result_engine_version_gap: ("patch" | "minor" | "major") | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
             /**
@@ -13979,6 +13989,8 @@ export interface operations {
                 scenarios: string;
                 /** @description xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets) */
                 format?: "xlsx" | "hyper" | "parquet";
+                /** @description Scenario the like-for-like verdicts use (default: first) */
+                anchor?: string | null;
             };
             header?: never;
             path: {

@@ -398,8 +398,15 @@ def export_scenario_comparison(
         "xlsx",
         description="xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
     ),
+    anchor: Optional[str] = Query(
+        None,
+        description="Scenario the like-for-like verdicts use (default: first)",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     export_service: ComparisonExportService = Depends(get_comparison_export_service),
+    integrity_service: ComparisonIntegrityService = Depends(
+        get_comparison_integrity_service
+    ),
 ) -> FileResponse:
     """Download every selected scenario's workforce snapshot plus the census."""
     workspace = storage.get_workspace(workspace_id)
@@ -417,10 +424,17 @@ def export_scenario_comparison(
             detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios to export",
         )
     names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+    anchor_id = (
+        _integrity_selection(scenarios, anchor)[1] if len(scenario_ids) >= 2 else None
+    )
 
     output_dir = Path(tempfile.mkdtemp(prefix="planalign-compare-export-"))
     try:
         selected = _resolve_export(export_service, workspace_id, scenario_ids, names)
+        if anchor_id is not None:
+            selected = export_service.with_verdicts(
+                selected, integrity_service.evaluate(workspace, names, anchor_id)
+            )
         path = _build_export(
             export_service, selected, workspace.name, format, output_dir
         )

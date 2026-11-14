@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 import duckdb
 
@@ -14,6 +17,8 @@ from pydantic import ValidationError
 from _version import __version__
 
 from ..models.comparison import RunTrustResult
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate_run_trust(
@@ -136,4 +141,56 @@ def add_current_config_drift(
     return trust.model_copy(update={"reasons": list(dict.fromkeys(reasons))})
 
 
-__all__ = ["add_current_config_drift", "evaluate_run_trust", "read_run_trust"]
+VersionGap = Literal["patch", "minor", "major"]
+_PROVENANCE_FILENAME = "provenance.json"
+
+
+def read_engine_version(run_dir: Path) -> str | None:
+    """Engine version from a run's provenance JSON, without opening its database.
+
+    Scenario list reads run for every scenario on each call, so this reads only
+    the small JSON field rather than the DuckDB ``run_metadata`` table.
+    """
+    path = run_dir / _PROVENANCE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.info("Run provenance unreadable in %s: %s", run_dir.name, exc)
+        return None
+    software = payload.get("software") if isinstance(payload, dict) else None
+    version = software.get("planalign_version") if isinstance(software, dict) else None
+    return version if isinstance(version, str) and version else None
+
+
+def engine_version_gap(
+    result_version: str | None, running_version: str = __version__
+) -> VersionGap | None:
+    """How far a result's engine version is behind the running one, if at all.
+
+    ``None`` when the versions match, the result is newer, or either version
+    is not a plain ``MAJOR.MINOR.PATCH`` string.
+    """
+    result, running = _semver(result_version), _semver(running_version)
+    if result is None or running is None or result >= running:
+        return None
+    if result[0] != running[0]:
+        return "major"
+    return "minor" if result[1] != running[1] else "patch"
+
+
+def _semver(version: str | None) -> tuple[int, int, int] | None:
+    parts = (version or "").split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return None
+    return (int(parts[0]), int(parts[1]), int(parts[2]))
+
+
+__all__ = [
+    "add_current_config_drift",
+    "engine_version_gap",
+    "evaluate_run_trust",
+    "read_engine_version",
+    "read_run_trust",
+]

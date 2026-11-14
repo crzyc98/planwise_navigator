@@ -529,8 +529,10 @@ export async function downloadComparisonExport(
   workspaceId: string,
   scenarioIds: string[],
   format: ComparisonExportFormat,
+  anchorId?: string,
 ): Promise<void> {
   const params = new URLSearchParams({ scenarios: scenarioIds.join(','), format });
+  if (anchorId) params.set('anchor', anchorId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
   );

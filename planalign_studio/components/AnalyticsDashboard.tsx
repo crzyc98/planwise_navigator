@@ -20,11 +20,13 @@ import {
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
 import RunHealthSummary from './simulation/RunHealthSummary';
+import EngineVersionBadge from './EngineVersionBadge';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
   activeWorkspace: Workspace;
   lastRunScenarioId: string | null;
+  isSimulationRunning: boolean;
 }
 
 const trendIcons: Record<string, React.ReactNode> = {
@@ -194,7 +196,7 @@ export default function AnalyticsDashboard() {
     new_hire_termination: chartTheme.colorAt(3),
   };
   const [searchParams] = useSearchParams();
-  const { activeWorkspace: contextWorkspace, lastRunScenarioId } = useOutletContext<LayoutContext>();
+  const { activeWorkspace: contextWorkspace, lastRunScenarioId, isSimulationRunning } = useOutletContext<LayoutContext>();
 
   // Priority: URL param > context lastRun > default
   const scenarioIdFromUrl = searchParams.get('scenario') || lastRunScenarioId;
@@ -582,7 +584,10 @@ export default function AnalyticsDashboard() {
           {selectedScenario && (
             <div className="bg-info-surface border border-info-border rounded-lg p-4 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-info-ink">{selectedScenario.name}</h3>
+                <h3 className="font-semibold text-info-ink flex items-center gap-2">
+                  {selectedScenario.name}
+                  <EngineVersionBadge scenario={selectedScenario} rerunDisabled={isSimulationRunning} />
+                </h3>
                 <p className="text-sm text-info-ink">{selectedScenario.description || 'No description'}</p>
               </div>
               <div className="text-right text-sm text-info-ink">

@@ -14656,6 +14656,35 @@
             "description": "Optional record of how this scenario was created",
             "title": "Provenance"
           },
+          "result_engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine version that produced the selected result",
+            "title": "Result Engine Version"
+          },
+          "result_engine_version_gap": {
+            "anyOf": [
+              {
+                "enum": [
+                  "patch",
+                  "minor",
+                  "major"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How far the selected result's engine version is behind the running one",
+            "title": "Result Engine Version Gap"
+          },
           "results_summary": {
             "anyOf": [
               {
@@ -14712,6 +14741,8 @@
           "last_run_id",
           "has_selected_result",
           "selected_result_run_id",
+          "result_engine_version",
+          "result_engine_version_gap",
           "results_summary"
         ],
         "title": "Scenario",
@@ -23455,6 +23486,24 @@
               ],
               "title": "Format",
               "type": "string"
+            }
+          },
+          {
+            "description": "Scenario the like-for-like verdicts use (default: first)",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario the like-for-like verdicts use (default: first)",
+              "title": "Anchor"
             }
           }
         ],

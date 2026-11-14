@@ -506,3 +506,70 @@ def test_endpoint_rejects_too_many_scenarios_and_bad_format(env):
 
     assert too_many.status_code == 400
     assert bad_format.status_code == 422
+
+
+def test_metadata_lists_engine_version_and_like_for_like_verdict(tmp_path):
+    from dataclasses import replace
+
+    from planalign_api.models.comparison import (
+        ComparisonIntegrityResponse,
+        ScenarioIntegrity,
+    )
+
+    scenarios = [
+        replace(_scenario(tmp_path, "Baseline", 1), engine_version="3.2.0"),
+        replace(_scenario(tmp_path, "Rich", 1), engine_version="3.1.0"),
+    ]
+    integrity = ComparisonIntegrityResponse(
+        anchor_scenario_id="id-Baseline",
+        anchor_scenario_name="Baseline",
+        scenarios=[
+            ScenarioIntegrity(
+                scenario_id="id-Rich", scenario_name="Rich", verdict="not_like_for_like"
+            )
+        ],
+    )
+
+    path = _export(
+        tmp_path, ComparisonExportService.with_verdicts(scenarios, integrity), "xlsx"
+    )
+
+    rows = _sheet_rows(path, "Metadata")
+    assert [row for row in rows if row[0] == "engine_version"] == [
+        ("engine_version", "3.2.0"),
+        ("engine_version", "3.1.0"),
+    ]
+    assert [row for row in rows if row[0] == "like_for_like"] == [
+        ("like_for_like", "anchor"),
+        ("like_for_like", "not_like_for_like"),
+    ]
+
+
+def test_endpoint_rejects_an_anchor_outside_the_selection(env):
+    client, _, workspace, scenarios = env
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={"scenarios": ",".join(s.id for s in scenarios), "anchor": "other"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_endpoint_records_verdict_against_the_requested_anchor(env):
+    client, _, workspace, scenarios = env
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={
+            "scenarios": ",".join(s.id for s in scenarios),
+            "anchor": scenarios[1].id,
+        },
+    )
+
+    assert response.status_code == 200
+    workbook = load_workbook(io.BytesIO(response.content), read_only=True)
+    rows = list(workbook["Metadata"].iter_rows(values_only=True))
+    verdicts = [row[1] for row in rows if row[0] == "like_for_like"]
+    # Legacy test databases carry no run record, so the check can't tell.
+    assert verdicts == ["unknown", "anchor"]

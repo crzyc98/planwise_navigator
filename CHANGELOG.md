@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Studio's comparison pages now say whether each scenario is like-for-like with the anchor, meaning only its plan design differs (#1178). When the census, seed, simulated years, engine version, or a workforce, pay or employee-behavior setting differs, the page names each difference with both values, so part of the cost difference isn't read as the plan change. When a result didn't record enough to check, it says it can't tell.
+- Studio's comparison pages now say whether each scenario is like-for-like with the anchor, meaning only its plan design differs (#1178). When the census, seed, simulated years, engine version, or a workforce, pay or employee-behavior setting differs, the page names each difference with both values, so part of the cost difference isn't read as the plan change. When a result didn't record enough to check, it says it can't tell. Scenarios and Overview mark a result that ran on an older engine version, with a one-click rerun, and comparison exports record each scenario's engine version and verdict.
 
 ### Fixed
 

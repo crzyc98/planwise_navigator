@@ -883,13 +883,18 @@ export default function ScenarioCostComparison() {
     setExporting(format);
     setExportError(null);
     try {
-      await downloadComparisonExport(activeWorkspace.id, selectedScenarioIds, format);
+      await downloadComparisonExport(
+        activeWorkspace.id,
+        selectedScenarioIds,
+        format,
+        selectedScenarioIds.includes(anchorScenarioId) ? anchorScenarioId : undefined,
+      );
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setExporting(null);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
