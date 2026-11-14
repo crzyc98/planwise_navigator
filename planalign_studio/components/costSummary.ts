@@ -274,7 +274,14 @@ export function buildCostSummary(inputs: CostSummaryInputs): ScenarioSummary[] {
   return scenarios.map(item => withAnchorDifferences(item, anchor, inputs.net !== null));
 }
 
-/** The workbook request: the same figures, plus the view and loaded run IDs. */
+/** The run each scenario's figures were read from (carried by the analytics response itself). */
+export function runIdsFromAnalytics(
+  analytics: DCPlanAnalytics[],
+): Record<string, string | null> {
+  return Object.fromEntries(analytics.map(item => [item.scenario_id, item.run_id ?? null]));
+}
+
+/** The workbook request: the same figures, plus the view and the runs they came from. */
 export function toSummaryExportRequest(
   summary: ScenarioSummary[],
   view: CostSummaryView,

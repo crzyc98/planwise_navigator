@@ -169,6 +169,13 @@ class DCPlanAnalytics(APIModel):
 
     scenario_id: str = Field(description="Scenario identifier")
     scenario_name: str = Field(description="Scenario display name")
+    run_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "The run these figures were read from (the scenario's selected "
+            "result run), so an export can name the run it was built from"
+        ),
+    )
     resolved_first_simulation_year: int = Field(
         description=(
             "First simulation year used to classify employees into the "

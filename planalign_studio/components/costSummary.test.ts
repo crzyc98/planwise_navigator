@@ -16,6 +16,7 @@ import {
   formatCurrency,
   formatPercent,
   formatSigned,
+  runIdsFromAnalytics,
   toSummaryExportRequest,
   type CostSummaryInputs,
   type ScenarioSummary,
@@ -221,5 +222,15 @@ describe('summary workbook request', () => {
     const request = toSummaryExportRequest(buildCostSummary(NET_INPUTS), NET_VIEW, { base: 'run-base', rich: 'run-rich' });
     if (process.env.UPDATE_COST_SUMMARY_FIXTURE) writeFileSync(FIXTURE, `${JSON.stringify(request, null, 2)}\n`);
     expect(request).toEqual(JSON.parse(readFileSync(FIXTURE, 'utf8')));
+  });
+});
+
+describe('run ids for the summary workbook', () => {
+  it('come from the analytics the figures were read from, not the scenario list', () => {
+    const read = [
+      { ...analytics('base', []), run_id: 'run-2' },
+      { ...analytics('rich', []), run_id: null },
+    ];
+    expect(runIdsFromAnalytics(read)).toEqual({ base: 'run-2', rich: null });
   });
 });

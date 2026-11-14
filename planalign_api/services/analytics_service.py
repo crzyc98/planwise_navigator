@@ -36,6 +36,7 @@ from .employer_cost_service import (
 from .vesting_service import project_forfeitures_for_connection
 from .database_path_resolver import (
     DatabasePathResolver,
+    ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
 
@@ -659,6 +660,7 @@ class AnalyticsService:
             return DCPlanAnalytics(
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
+                run_id=self._read_run_id(workspace_id, scenario_id, resolved),
                 opt_out_by_year=opt_out_by_year,
                 resolved_first_simulation_year=first_simulation_year,
                 total_eligible=participation["total_eligible"],
@@ -697,6 +699,15 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Failed to get DC plan analytics: {e}")
             return None
+
+    def _read_run_id(
+        self, workspace_id: str, scenario_id: str, resolved: ResolvedDatabasePath
+    ) -> Optional[str]:
+        """The run just read: same rule as the scenario list's selected run."""
+        if resolved.run_id:
+            return resolved.run_id
+        scenario = self.storage.get_scenario(workspace_id, scenario_id)
+        return scenario.last_run_id if scenario else None
 
     @staticmethod
     def _get_opt_out_by_year(
