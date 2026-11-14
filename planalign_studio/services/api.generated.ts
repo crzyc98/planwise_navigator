@@ -16268,6 +16268,8 @@ export interface operations {
                 format?: string;
                 /** @description Comma-separated comparison scenario IDs */
                 compare?: string | null;
+                /** @description Scenario that differences are measured against; must be one of the selected scenarios. Defaults to the scenario in the path. */
+                anchor?: string | null;
             };
             header?: never;
             path: {

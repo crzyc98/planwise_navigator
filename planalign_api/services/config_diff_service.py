@@ -69,8 +69,8 @@ class ConfigDiffService:
         existence check), lets both scenarios' configs be merged without
         re-reading workspace.json/base_config.yaml from disk per scenario.
         """
-        config_a = self._get_config(workspace_id, scenario_a, workspace)
-        config_b = self._get_config(workspace_id, scenario_b, workspace)
+        config_a = self.get_effective_config(workspace_id, scenario_a, workspace)
+        config_b = self.get_effective_config(workspace_id, scenario_b, workspace)
         differences, unchanged_count = _diff_configs(config_a, config_b)
         provenance = {
             scenario_a: self._read_provenance(workspace_id, scenario_a, config_a),
@@ -88,12 +88,13 @@ class ConfigDiffService:
             drift_warning=any(item.drift_warning for item in provenance.values()),
         )
 
-    def _get_config(
+    def get_effective_config(
         self,
         workspace_id: str,
         scenario_id: str,
         workspace: Optional[Workspace] = None,
     ) -> dict[str, Any]:
+        """The config the selected result ran with, else the current merged one."""
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if resolved.config_path is not None:
             try:

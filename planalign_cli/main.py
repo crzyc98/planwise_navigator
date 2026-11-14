@@ -566,6 +566,12 @@ def report(
     compare: Optional[str] = typer.Option(
         None, "--compare", help="Comma-separated scenario IDs"
     ),
+    anchor: Optional[str] = typer.Option(
+        None,
+        "--anchor",
+        help="Scenario (ID or name) differences are measured against; "
+        "defaults to SCENARIO",
+    ),
     format: str = typer.Option(
         "pdf", "--format", help="Report format: pdf, pptx, or html"
     ),
@@ -574,9 +580,11 @@ def report(
         None, "--template-dir", help="Override report template directory"
     ),
 ):
-    """Render a traceable executive scenario report from existing analytics."""
+    """Render a plan-design comparison report from existing analytics."""
     from planalign_api.config import get_settings
     from planalign_api.services.report_service import (
+        ReportNotFoundError,
+        ReportRequestError,
         build_scenario_report,
         render_report,
     )
@@ -588,16 +596,23 @@ def report(
         raise typer.BadParameter(
             "--workspace is required for a workspace scenario report"
         )
-    report_model = build_scenario_report(
-        WorkspaceStorage(get_settings().workspaces_root),
-        workspace,
-        scenario,
-        (
-            [item.strip() for item in compare.split(",") if item.strip()]
-            if compare
-            else None
-        ),
-    )
+    try:
+        report_model = build_scenario_report(
+            WorkspaceStorage(get_settings().workspaces_root),
+            workspace,
+            scenario,
+            (
+                [item.strip() for item in compare.split(",") if item.strip()]
+                if compare
+                else None
+            ),
+            anchor=anchor,
+        )
+    except ReportRequestError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except ReportNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
     target = Path(output or f"{scenario}-report.{format}")
     render_report(
         report_model, target, format, Path(template_dir) if template_dir else None
