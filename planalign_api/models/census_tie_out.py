@@ -69,12 +69,22 @@ class CensusTieOut(APIModel):
         default=None, description="Census file name recorded in the run's config."
     )
     census_year: Optional[int] = None
-    census_as_of_date: Optional[date] = None
+    census_as_of_date: Optional[date] = Field(
+        default=None, description="End of the census plan year."
+    )
     first_simulated_year: Optional[int] = None
     growth_rate: Optional[float] = Field(
         default=None, description="Configured annual headcount growth (fraction)."
     )
     raise_rate: Optional[float] = Field(
         default=None, description="Configured annual COLA plus merit (fraction)."
+    )
+    source_note: Optional[str] = Field(
+        default=None,
+        description=(
+            "One sentence naming the census file, census year and first simulated "
+            "year, and when the comparison is meaningful. Shown as is by the "
+            "Studio panel and the report."
+        ),
     )
     rows: List[CensusTieOutRow] = Field(default_factory=list)

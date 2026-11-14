@@ -9,6 +9,7 @@ one thing.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
@@ -16,9 +17,12 @@ from typing import Optional
 import duckdb
 import pytest
 
+from planalign_api.services import census_tie_out
 from planalign_api.services.census_tie_out import (
+    BAD_CONFIG_REASON,
     NO_ARCHIVED_CENSUS_REASON,
     NO_RUN_REASON,
+    UNREADABLE_DATABASE_REASON,
     CensusTieOutService,
     DriftAssumptions,
     _METRICS,
@@ -127,7 +131,12 @@ def _build_run(
     scenario_dir = root / WORKSPACE / "scenarios" / SCENARIO
     run_dir = scenario_dir / "runs" / RUN_ID
     run_dir.mkdir(parents=True)
-    metadata = {"run_id": RUN_ID, "status": "completed", "start_year": 2025}
+    metadata = {
+        "run_id": RUN_ID,
+        "status": "completed",
+        "start_year": 2025,
+        "end_year": 2026,
+    }
     (run_dir / "run_metadata.json").write_text(json.dumps(metadata))
     (run_dir / "config.yaml").write_text(CONFIG)
     with duckdb.connect(str(run_dir / "simulation.duckdb")) as conn:
@@ -174,6 +183,11 @@ def test_consistent_census_and_first_year_tie(tmp_path: Path) -> None:
     assert pay.expected_value == pytest.approx(5_000_000 * 1.03 * 1.05)
     assert _row(result, "participation_rate").relative_difference is None
     assert all(row.message for row in result.rows)
+    assert result.source_note == (
+        "Compares census_2024.parquet (census year 2024) with 2025, the first "
+        "simulated year, allowing for one year of the configured growth and "
+        "raises. Meaningful only for a scenario that models the current plan."
+    )
 
 
 def test_wrong_match_formula_is_a_match_gap(tmp_path: Path) -> None:
@@ -338,3 +352,108 @@ def test_endpoint_returns_tie_out(client_factory, tmp_path: Path) -> None:
     body = response.json()
     assert body["available"] is True
     assert [row["metric"] for row in body["rows"]] == [m.metric for m in _METRICS]
+
+
+def _run_dir(root: Path) -> Path:
+    return root / WORKSPACE / "scenarios" / SCENARIO / "runs" / RUN_ID
+
+
+def test_census_rows_with_a_later_termination_date_are_not_active(
+    tmp_path: Path,
+) -> None:
+    # The engine starts only rows with no termination date (int_baseline_workforce).
+    _build_run(tmp_path)
+    with duckdb.connect(str(_run_dir(tmp_path) / "simulation.duckdb")) as conn:
+        conn.execute("""
+            INSERT INTO stg_census_data
+            SELECT 'L' || i, DATE '2015-06-01', DATE '2025-03-01', TRUE, 50000,
+              0.06, 1500, 1000, DATE '2016-01-01'
+            FROM range(5) t(i)
+        """)
+
+    row = _row(_tie_out(tmp_path), "active_headcount")
+
+    assert row.census_value == 100
+    assert row.status == "ties"
+
+
+def test_non_calendar_plan_year_sets_the_as_of_date(tmp_path: Path) -> None:
+    # Ten census employees become eligible on 2025-03-01: inside a plan year
+    # ending 2025-06-30, after a calendar year ending 2024-12-31.
+    _build_run(tmp_path, census=replace(CENSUS, ineligible=10))
+    run_dir = _run_dir(tmp_path)
+    with duckdb.connect(str(run_dir / "simulation.duckdb")) as conn:
+        conn.execute(
+            "UPDATE stg_census_data SET eligibility_entry_date = DATE '2025-03-01' "
+            "WHERE eligibility_entry_date = DATE '2030-01-01'"
+        )
+    assert _row(_tie_out(tmp_path), "eligible_count").census_value == 90
+
+    (run_dir / "config.yaml").write_text(
+        CONFIG.replace("setup:\n", "setup:\n  plan_year_start_date: '2024-07-01'\n")
+    )
+    result = _tie_out(tmp_path)
+
+    assert result.census_year == 2024
+    assert result.census_as_of_date.isoformat() == "2025-06-30"
+    assert _row(result, "eligible_count").census_value == 100
+    assert "(census plan year ending June 30, 2025)" in result.source_note
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        CONFIG.replace("target_growth_rate: 0.03", "target_growth_rate: null"),
+        "simulation: [unclosed\n",
+        CONFIG.replace("cola_rate: 0.02", "cola_rate: lots"),
+        CONFIG + "  plan_year_end_date: not-a-date\n",
+    ],
+    ids=["null-growth", "malformed-yaml", "invalid-compensation", "bad-plan-date"],
+)
+def test_bad_archived_config_is_unavailable_not_an_error(
+    tmp_path: Path, config: str
+) -> None:
+    _build_run(tmp_path)
+    (_run_dir(tmp_path) / "config.yaml").write_text(config)
+
+    result = _tie_out(tmp_path)
+
+    assert not result.available
+    assert result.unavailable_reason == BAD_CONFIG_REASON
+    assert result.run_id == RUN_ID
+
+
+def test_unreadable_database_is_unavailable_not_an_error(tmp_path: Path) -> None:
+    _build_run(tmp_path)
+    (_run_dir(tmp_path) / "simulation.duckdb").write_bytes(b"not a database")
+
+    result = _tie_out(tmp_path)
+
+    assert not result.available
+    assert result.unavailable_reason == UNREADABLE_DATABASE_REASON
+
+
+def test_measurement_is_cached_until_the_database_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _build_run(tmp_path)
+    opened: list[str] = []
+    real_connect = duckdb.connect
+
+    def counting_connect(path: str, **kwargs: object) -> duckdb.DuckDBPyConnection:
+        opened.append(path)
+        return real_connect(path, **kwargs)
+
+    monkeypatch.setattr(census_tie_out.duckdb, "connect", counting_connect)
+    first = _tie_out(tmp_path)
+    assert _tie_out(tmp_path) == first
+    assert len(opened) == 1
+
+    database = _run_dir(tmp_path) / "simulation.duckdb"
+    with real_connect(str(database)) as conn:
+        conn.execute("DELETE FROM stg_census_data WHERE employee_id = 'C0'")
+    stat = database.stat()
+    os.utime(database, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+
+    assert _row(_tie_out(tmp_path), "active_headcount").census_value == 99
+    assert len(opened) == 2

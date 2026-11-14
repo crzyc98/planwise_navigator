@@ -4627,7 +4627,10 @@ export interface components {
         CensusTieOut: {
             /** Available */
             available: boolean;
-            /** Census As Of Date */
+            /**
+             * Census As Of Date
+             * @description End of the census plan year.
+             */
             census_as_of_date: string | null;
             /**
              * Census File
@@ -4656,6 +4659,11 @@ export interface components {
             scenario_id: string;
             /** Scenario Name */
             scenario_name: string;
+            /**
+             * Source Note
+             * @description One sentence naming the census file, census year and first simulated year, and when the comparison is meaningful. Shown as is by the Studio panel and the report.
+             */
+            source_note: string | null;
             /** Unavailable Reason */
             unavailable_reason: string | null;
         };

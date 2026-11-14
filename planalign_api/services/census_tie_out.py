@@ -26,10 +26,27 @@ employer_match         Employer match dollars for active employees.         empl
 employer_core          Employer core dollars for active employees.          employer_core_contribution -> employer_core_amount
 =====================  ===================================================  ==========================================================
 
-"Eligible" means the census eligibility date when the census has one. When it
-has none, participation and average deferral use every active employee on
-both sides and the eligible count reads ``not_in_census``. Averages count
-non-participants as 0, as Census Analysis and DC Plan analytics do by default.
+"Active" on the census side is the engine's starting population
+(``int_baseline_workforce``): the active flag and no termination date at all,
+so a row with a later termination date is not counted.
+
+The census as-of date is the end of the census plan year, by the rule in
+``dbt/macros/utils/census_plan_calendar.sql``: the run's configured
+``setup.plan_year_start_date``/``plan_year_end_date`` when set (one alone
+implies the other, a year apart), else Dec 31 of the census year.
+
+"Eligible" means the census eligibility date is on or before the as-of date.
+A NULL eligibility date counts as eligible, as Census Analysis does. When the
+census has no eligibility dates at all, participation and average deferral use
+every active employee on both sides and the eligible count reads
+``not_in_census``. Averages count non-participants as 0, as Census Analysis and
+DC Plan analytics do by default.
+
+Census-year hires' partial-year pay is compared as is, not annualized: the
+first simulated year's hires are partial-year on the simulated side too.
+
+Results are cached per run database file and modification time, because a
+selected run's database never changes once published.
 
 A census column that is missing or entirely empty is ``not_in_census``. The
 staging model adds absent optional columns as NULL, so "no data" (all NULL)
@@ -40,7 +57,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -62,6 +80,7 @@ from ..models.census_tie_out import (
 )
 from ..storage.workspace_storage import WorkspaceStorage
 from .census_schema import active_filter_sql
+from .current_result import CurrentResultIntegrityError
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
@@ -97,6 +116,19 @@ NO_CENSUS_YEAR_REASON = (
     "The archived census has no usable hire dates, so its census year is unknown."
 )
 NO_SNAPSHOT_REASON = "This run has no simulated workforce snapshot to compare."
+BAD_CONFIG_REASON = (
+    "This run's archived config couldn't be read, so the expected growth, raises "
+    "and plan year are unknown. Re-run the scenario to archive a valid config."
+)
+UNREADABLE_DATABASE_REASON = (
+    "This run's database couldn't be opened, so the census can't be compared. "
+    "Try again once nothing else has it open."
+)
+INTEGRITY_REASON = (
+    "This scenario's selected run failed an integrity check, so the census "
+    "can't be compared. Re-run the scenario."
+)
+SCOPE_NOTE = "Meaningful only for a scenario that models the current plan."
 
 
 @dataclass(frozen=True)
@@ -297,6 +329,33 @@ def tie_out_message(spec: _MetricSpec, row: CensusTieOutRow, factor: float) -> s
     return f"{message}. {spec.check}"
 
 
+def _comparison(
+    spec: _MetricSpec, census: Optional[float], simulated: float, factor: float
+) -> dict[str, Any]:
+    """The row fields that depend on whether the census has the metric."""
+    if census is None:
+        return {
+            "census_value": None,
+            "expected_value": None,
+            "difference": None,
+            "relative_difference": None,
+            "tolerance": None,
+            "status": "not_in_census",
+        }
+    expected = census * factor
+    tolerance = tolerance_for(spec, expected, factor)
+    return {
+        "census_value": census,
+        "expected_value": expected,
+        "difference": simulated - census,
+        "relative_difference": (
+            simulated / census - 1 if spec.unit != "rate" and census else None
+        ),
+        "tolerance": tolerance,
+        "status": classify(simulated, expected, tolerance),
+    }
+
+
 def build_row(
     spec: _MetricSpec,
     census: Optional[float],
@@ -305,41 +364,31 @@ def build_row(
 ) -> CensusTieOutRow:
     """Compare one metric and word the result."""
     factor = expected_factor(spec.drift, assumptions)
-    if census is None:
-        row = CensusTieOutRow(
-            metric=spec.metric,
-            label=spec.label,
-            unit=spec.unit,
-            definition=spec.definition,
-            census_value=None,
-            simulated_value=simulated,
-            expected_value=None,
-            difference=None,
-            relative_difference=None,
-            tolerance=None,
-            status="not_in_census",
-            message="",
-        )
-    else:
-        expected = census * factor
-        tolerance = tolerance_for(spec, expected, factor)
-        row = CensusTieOutRow(
-            metric=spec.metric,
-            label=spec.label,
-            unit=spec.unit,
-            definition=spec.definition,
-            census_value=census,
-            simulated_value=simulated,
-            expected_value=expected,
-            difference=simulated - census,
-            relative_difference=(
-                simulated / census - 1 if spec.unit != "rate" and census else None
-            ),
-            tolerance=tolerance,
-            status=classify(simulated, expected, tolerance),
-            message="",
-        )
+    row = CensusTieOutRow(
+        metric=spec.metric,
+        label=spec.label,
+        unit=spec.unit,
+        definition=spec.definition,
+        simulated_value=simulated,
+        message="",
+        **_comparison(spec, census, simulated, factor),
+    )
     return row.model_copy(update={"message": tie_out_message(spec, row, factor)})
+
+
+def source_note(
+    census_file: Optional[str], census_year: int, as_of: date, first_year: int
+) -> str:
+    """The sentence naming what was compared; the panel and report print it."""
+    if as_of == date(census_year, 12, 31):
+        period = f"census year {census_year}"
+    else:
+        period = f"census plan year ending {as_of:%B} {as_of.day}, {as_of.year}"
+    return (
+        f"Compares {census_file or 'the archived census'} ({period}) with "
+        f"{first_year}, the first simulated year, allowing for one year of the "
+        f"configured growth and raises. {SCOPE_NOTE}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +427,46 @@ def census_file_name(config: dict[str, Any]) -> Optional[str]:
     """The census file name the run was configured with (name only)."""
     path = (config.get("setup") or {}).get("census_parquet_path")
     return Path(str(path)).name if path else None
+
+
+def _shift_years(day: date, years: int) -> date:
+    """``day`` moved by whole years; Feb 29 lands on Feb 28, as in DuckDB."""
+    try:
+        return day.replace(year=day.year + years)
+    except ValueError:
+        return day.replace(year=day.year + years, day=28)
+
+
+def plan_year_end(config: dict[str, Any]) -> Optional[date]:
+    """End of the configured census plan year, or None for the calendar year.
+
+    Mirrors ``census_plan_calendar.sql``: an end date wins; a start date alone
+    ends one year later, less a day.
+    """
+    setup = config.get("setup") or {}
+    end, start = setup.get("plan_year_end_date"), setup.get("plan_year_start_date")
+    if end:
+        return date.fromisoformat(str(end))
+    if start:
+        return _shift_years(date.fromisoformat(str(start)), 1) - timedelta(days=1)
+    return None
+
+
+@dataclass(frozen=True)
+class _RunInputs:
+    """What the tie-out needs from the run's archived config."""
+
+    assumptions: DriftAssumptions
+    census_file: Optional[str]
+    plan_year_end: Optional[date]
+
+    @classmethod
+    def load(cls, config_path: Optional[Path]) -> "_RunInputs":
+        """Parse the config; raises on a malformed one (the caller reports it)."""
+        config = load_run_config(config_path)
+        return cls(
+            drift_assumptions(config), census_file_name(config), plan_year_end(config)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -436,9 +525,9 @@ def _census_population_sql(columns: set[str], available: set[str]) -> str:
         if "eligibility_entry_date" in available
         else "TRUE"
     )
+    # As int_baseline_workforce: any termination date leaves the starting population.
     still_employed = (
-        "(TRY_CAST(employee_termination_date AS DATE) IS NULL "
-        "OR TRY_CAST(employee_termination_date AS DATE) > $as_of)"
+        "employee_termination_date IS NULL"
         if "employee_termination_date" in columns
         else "TRUE"
     )
@@ -494,9 +583,88 @@ def _aggregate(
 @dataclass(frozen=True)
 class _Measured:
     census_year: int
+    as_of: date
     first_year: int
     census: dict[str, Optional[float]]
     simulated: dict[str, Optional[float]]
+
+
+def _measure(
+    conn: duckdb.DuckDBPyConnection, configured_end: Optional[date]
+) -> _Measured | str:
+    """Measure both sides, or return why the tie-out is unavailable."""
+    columns = _table_columns(conn, CENSUS_TABLE)
+    if not columns:
+        return NO_ARCHIVED_CENSUS_REASON
+    if not _table_columns(conn, TABLE_FCT_WORKFORCE_SNAPSHOT):
+        return NO_SNAPSHOT_REASON
+    census_year = _census_year(conn)
+    if census_year is None:
+        return NO_CENSUS_YEAR_REASON
+    first_row = conn.execute(
+        f"SELECT MIN(simulation_year) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}"
+    ).fetchone()
+    if first_row is None or first_row[0] is None:
+        return NO_SNAPSHOT_REASON
+    first_year = int(first_row[0])
+    as_of = configured_end or date(census_year, 12, 31)
+    available = _census_columns_with_data(conn, columns)
+    uses_as_of = "eligibility_entry_date" in available
+    census = _aggregate(
+        conn,
+        _census_population_sql(columns, available),
+        {"as_of": as_of} if uses_as_of else {},
+    )
+    simulated = _aggregate(
+        conn,
+        _simulated_population_sql("eligibility_entry_date" in available),
+        {"year": first_year},
+    )
+    for spec in _METRICS:
+        if spec.census_column and spec.census_column not in available:
+            census[spec.metric] = None
+    return _Measured(census_year, as_of, first_year, census, simulated)
+
+
+@lru_cache(maxsize=32)
+def _measure_file(
+    path: str, mtime_ns: int, configured_end: Optional[date]
+) -> _Measured | str:
+    """Measure one run database; cached because a published run never changes.
+
+    ``mtime_ns`` is part of the key only, so a rewritten file is measured again.
+    Errors propagate and are not cached.
+    """
+    with duckdb.connect(path, read_only=True) as conn:
+        return _measure(conn, configured_end)
+
+
+def _available_fields(measured: _Measured, inputs: _RunInputs) -> dict[str, Any]:
+    """The CensusTieOut fields for a run that could be compared."""
+    rows = [
+        build_row(
+            spec,
+            measured.census[spec.metric],
+            measured.simulated[spec.metric] or 0.0,
+            inputs.assumptions,
+        )
+        for spec in _METRICS
+    ]
+    return {
+        "available": True,
+        "census_year": measured.census_year,
+        "census_as_of_date": measured.as_of,
+        "first_simulated_year": measured.first_year,
+        "growth_rate": inputs.assumptions.growth_rate,
+        "raise_rate": inputs.assumptions.raise_rate,
+        "source_note": source_note(
+            inputs.census_file,
+            measured.census_year,
+            measured.as_of,
+            measured.first_year,
+        ),
+        "rows": rows,
+    }
 
 
 class CensusTieOutService:
@@ -513,71 +681,37 @@ class CensusTieOutService:
     def get_tie_out(
         self, workspace_id: str, scenario_id: str, scenario_name: str
     ) -> CensusTieOut:
+        """The tie-out for the scenario's selected run; never raises on bad inputs."""
         result = CensusTieOut(
             scenario_id=scenario_id, scenario_name=scenario_name, available=False
         )
-        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        try:
+            # This service opens the database itself, so skip the resolver's probe.
+            resolved = self.db_resolver.resolve(
+                workspace_id, scenario_id, verify_database=False
+            )
+        except CurrentResultIntegrityError as exc:
+            logger.warning("Scenario %s result failed integrity: %r", scenario_id, exc)
+            return result.model_copy(update={"unavailable_reason": INTEGRITY_REASON})
         if resolved.source != "run" or resolved.path is None:
             return result.model_copy(update={"unavailable_reason": NO_RUN_REASON})
-        config = load_run_config(resolved.config_path)
-        result = result.model_copy(
-            update={"run_id": resolved.run_id, "census_file": census_file_name(config)}
-        )
-        with duckdb.connect(str(resolved.path), read_only=True) as conn:
-            measured = self._measure(conn)
+        result = result.model_copy(update={"run_id": resolved.run_id})
+        try:
+            inputs = _RunInputs.load(resolved.config_path)
+        except (OSError, yaml.YAMLError, ValueError, TypeError, AttributeError) as exc:
+            logger.warning("Run %s config is unreadable: %r", resolved.run_id, exc)
+            return result.model_copy(update={"unavailable_reason": BAD_CONFIG_REASON})
+        result = result.model_copy(update={"census_file": inputs.census_file})
+        try:
+            path = str(resolved.path)
+            measured = _measure_file(
+                path, Path(path).stat().st_mtime_ns, inputs.plan_year_end
+            )
+        except (OSError, duckdb.IOException) as exc:  # lock, missing or corrupt file
+            logger.warning("Run %s database is unreadable: %r", resolved.run_id, exc)
+            return result.model_copy(
+                update={"unavailable_reason": UNREADABLE_DATABASE_REASON}
+            )
         if isinstance(measured, str):
             return result.model_copy(update={"unavailable_reason": measured})
-        assumptions = drift_assumptions(config)
-        rows = [
-            build_row(
-                spec,
-                measured.census[spec.metric],
-                measured.simulated[spec.metric] or 0.0,
-                assumptions,
-            )
-            for spec in _METRICS
-        ]
-        return result.model_copy(
-            update={
-                "available": True,
-                "census_year": measured.census_year,
-                "census_as_of_date": date(measured.census_year, 12, 31),
-                "first_simulated_year": measured.first_year,
-                "growth_rate": assumptions.growth_rate,
-                "raise_rate": assumptions.raise_rate,
-                "rows": rows,
-            }
-        )
-
-    @staticmethod
-    def _measure(conn: duckdb.DuckDBPyConnection) -> _Measured | str:
-        """Measure both sides, or return why the tie-out is unavailable."""
-        columns = _table_columns(conn, CENSUS_TABLE)
-        if not columns:
-            return NO_ARCHIVED_CENSUS_REASON
-        if not _table_columns(conn, TABLE_FCT_WORKFORCE_SNAPSHOT):
-            return NO_SNAPSHOT_REASON
-        census_year = _census_year(conn)
-        if census_year is None:
-            return NO_CENSUS_YEAR_REASON
-        first_row = conn.execute(
-            f"SELECT MIN(simulation_year) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}"
-        ).fetchone()
-        if first_row is None or first_row[0] is None:
-            return NO_SNAPSHOT_REASON
-        first_year = int(first_row[0])
-        available = _census_columns_with_data(conn, columns)
-        census = _aggregate(
-            conn,
-            _census_population_sql(columns, available),
-            {"as_of": date(census_year, 12, 31)},
-        )
-        simulated = _aggregate(
-            conn,
-            _simulated_population_sql("eligibility_entry_date" in available),
-            {"year": first_year},
-        )
-        for spec in _METRICS:
-            if spec.census_column and spec.census_column not in available:
-                census[spec.metric] = None
-        return _Measured(census_year, first_year, census, simulated)
+        return result.model_copy(update=_available_fields(measured, inputs))

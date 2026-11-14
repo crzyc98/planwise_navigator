@@ -3989,6 +3989,7 @@
                 "type": "null"
               }
             ],
+            "description": "End of the census plan year.",
             "title": "Census As Of Date"
           },
           "census_file": {
@@ -4075,6 +4076,18 @@
             "title": "Scenario Name",
             "type": "string"
           },
+          "source_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence naming the census file, census year and first simulated year, and when the comparison is meaningful. Shown as is by the Studio panel and the report.",
+            "title": "Source Note"
+          },
           "unavailable_reason": {
             "anyOf": [
               {
@@ -4099,6 +4112,7 @@
           "first_simulated_year",
           "growth_rate",
           "raise_rate",
+          "source_note",
           "rows"
         ],
         "title": "CensusTieOut",
