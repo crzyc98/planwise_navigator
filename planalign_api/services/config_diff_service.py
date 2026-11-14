@@ -24,6 +24,7 @@ from ..models.workspace import Workspace
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
     DatabasePathResolver,
+    ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
 from .run_trust import evaluate_run_trust
@@ -93,9 +94,15 @@ class ConfigDiffService:
         workspace_id: str,
         scenario_id: str,
         workspace: Optional[Workspace] = None,
+        resolved: Optional[ResolvedDatabasePath] = None,
     ) -> dict[str, Any]:
-        """The config the selected result ran with, else the current merged one."""
-        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        """The config the selected result ran with, else the current merged one.
+
+        Pass ``resolved`` to read the config of a result the caller already
+        resolved, so the config and the figures come from the same run.
+        """
+        if resolved is None:
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if resolved.config_path is not None:
             try:
                 archived = yaml.safe_load(
