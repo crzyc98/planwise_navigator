@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cost Comparison can download its tables as a small Excel workbook (Summary). It has the figures the page shows for the current view (anchor, cohort, gross or net of forfeitures, match/core split), a by-year sheet, and a Notes sheet with the view settings and each scenario's run. Unavailable figures are blank cells with a note, never $0.
+
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
+
+### Fixed
+
+- Cost Comparison's net view with existing employees grandfathered now subtracts forfeiture offsets from the grandfathered cost each year, not the ungrandfathered cost. A net total whose gross total is unavailable, and an offset total with no measurable year, now read as unavailable instead of a dollar figure.
 
 ## [3.2.0] - 2026-11-12
 

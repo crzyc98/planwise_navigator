@@ -5,10 +5,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
+from urllib.parse import quote
 
 from ..services.vesting_evidence import VestingEvidenceError
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 
 from ..config import APISettings, get_settings
@@ -18,6 +19,7 @@ from ..models.analytics import (
     DCPlanComparisonResponse,
     GrandfatheredCostComparisonResponse,
 )
+from ..models.cost_summary import CostSummaryExportRequest
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
@@ -28,6 +30,14 @@ from ..services.comparison_export_service import (
     ExportFormat,
     ExportScenario,
     HyperUnavailableError,
+)
+from ..services.comparison_summary_export import (
+    MEDIA_TYPE as SUMMARY_MEDIA_TYPE,
+    ComparisonSummaryExportService,
+    StaleSummaryError,
+    SummaryExportError,
+    build_summary_workbook,
+    validate_request,
 )
 from ..services.vesting_service import SCHEDULE_INFO
 from ..services.winners_losers_service import (
@@ -58,6 +68,13 @@ def get_comparison_export_service(
 ) -> ComparisonExportService:
     """Dependency to get the multi-scenario export service."""
     return ComparisonExportService(storage)
+
+
+def get_comparison_summary_export_service(
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> ComparisonSummaryExportService:
+    """Dependency to get the Cost Comparison summary workbook service."""
+    return ComparisonSummaryExportService(storage)
 
 
 def _completed_scenario_names(
@@ -380,6 +397,62 @@ def export_scenario_comparison(
         media_type=_EXPORT_MEDIA_TYPES[format],
         filename=filename,
         background=BackgroundTask(shutil.rmtree, output_dir, ignore_errors=True),
+    )
+
+
+@router.post(
+    "/{workspace_id}/analytics/compare/summary-export",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {SUMMARY_MEDIA_TYPE: {}},
+            "description": "The Cost Comparison tables for the posted view.",
+        },
+        409: {"description": "A scenario has a newer run than the page loaded"},
+    },
+)
+def export_comparison_summary(
+    workspace_id: str,
+    request: CostSummaryExportRequest,
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: ComparisonSummaryExportService = Depends(
+        get_comparison_summary_export_service
+    ),
+) -> Response:
+    """Download the Cost Comparison page's tables as a small workbook.
+
+    The page posts the figures it renders; the server adds scenario names, view
+    labels and run provenance, and rejects figures from a superseded run.
+    """
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    try:
+        validate_request(request)
+    except SummaryExportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    scenario_ids = [item.scenario_id for item in request.scenarios]
+    names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+    try:
+        sources = service.sources(workspace_id, request, names)
+    except StaleSummaryError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    content = build_summary_workbook(request, sources, workspace.name)
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = (
+        f"{workspace.name.replace(' ', '_')}_cost_comparison_summary_{date_str}.xlsx"
+    )
+    return Response(
+        content=content,
+        media_type=SUMMARY_MEDIA_TYPE,
+        # RFC 5987 form: workspace names may hold quotes or non-ASCII text.
+        headers={
+            "Content-Disposition": f"attachment; filename*=utf-8''{quote(filename)}"
+        },
     )
 
 
