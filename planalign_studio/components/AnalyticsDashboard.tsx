@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
-  Download, Filter, Calendar, Users, TrendingUp, DollarSign, PieChart as PieChartIcon,
+  Filter, Calendar, Users, TrendingUp, DollarSign, PieChart as PieChartIcon,
   ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, ChevronDown, Database, Loader2,
   Clipboard, Check
 } from 'lucide-react';
@@ -19,6 +19,8 @@ import {
   SimulationResults
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
+import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
+import { reportRequest } from './reportExport';
 import RunHealthSummary from './simulation/RunHealthSummary';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
@@ -211,6 +213,8 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState<ReportExportFormat | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   // Population filter toggle
   const [population, setPopulation] = useState<'all' | 'active' | 'terminated'>('all');
@@ -324,6 +328,20 @@ export default function AnalyticsDashboard() {
       setError(err.message || 'Failed to export results');
     }
   }, [selectedWorkspaceId, selectedScenarioId]);
+
+  const handleReportExport = async (format: ReportExportFormat) => {
+    const request = reportRequest(selectedScenarioId ? [selectedScenarioId] : [], selectedScenarioId, format);
+    if (!selectedWorkspaceId || !request) return;
+    setReportBusy(format);
+    setReportError(null);
+    try {
+      await downloadScenarioReport(selectedWorkspaceId, request.scenarioId, request.options);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Failed to export report');
+    } finally {
+      setReportBusy(null);
+    }
+  };
 
   const handleRefresh = () => {
     fetchWorkspaces();
@@ -505,22 +523,17 @@ export default function AnalyticsDashboard() {
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
 
-          <button
-            onClick={() => {
-              if (!selectedWorkspaceId || !selectedScenarioId) return;
-              downloadScenarioReport(selectedWorkspaceId, selectedScenarioId, 'pdf').catch((err) => {
-                console.error('Failed to export report:', err);
-                setError(err instanceof Error ? err.message : 'Failed to export report');
-              });
-            }}
+          <ReportExportButtons
+            onExport={handleReportExport}
+            busy={reportBusy}
             disabled={!selectedScenarioId || loading}
-            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-brand-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
-          >
-            <Download size={16} className="mr-2" />
-            Export report (PDF)
-          </button>
+          />
         </div>
       </div>
+
+      {reportError && (
+        <p role="alert" className="text-sm text-danger-ink">{reportError}</p>
+      )}
 
       {/* Content Area */}
       {loading ? (

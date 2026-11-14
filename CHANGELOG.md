@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cost Comparison can export the comparison report as PDF or PowerPoint for the scenarios and anchor on the page, and the Overview report button now offers the same two formats. If the server can't create a report because a component isn't installed, Studio says which one.
 - Cost Comparison can download its tables as a small Excel workbook (Summary). It has the figures the page shows for the current view (anchor, cohort, gross or net of forfeitures, match/core split), a by-year sheet, and a Notes sheet with the view settings and each scenario's run. Unavailable figures are blank cells with a note, never $0.
 
 ### Changed

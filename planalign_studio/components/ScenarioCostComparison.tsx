@@ -43,6 +43,8 @@ import {
   toSummaryExportRequest,
   type GrandfatherInput,
 } from './costSummary';
+import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
+import { reportRequest } from './reportExport';
 import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
   listScenarios,
@@ -50,6 +52,7 @@ import {
   compareGrandfatheredCost,
   downloadComparisonExport,
   downloadComparisonSummary,
+  downloadScenarioReport,
   ComparisonExportFormat,
   getScenarioConfig,
   getForfeitureProjection,
@@ -441,6 +444,7 @@ export default function ScenarioCostComparison() {
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ComparisonExportFormat | 'summary' | null>(null);
+  const [reportBusy, setReportBusy] = useState<ReportExportFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
@@ -825,6 +829,20 @@ export default function ScenarioCostComparison() {
       setExporting(null);
     }
   }, [activeWorkspace?.id, selectedScenarioIds]);
+
+  const handleReportExport = useCallback(async (format: ReportExportFormat) => {
+    const request = reportRequest(selectedScenarioIds, anchorScenarioId, format);
+    if (!activeWorkspace?.id || !request) return;
+    setReportBusy(format);
+    setExportError(null);
+    try {
+      await downloadScenarioReport(activeWorkspace.id, request.scenarioId, request.options);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Report export failed');
+    } finally {
+      setReportBusy(null);
+    }
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
 
   /** The workbook carries exactly the figures on screen, so wait for them to load. */
   const summaryReady = !loading && costSummary.length > 0
@@ -1291,7 +1309,7 @@ export default function ScenarioCostComparison() {
               <button
                 key={format}
                 onClick={() => handleExport(format)}
-                disabled={selectedScenarioIds.length === 0 || exporting !== null}
+                disabled={selectedScenarioIds.length === 0 || exporting !== null || reportBusy !== null}
                 title={title}
                 className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1303,7 +1321,7 @@ export default function ScenarioCostComparison() {
             ))}
             <button
               onClick={handleSummaryExport}
-              disabled={!summaryReady || exporting !== null}
+              disabled={!summaryReady || exporting !== null || reportBusy !== null}
               title="Download the cost tables for the current view (.xlsx)"
               className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1313,6 +1331,11 @@ export default function ScenarioCostComparison() {
               Summary
             </button>
           </div>
+          <ReportExportButtons
+            onExport={handleReportExport}
+            busy={reportBusy}
+            disabled={selectedScenarioIds.length === 0 || exporting !== null}
+          />
           {exporting === 'xlsx' && (
             <p className="text-[11px] text-ink-subtle">
               Large Excel exports can take several minutes. Tableau is much faster.
