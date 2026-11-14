@@ -6453,6 +6453,18 @@
             "title": "Resolved First Simulation Year",
             "type": "integer"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from",
+            "title": "Run Id"
+          },
           "scenario_id": {
             "description": "Scenario identifier",
             "title": "Scenario Id",
@@ -6545,6 +6557,7 @@
         "required": [
           "scenario_id",
           "scenario_name",
+          "run_id",
           "resolved_first_simulation_year",
           "opt_out_by_year",
           "total_eligible",

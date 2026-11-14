@@ -5687,6 +5687,11 @@ export interface components {
              */
             resolved_first_simulation_year: number;
             /**
+             * Run Id
+             * @description The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from
+             */
+            run_id: string | null;
+            /**
              * Scenario Id
              * @description Scenario identifier
              */

@@ -34,6 +34,7 @@ import CostBreakdownTooltip from './CostBreakdownTooltip';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
 import {
   buildCostSummary,
+  runIdsFromAnalytics,
   compensationMatrixTSV,
   costMatrixTSV,
   differenceFromAnchor,
@@ -844,7 +845,7 @@ export default function ScenarioCostComparison() {
       forfeiture_policy: netActive ? forfeiturePolicy : null,
       grandfather_cutoff_year: grandfatherExisting ? grandfatherCutoffYear : null,
     };
-    const runIds = Object.fromEntries(scenarios.map(item => [item.id, item.selected_result_run_id]));
+    const runIds = runIdsFromAnalytics(comparisonData?.analytics ?? []);
     try {
       await downloadComparisonSummary(
         activeWorkspace.id, toSummaryExportRequest(costSummary, view, runIds),
@@ -856,7 +857,7 @@ export default function ScenarioCostComparison() {
     }
   }, [activeWorkspace?.id, costSummary, anchorScenarioId, cohort, anchorAnalytics, netActive,
       splitActive, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear,
-      scenarios]);
+      comparisonData]);
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
