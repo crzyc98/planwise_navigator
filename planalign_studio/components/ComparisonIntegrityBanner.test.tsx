@@ -80,6 +80,17 @@ describe('like-for-like copy', () => {
     expect(summary.lines[0].tone).toBe('ok');
   });
 
+  it('says once when every result ran on the same engine version', () => {
+    expect(summarizeIntegrity(response([scenario({}), scenario({ scenario_id: 'c' })])).versionNote)
+      .toBe('All results ran on engine version 3.2.0.');
+  });
+
+  it('makes no shared-version claim when versions differ or one is unknown', () => {
+    expect(summarizeIntegrity(response([scenario({ engine_version: '3.1.0' })])).versionNote).toBeNull();
+    expect(summarizeIntegrity(response([scenario({ engine_version: null })])).versionNote).toBeNull();
+    expect(summarizeIntegrity({ ...response([scenario({})]), anchor_engine_version: null }).versionNote).toBeNull();
+  });
+
   it('caps long setting lists', () => {
     const reasons = Array.from({ length: 6 }, (_, index) => reason({ path: `workforce.knob_${index}`, anchor_value: index, scenario_value: index + 1 }));
     const [line] = summarizeIntegrity(response([scenario({ verdict: 'not_like_for_like', reasons })])).lines;
@@ -109,6 +120,7 @@ describe('ComparisonIntegrityLines', () => {
     );
     expect(html).toContain('href="/w/ws/analytics/diff?a=a&amp;b=b"');
     expect(html).toContain('Richer match is like-for-like with Baseline.');
+    expect(html).toContain('All results ran on engine version 3.2.0.');
     expect(html).not.toMatch(/provenance|fingerprint/i);
   });
 });

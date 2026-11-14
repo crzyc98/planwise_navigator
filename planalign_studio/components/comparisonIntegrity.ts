@@ -22,6 +22,8 @@ export interface IntegritySummary {
   lines: IntegrityLine[];
   /** Notes about the anchor itself, shown once rather than on every line. */
   anchorNotes: string[];
+  /** Set only when every result ran on the same known engine version. */
+  versionNote: string | null;
 }
 
 const MAX_SETTING_DETAILS = 4;
@@ -174,6 +176,14 @@ const TONES: Record<ScenarioIntegrity['verdict'], IntegrityTone> = {
   unknown: 'unknown',
 };
 
+/** "All results ran on engine version X." only when that is known for every result. */
+export function sharedVersionNote(result: ComparisonIntegrityResponse): string | null {
+  const version = result.anchor_engine_version;
+  if (!version || result.scenarios.length === 0) return null;
+  const same = result.scenarios.every(item => item.engine_version === version);
+  return same ? `All results ran on engine version ${version}.` : null;
+}
+
 export function summarizeIntegrity(result: ComparisonIntegrityResponse): IntegritySummary {
   const names: Record<string, string> = { [result.anchor_scenario_id]: result.anchor_scenario_name };
   result.scenarios.forEach(item => { names[item.scenario_id] = item.scenario_name; });
@@ -183,6 +193,7 @@ export function summarizeIntegrity(result: ComparisonIntegrityResponse): Integri
   const anchorNotes = result.scenarios.length > 0 ? notesAbout(result.anchor_scenario_id)(result.scenarios[0]) : [];
   return {
     anchorNotes,
+    versionNote: sharedVersionNote(result),
     lines: result.scenarios.map(item => ({
       scenarioId: item.scenario_id,
       tone: TONES[item.verdict],

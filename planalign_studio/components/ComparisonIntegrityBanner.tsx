@@ -57,6 +57,7 @@ export function ComparisonIntegrityLines({
         ))}
       </ul>
       {summary.anchorNotes.map(note => <p key={note} className="text-xs text-ink-subtle">{note}</p>)}
+      {summary.versionNote && <p className="text-xs text-ink-subtle">{summary.versionNote}</p>}
     </section>
   );
 }

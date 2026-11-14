@@ -29,8 +29,17 @@ describe('EngineVersionBadge', () => {
     expect(html).toContain('text-ink-muted');
   });
 
-  it('renders nothing for a current or unknown version', () => {
-    expect(render(null)).toBe('');
+  it('shows a current version quietly, without a warning or rerun action', () => {
+    const html = render(null, '3.2.0');
+    expect(html).toContain('Run on 3.2.0');
+    expect(html).toContain('text-ink-muted');
+    expect(html).not.toContain('warning');
+    expect(html).not.toContain('Rerun');
+    expect(html).not.toContain('<svg');
+  });
+
+  it('renders nothing when the version is unknown', () => {
+    expect(render(null, null)).toBe('');
     expect(render('minor', null)).toBe('');
   });
 });

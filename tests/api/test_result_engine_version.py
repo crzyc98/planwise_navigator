@@ -74,6 +74,22 @@ def test_scenario_list_reports_older_result_without_opening_databases(
         assert scenario["result_engine_version_gap"] == "minor"
 
 
+def test_current_version_is_reported_without_a_gap_or_database_open(
+    tmp_path, client_factory, monkeypatch
+) -> None:
+    workspace_id, _ = _published_scenario(tmp_path, __version__)
+    client = client_factory(None)
+
+    def no_connect(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("scenario list must not open scenario databases")
+
+    monkeypatch.setattr(duckdb, "connect", no_connect)
+    scenario = client.get(f"/api/workspaces/{workspace_id}/scenarios").json()[0]
+
+    assert scenario["result_engine_version"] == __version__
+    assert scenario["result_engine_version_gap"] is None
+
+
 def test_result_without_provenance_has_no_version(tmp_path, client_factory) -> None:
     workspace_id, _ = _published_scenario(tmp_path, None)
     scenario = client_factory(None).get(f"/api/workspaces/{workspace_id}/scenarios")
