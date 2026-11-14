@@ -231,11 +231,14 @@ _AGGREGATE_SQL = """
 
 @dataclass(frozen=True)
 class DriftAssumptions:
-    """Configured change between the census year and the first simulated year."""
+    """Configured change from the census to the end of the first simulated year.
+
+    The engine starts the first simulated year from the census as it stands
+    and applies one year of growth and raises, however old the census is.
+    """
 
     growth_rate: float
     raise_rate: float
-    years: int
 
 
 def expected_factor(drift: DriftKind, assumptions: DriftAssumptions) -> float:
@@ -245,7 +248,7 @@ def expected_factor(drift: DriftKind, assumptions: DriftAssumptions) -> float:
     yearly = 1 + assumptions.growth_rate
     if drift == "growth_and_raises":
         yearly *= 1 + assumptions.raise_rate
-    return yearly**assumptions.years
+    return yearly
 
 
 def tolerance_for(spec: _MetricSpec, expected: float, factor: float) -> float:
@@ -353,10 +356,8 @@ def load_run_config(config_path: Optional[Path]) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def drift_assumptions(
-    config: dict[str, Any], census_year: int, first_year: int
-) -> DriftAssumptions:
-    """Growth and raises the run was configured with, over the bridged years.
+def drift_assumptions(config: dict[str, Any]) -> DriftAssumptions:
+    """One year of the growth and raises the run was configured with.
 
     Raises are COLA plus merit (a raise budget, when set, replaces both, as in
     the engine). Promotions and new-hire pay mix fall inside the tolerance.
@@ -370,7 +371,6 @@ def drift_assumptions(
     return DriftAssumptions(
         growth_rate=growth,
         raise_rate=compensation.cola_rate + compensation.merit_budget,
-        years=max(1, first_year - census_year),
     )
 
 
@@ -527,9 +527,7 @@ class CensusTieOutService:
             measured = self._measure(conn)
         if isinstance(measured, str):
             return result.model_copy(update={"unavailable_reason": measured})
-        assumptions = drift_assumptions(
-            config, measured.census_year, measured.first_year
-        )
+        assumptions = drift_assumptions(config)
         rows = [
             build_row(
                 spec,

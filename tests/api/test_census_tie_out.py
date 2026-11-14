@@ -300,7 +300,7 @@ def test_scenario_without_a_run_is_unavailable(tmp_path: Path) -> None:
 
 
 def test_tolerance_allows_configured_drift() -> None:
-    one_year = DriftAssumptions(growth_rate=0.03, raise_rate=0.05, years=1)
+    one_year = DriftAssumptions(growth_rate=0.03, raise_rate=0.05)
     pay = next(spec for spec in _METRICS if spec.metric == "total_pay")
     factor = expected_factor("growth_and_raises", one_year)
     tolerance = tolerance_for(pay, 1000 * factor, factor)
@@ -310,9 +310,8 @@ def test_tolerance_allows_configured_drift() -> None:
     assert tolerance == pytest.approx(1081.5 * (0.05 + 0.5 * 0.0815))
     assert classify(1081.5 + tolerance, 1081.5, tolerance) == "ties"
     assert classify(1081.5 + tolerance + 1, 1081.5, tolerance) == "gap"
-    two_years = replace(one_year, years=2)
-    assert expected_factor("growth", two_years) == pytest.approx(1.03**2)
-    assert expected_factor("none", two_years) == 1.0
+    assert expected_factor("growth", one_year) == pytest.approx(1.03)
+    assert expected_factor("none", one_year) == 1.0
 
 
 def test_endpoint_returns_tie_out(client_factory, tmp_path: Path) -> None:
