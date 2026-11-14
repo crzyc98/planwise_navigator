@@ -6,6 +6,8 @@ import {
   censusTieOutPath,
   formatTieOutDifference,
   formatTieOutValue,
+  loadTieOutState,
+  TieOutState,
 } from './CensusTieOutPanel';
 import { CensusTieOut, CensusTieOutRow } from '../services/api';
 
@@ -23,6 +25,7 @@ const tieOut: CensusTieOut = {
   scenario_id: 's', scenario_name: 'Baseline', available: true, unavailable_reason: null,
   run_id: 'run', census_file: 'census_2024.parquet', census_year: 2024,
   census_as_of_date: '2024-12-31', first_simulated_year: 2025, growth_rate: 0.03, raise_rate: 0.05,
+  source_note: 'Compares census_2024.parquet (census year 2024) with 2025, the first simulated year, allowing for one year of the configured growth and raises. Meaningful only for a scenario that models the current plan.',
   rows: [
     row({}),
     row({
@@ -44,10 +47,10 @@ const render = (props: Partial<React.ComponentProps<typeof CensusTieOutView>>) =
   renderToStaticMarkup(<CensusTieOutView tieOut={tieOut} loading={false} failed={false} {...props} />);
 
 describe('Census tie-out panel', () => {
-  it('names the census file, census year and first simulated year', () => {
+  it('prints the server sentence naming the census file and years', () => {
     const html = render({});
     expect(html).toContain('id="census-tie-out"');
-    expect(html).toContain('census_2024.parquet (census year 2024) with 2025, the first');
+    expect(html).toContain(tieOut.source_note);
     expect(html).toContain('Census 2024');
     expect(html).toContain('Simulated 2025');
     expect(html).toContain('Meaningful only for a scenario that models the current plan');
@@ -94,6 +97,30 @@ describe('Census tie-out panel', () => {
     expect(formatTieOutDifference('count', 3)).toBe('+3');
     expect(formatTieOutDifference('rate', -0.012)).toBe('-1.2 pts');
     expect(formatTieOutDifference('dollars', -30000)).toBe('-$30,000');
+  });
+
+  it('never shows a negative sign on a difference that rounds to zero', () => {
+    expect(formatTieOutDifference('count', -0.4)).toBe('+0');
+    expect(formatTieOutDifference('dollars', -0.5)).toBe('+$0');
+    expect(formatTieOutDifference('rate', -0.0004)).toBe('+0.0 pts');
+    expect(formatTieOutDifference('dollars', -0.6)).toBe('-$1');
+    expect(formatTieOutDifference('rate', -0.0006)).toBe('-0.1 pts');
+  });
+
+  it('clears the previous scenario when a load starts and when it fails', async () => {
+    const states: TieOutState[] = [];
+    await loadTieOutState(() => Promise.reject(new Error('offline')), state => states.push(state), () => false);
+    expect(states).toEqual([
+      { tieOut: null, loading: true, failed: false },
+      { tieOut: null, loading: false, failed: true },
+    ]);
+    for (const state of states) expect(render(state)).not.toMatch(/>\d+ gaps?</);
+  });
+
+  it('ignores a response that arrives after the scenario changed', async () => {
+    const states: TieOutState[] = [];
+    await loadTieOutState(() => Promise.resolve(tieOut), state => states.push(state), () => true);
+    expect(states).toEqual([{ tieOut: null, loading: true, failed: false }]);
   });
 
   it('links to the panel on Overview', () => {

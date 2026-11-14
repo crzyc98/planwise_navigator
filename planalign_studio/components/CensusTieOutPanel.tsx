@@ -23,10 +23,14 @@ export function formatTieOutValue(unit: Unit, value: number | null): string {
 
 export function formatTieOutDifference(unit: Unit, value: number | null): string {
   if (value === null) return '—';
-  const sign = value < 0 ? '-' : '+';
-  if (unit === 'rate') return `${sign}${Math.abs(value * 100).toFixed(1)} pts`;
-  const whole = Math.abs(Math.round(value)).toLocaleString('en-US');
-  return `${sign}${unit === 'dollars' ? '$' : ''}${whole}`;
+  // The sign follows the shown figure, so a value that rounds to zero reads "+0".
+  if (unit === 'rate') {
+    const points = Math.abs(value * 100).toFixed(1);
+    return `${value < 0 && Number(points) !== 0 ? '-' : '+'}${points} pts`;
+  }
+  const whole = Math.abs(Math.round(value));
+  const sign = value < 0 && whole !== 0 ? '-' : '+';
+  return `${sign}${unit === 'dollars' ? '$' : ''}${whole.toLocaleString('en-US')}`;
 }
 
 const STATUS_TEXT: Record<CensusTieOutRow['status'], string> = {
@@ -88,17 +92,6 @@ function TieOutTable({ tieOut }: Readonly<{ tieOut: CensusTieOut }>) {
   );
 }
 
-function Source({ tieOut }: Readonly<{ tieOut: CensusTieOut }>) {
-  const file = tieOut.census_file ?? 'the archived census';
-  return (
-    <p className="text-sm text-ink-muted mb-4">
-      Compares {file} (census year {tieOut.census_year}) with {tieOut.first_simulated_year}, the first
-      simulated year, allowing for one year of the configured growth and raises. Meaningful only for a
-      scenario that models the current plan.
-    </p>
-  );
-}
-
 function Notice({ icon, children }: Readonly<{ icon: React.ReactNode; children: React.ReactNode }>) {
   return (
     <div className="flex items-center gap-2 text-sm text-ink-muted">
@@ -124,17 +117,40 @@ function Body({ tieOut, loading, failed }: Readonly<{
   }
   return (
     <>
-      <Source tieOut={tieOut} />
+      <p className="text-sm text-ink-muted mb-4">{tieOut.source_note}</p>
       <TieOutTable tieOut={tieOut} />
     </>
   );
 }
 
-export function CensusTieOutView({ tieOut, loading, failed }: Readonly<{
+export interface TieOutState {
   tieOut: CensusTieOut | null;
   loading: boolean;
   failed: boolean;
-}>) {
+}
+
+const LOADING: TieOutState = { tieOut: null, loading: true, failed: false };
+const FAILED: TieOutState = { tieOut: null, loading: false, failed: true };
+
+/**
+ * Load one scenario's tie-out. Every state is set whole, so a new load or a
+ * failure never leaves the previous scenario's rows (or gap count) on screen.
+ */
+export async function loadTieOutState(
+  fetchTieOut: () => Promise<CensusTieOut>,
+  setState: (state: TieOutState) => void,
+  isCancelled: () => boolean,
+): Promise<void> {
+  setState(LOADING);
+  try {
+    const tieOut = await fetchTieOut();
+    if (!isCancelled()) setState({ tieOut, loading: false, failed: false });
+  } catch {
+    if (!isCancelled()) setState(FAILED);
+  }
+}
+
+export function CensusTieOutView({ tieOut, loading, failed }: Readonly<TieOutState>) {
   const gaps = tieOut?.available ? tieOut.rows.filter(row => row.status === 'gap').length : 0;
   return (
     <section
@@ -158,37 +174,23 @@ export default function CensusTieOutPanel({ workspaceId, scenarioId }: Readonly<
   workspaceId: string;
   scenarioId: string;
 }>) {
-  const [tieOut, setTieOut] = useState<CensusTieOut | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  const [state, setState] = useState<TieOutState>(LOADING);
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const focused = searchParams.get('focus') === CENSUS_TIE_OUT_ANCHOR;
 
   useEffect(() => {
     let cancelled = false;
-    async function load(): Promise<void> {
-      try {
-        setLoading(true);
-        setFailed(false);
-        const response = await getCensusTieOut(workspaceId, scenarioId);
-        if (!cancelled) setTieOut(response);
-      } catch {
-        if (!cancelled) setFailed(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
+    void loadTieOutState(() => getCensusTieOut(workspaceId, scenarioId), setState, () => cancelled);
     return () => { cancelled = true; };
   }, [workspaceId, scenarioId]);
 
   // Scroll once the panel has its final height, and again on each new link click.
   useEffect(() => {
-    if (focused && !loading) {
+    if (focused && !state.loading) {
       document.getElementById(CENSUS_TIE_OUT_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [focused, loading, location.key]);
+  }, [focused, state.loading, location.key]);
 
-  return <CensusTieOutView tieOut={tieOut} loading={loading} failed={failed} />;
+  return <CensusTieOutView {...state} />;
 }
