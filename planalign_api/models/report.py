@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 from .base import APIModel
+from .census_tie_out import CensusTieOut
 
 
 class ReportWarning(APIModel):
@@ -45,3 +46,6 @@ class ScenarioReport(APIModel):
     warnings: list[ReportWarning] = Field(default_factory=list)
     assumptions: dict[str, Any] = Field(default_factory=dict)
     comparison_scenario_ids: list[str] = Field(default_factory=list)
+    census_tie_out: CensusTieOut | None = Field(
+        default=None, description="Tie-out for the primary scenario's selected run."
+    )

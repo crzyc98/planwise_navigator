@@ -8,13 +8,17 @@ implementation.
 from __future__ import annotations
 
 import base64
+import html
 import io
+import logging
+import math
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from planalign_api.models.census_tie_out import CensusTieOut, CensusTieOutRow
 from planalign_api.models.report import (
     ReportProvenance,
     ReportWarning,
@@ -22,11 +26,16 @@ from planalign_api.models.report import (
     ScenarioReport,
 )
 from planalign_api.services.analytics_service import AnalyticsService
+from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.database_path_resolver import (
     create_api_database_path_resolver,
 )
 from planalign_api.services.run_trust import add_current_config_drift, read_run_trust
 from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+logger = logging.getLogger(__name__)
+
+_TIE_OUT_STATUS = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
 
 
 class ReportNotFoundError(ValueError):
@@ -79,6 +88,10 @@ def build_scenario_report(
         )
         if index > 0 and metrics:
             report.comparison_years[selected_scenario.id] = metrics
+        if index == 0 and metrics:
+            report.census_tie_out = _census_tie_out(
+                report, storage, workspace_id, selected_scenario
+            )
     if not report.provenance and not report.warnings:
         raise ReportNotFoundError("No completed selected results were found")
     return report
@@ -155,6 +168,25 @@ def _append_scenario(
         "config", storage.get_merged_config(workspace_id, scenario.id) or {}
     )
     return metrics
+
+
+def _census_tie_out(
+    report: ScenarioReport, storage: WorkspaceStorage, workspace_id: str, scenario
+) -> CensusTieOut | None:
+    """The same tie-out the Overview panel shows; a failure only adds a warning."""
+    try:
+        return CensusTieOutService(storage).get_tie_out(
+            workspace_id, scenario.id, scenario.name
+        )
+    except Exception:  # the tie-out is advisory and must never block a report
+        logger.exception("Census tie-out failed for scenario %s", scenario.id)
+        report.warnings.append(
+            ReportWarning(
+                code="census_tie_out_unavailable",
+                message="The census tie-out could not be computed for this report.",
+            )
+        )
+        return None
 
 
 def _resolve_scenario(storage: WorkspaceStorage, workspace_id: str, identifier: str):
@@ -308,6 +340,7 @@ def _render_html(report: ScenarioReport, template_dir: Path | None) -> str:
         .replace("{{ provenance }}", provenance)
         .replace("{{ warnings }}", warnings)
         .replace("{{ charts }}", charts)
+        .replace("{{ tie_out }}", _tie_out_html(report.census_tie_out))
         .replace("{{ trace }}", trace)
     )
 
@@ -381,6 +414,8 @@ def _render_pptx(report: ScenarioReport, output: Path) -> None:
         for item in report.provenance
     )
     _add_pptx_footer(provenance, report)
+    if report.census_tie_out is not None:
+        _add_tie_out_slide(presentation, report)
     presentation.save(str(output))
 
 
@@ -394,6 +429,133 @@ def _add_pptx_footer(slide, report: ScenarioReport) -> None:
     )
 
 
+def tie_out_value(row: CensusTieOutRow, value: float | None) -> str:
+    """A tie-out value as the Studio panel formats it."""
+    if value is None:
+        return "—"
+    if row.unit == "rate":
+        return f"{value * 100:.1f}%"
+    whole = f"{math.floor(value + 0.5):,}"  # half up, like JavaScript Math.round
+    return f"${whole}" if row.unit == "dollars" else whole
+
+
+def tie_out_difference(row: CensusTieOutRow) -> str:
+    """A tie-out difference as the Studio panel formats it."""
+    value = row.difference
+    if value is None:
+        return "—"
+    # The sign follows the shown figure, so a value that rounds to zero reads "+0".
+    if row.unit == "rate":
+        points = f"{abs(value * 100):.1f}"
+        return f"{'-' if value < 0 and float(points) else '+'}{points} pts"
+    whole = abs(math.floor(value + 0.5))
+    sign = "-" if value < 0 and whole else "+"
+    return f"{sign}{'$' if row.unit == 'dollars' else ''}{whole:,}"
+
+
+def _tie_out_html(tie_out: CensusTieOut | None) -> str:
+    if tie_out is None:
+        return ""
+    heading = "<h2>Census tie-out</h2>"
+    if not tie_out.available:
+        return f"{heading}<p>{html.escape(tie_out.unavailable_reason or '')}</p>"
+    rows = "".join(
+        f"<tr><td>{html.escape(row.label)}"
+        + (
+            f"<br/><small>{html.escape(row.message)}</small>"
+            if row.status == "gap"
+            else ""
+        )
+        + f"</td><td>{tie_out_value(row, row.census_value)}</td>"
+        f"<td>{tie_out_value(row, row.simulated_value)}</td>"
+        f"<td>{tie_out_difference(row)}</td>"
+        f"<td class='tie-{row.status}'>{_TIE_OUT_STATUS[row.status]}</td></tr>"
+        for row in tie_out.rows
+    )
+    return (
+        f"{heading}<p>{html.escape(tie_out.source_note or '')}</p>"
+        f"<table><thead><tr><th>Metric</th><th>Census {tie_out.census_year}</th>"
+        f"<th>Simulated {tie_out.first_simulated_year}</th><th>Difference</th>"
+        f"<th>Status</th></tr></thead><tbody>{rows}</tbody></table>"
+    )
+
+
+def _tie_out_cells(tie_out: CensusTieOut) -> list[list[str]]:
+    """Header and one row per metric, as the panel and the HTML table show them."""
+    header = [
+        "Metric",
+        f"Census {tie_out.census_year}",
+        f"Simulated {tie_out.first_simulated_year}",
+        "Difference",
+        "Status",
+    ]
+    return [header] + [
+        [
+            row.label,
+            tie_out_value(row, row.census_value),
+            tie_out_value(row, row.simulated_value),
+            tie_out_difference(row),
+            _TIE_OUT_STATUS[row.status],
+        ]
+        for row in tie_out.rows
+    ]
+
+
+def _add_text(
+    slide, box: tuple[int, int, int, int], lines: list[str], size: int
+) -> None:
+    """A wrapped textbox at ``size`` points that shrinks text to fit if needed."""
+    from pptx.enum.text import MSO_AUTO_SIZE
+    from pptx.util import Pt
+
+    frame = slide.shapes.add_textbox(*box).text_frame
+    frame.word_wrap = True
+    frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    for index, line in enumerate(lines):
+        paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+        paragraph.text = line
+        paragraph.font.size = Pt(size)
+
+
+def _add_tie_out_slide(presentation, report: ScenarioReport) -> None:
+    """Note, table and gap messages, sized to stay inside a 10 x 7.5 in slide."""
+    from pptx.util import Inches, Pt
+
+    tie_out = report.census_tie_out
+    assert tie_out is not None
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Census tie-out"
+    left, width = Inches(0.5), Inches(9)
+    if not tie_out.available:
+        _add_text(
+            slide,
+            (left, Inches(1.6), width, Inches(1)),
+            [tie_out.unavailable_reason or ""],
+            14,
+        )
+        _add_pptx_footer(slide, report)
+        return
+    _add_text(
+        slide, (left, Inches(1.3), width, Inches(0.6)), [tie_out.source_note or ""], 11
+    )
+    cells = _tie_out_cells(tie_out)
+    table = slide.shapes.add_table(
+        len(cells), 5, left, Inches(1.95), width, Inches(0.28) * len(cells)
+    ).table
+    for row_index, values in enumerate(cells):
+        for column, value in enumerate(values):
+            cell = table.cell(row_index, column)
+            cell.text = value
+            cell.text_frame.paragraphs[0].font.size = Pt(10)
+    gaps = [
+        f"{row.label}: {row.message}" for row in tie_out.rows if row.status == "gap"
+    ]
+    if gaps:
+        top = Inches(2.05) + Inches(0.28) * len(cells)
+        _add_text(slide, (left, top, width, Inches(6.55) - top), gaps, 9)
+    _add_pptx_footer(slide, report)
+
+
 def _money(value: float | None) -> str:
     return "Unavailable" if value is None else f"${value:,.0f}"
 
@@ -402,4 +564,4 @@ def _pct(value: float | None) -> str:
     return "Unavailable" if value is None else f"{value:.1f}%"
 
 
-_DEFAULT_TEMPLATE = """<!doctype html><html><head><meta charset='utf-8'><style>@page{size:letter landscape;margin:0.45in}body{font-family:Arial;color:#273238}h1{color:#2f7d32;border-bottom:4px solid #2f7d32;padding-bottom:12px}table{border-collapse:collapse;width:100%;margin-top:18px}th{background:#2f7d32;color:white}td,th{padding:9px;border:1px solid #d6ded9;text-align:right}td:first-child,th:first-child{text-align:left}.charts{display:block;width:100%}.charts img{display:inline-block;width:46%;vertical-align:top;margin:6px}.warning{color:#9a6700}.error{color:#b42318}footer{position:fixed;bottom:0;font-size:9px;color:#64736d}</style></head><body><h1>{{ title }}</h1><p>Executive summary generated from the selected PlanAlign result.</p><table><thead><tr><th>Year</th><th>Headcount</th><th>Average compensation</th><th>Participation</th><th>Employer cost</th></tr></thead><tbody>{{ rows }}</tbody></table><div class='charts'>{{ charts }}</div><h2>Assumptions and provenance</h2><ul>{{ provenance }}</ul><ul>{{ warnings }}</ul><footer>Traceable PlanAlign report — {{ trace }}</footer></body></html>"""
+_DEFAULT_TEMPLATE = """<!doctype html><html><head><meta charset='utf-8'><style>@page{size:letter landscape;margin:0.45in}body{font-family:Arial;color:#273238}h1{color:#2f7d32;border-bottom:4px solid #2f7d32;padding-bottom:12px}table{border-collapse:collapse;width:100%;margin-top:18px}th{background:#2f7d32;color:white}td,th{padding:9px;border:1px solid #d6ded9;text-align:right}td:first-child,th:first-child{text-align:left}.charts{display:block;width:100%}.charts img{display:inline-block;width:46%;vertical-align:top;margin:6px}.warning{color:#9a6700}td small{color:#64736d}.tie-gap{color:#9a6700}.error{color:#b42318}footer{position:fixed;bottom:0;font-size:9px;color:#64736d}</style></head><body><h1>{{ title }}</h1><p>Executive summary generated from the selected PlanAlign result.</p><table><thead><tr><th>Year</th><th>Headcount</th><th>Average compensation</th><th>Participation</th><th>Employer cost</th></tr></thead><tbody>{{ rows }}</tbody></table><div class='charts'>{{ charts }}</div>{{ tie_out }}<h2>Assumptions and provenance</h2><ul>{{ provenance }}</ul><ul>{{ warnings }}</ul><footer>Traceable PlanAlign report — {{ trace }}</footer></body></html>"""
