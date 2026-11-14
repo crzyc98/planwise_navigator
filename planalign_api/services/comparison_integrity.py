@@ -1,0 +1,459 @@
+"""Read-only like-for-like check for compared scenarios (#1179).
+
+A comparison shows the difference between two results as the cost of a plan
+change. That only holds when the results differ in plan design alone. For each
+compared scenario this service checks the anchor's and the scenario's selected
+results: census (provenance SHA-256), random seed, simulated years, engine
+version, and the archived run configs grouped by what each setting controls.
+
+A false "like-for-like" is the worst outcome, so the verdict is
+``like_for_like`` only when every check ran and none found a difference.
+A check that could not run makes the verdict ``unknown``.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
+from pydantic import ValidationError
+
+from ..models.comparison import (
+    ComparisonIntegrityResponse,
+    ComparisonVerdict,
+    ConfigDelta,
+    ConfigGroup,
+    IntegrityCheck,
+    IntegrityReason,
+    IntegrityReasonCode,
+    RunTrustResult,
+    ScenarioIntegrity,
+    UnevaluatedCheck,
+)
+from ..models.provenance import RunProvenanceManifest
+from ..models.workspace import Workspace
+from ..storage.workspace_storage import WorkspaceStorage
+from .config_diff_service import diff_configs
+from .database_path_resolver import (
+    DatabasePathResolver,
+    ResolvedDatabasePath,
+    create_api_database_path_resolver,
+)
+from .provenance.capture import MANIFEST_NAME
+from .run_trust import add_current_config_drift, read_run_trust
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Config path groups.
+#
+# Each key is a dotted config path prefix. A prefix matches the path itself,
+# any child path ("prefix.child") and any sibling key that extends it with an
+# underscore ("dc_plan.match" matches "dc_plan.match_tiers"). The longest
+# matching prefix wins, so a narrower entry can carve an exception out of a
+# wider one ("dc_plan.match_magnet" is behavior inside the "dc_plan.match"
+# plan family).
+#
+# To extend: add the new setting's prefix with its group. Only map a path to
+# "plan_design" when it is a plan provision (what the plan offers), never an
+# assumption about people or pay. An unmapped path is "other", which breaks
+# like-for-like, so forgetting an entry errs on the safe side.
+# ---------------------------------------------------------------------------
+CONFIG_GROUP_PREFIXES: dict[str, ConfigGroup] = {
+    # Studio's flat DC plan form (planalign_studio/components/config/).
+    "dc_plan.eligibility_months": "plan_design",
+    "dc_plan.auto_enroll": "plan_design",
+    "dc_plan.default_deferral_percent": "plan_design",
+    "dc_plan.reenrollment_sweep": "plan_design",
+    "dc_plan.reenrollment_sweep_decline_probability": "employee_behavior",
+    "dc_plan.max_voluntary_deferral_percent": "plan_design",
+    "dc_plan.match": "plan_design",
+    "dc_plan.match_magnet": "employee_behavior",
+    "dc_plan.tenure_match_tiers": "plan_design",
+    "dc_plan.points_match_tiers": "plan_design",
+    "dc_plan.tenure_graded_bands": "plan_design",
+    "dc_plan.core": "plan_design",
+    "dc_plan.auto_escalation": "plan_design",
+    "dc_plan.escalation": "plan_design",
+    "dc_plan.escalation_participant_elected_signup_probability": "employee_behavior",
+    "dc_plan.easy_enroll_enabled": "plan_design",
+    "dc_plan.easy_enroll_packages": "plan_design",
+    "dc_plan.easy_enroll_escalation_cap": "plan_design",
+    "dc_plan.easy_enroll_channel_share": "employee_behavior",
+    "dc_plan.opt_out": "employee_behavior",
+    "dc_plan.new_hire_opt_out_rate": "employee_behavior",
+    "dc_plan.voluntary": "employee_behavior",
+    "dc_plan.deferral_spread_max_lift": "employee_behavior",
+    "dc_plan.deferral_rate_changes": "employee_behavior",
+    "dc_plan.deferral_match_response": "employee_behavior",
+    "dc_plan.below_default": "employee_behavior",
+    # Engine-shaped sections (config/simulation_config.yaml).
+    "employer_match": "plan_design",
+    "employer_core_contribution": "plan_design",
+    "plan_eligibility": "plan_design",
+    "plan_design_parameters": "plan_design",
+    "plan_design_assignment": "plan_design",
+    "eligibility.waiting_period_days": "plan_design",
+    "setup.plan_year_start_date": "plan_design",
+    "setup.plan_year_end_date": "plan_design",
+    "setup.eligibility_waiting_period_days": "plan_design",
+    "enrollment": "employee_behavior",
+    "enrollment.auto_enrollment": "plan_design",
+    "enrollment.auto_enrollment.opt_out_rates": "employee_behavior",
+    "enrollment.auto_enrollment.reenrollment_sweep.decline_probability": (
+        "employee_behavior"
+    ),
+    "deferral_auto_escalation": "plan_design",
+    "deferral_auto_escalation.participant_elected_signup_probability": (
+        "employee_behavior"
+    ),
+    "easy_enroll": "plan_design",
+    "easy_enroll.channel_share": "employee_behavior",
+    "deferral_rate_changes": "employee_behavior",
+    "deferral_match_response": "employee_behavior",
+    # Workforce and pay.
+    "simulation.target_growth_rate": "workforce_and_pay",
+    "workforce": "workforce_and_pay",
+    "compensation": "workforce_and_pay",
+    "new_hire": "workforce_and_pay",
+    "promotion_hazard": "workforce_and_pay",
+    "age_bands": "workforce_and_pay",
+    "tenure_bands": "workforce_and_pay",
+    "eligibility.new_hire_ineligible_pct": "workforce_and_pay",
+    "eligibility.new_hire_eligibility_match_census": "workforce_and_pay",
+}
+
+# Covered by their own checks (census hash, seed, years), so a different census
+# path holding the same file is not a difference.
+_CHECKED_SEPARATELY = frozenset(
+    {
+        "simulation.random_seed",
+        "simulation.start_year",
+        "simulation.end_year",
+        "setup.census_parquet_path",
+        "data_sources.census_parquet_path",
+    }
+)
+# Labels and runtime knobs that cannot change results.
+_IGNORED_PATHS = frozenset(
+    {
+        "simulation.name",
+        "advanced.log_level",
+        "advanced.memory_limit_gb",
+        "advanced.checkpoint_frequency",
+    }
+)
+
+
+def config_group(path: str) -> ConfigGroup:
+    """Group a dotted config path; an unmapped path is ``other``."""
+    matches = [prefix for prefix in CONFIG_GROUP_PREFIXES if _matches(path, prefix)]
+    if not matches:
+        return "other"
+    return CONFIG_GROUP_PREFIXES[max(matches, key=len)]
+
+
+def _matches(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith((f"{prefix}.", f"{prefix}_"))
+
+
+@dataclass(frozen=True)
+class RunRecord:
+    """What one scenario's selected result ran with."""
+
+    scenario_id: str
+    name: str
+    has_run_record: bool
+    config: Optional[dict[str, Any]] = None
+    census_sha256: Optional[str] = None
+    census_name: Optional[str] = None
+    seed: Optional[int] = None
+    years: Optional[tuple[int, int]] = None
+    engine_version: Optional[str] = None
+    notes: list[IntegrityReason] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _FactCheck:
+    check: IntegrityCheck
+    code: IntegrityReasonCode
+    value: Callable[[RunRecord], Any]
+    # What the UI shows; the compared value when unset.
+    display: Optional[Callable[[RunRecord], Any]] = None
+
+
+_FACT_CHECKS = (
+    # Census files are compared by content hash but shown by file name.
+    _FactCheck(
+        "census",
+        "census_differs",
+        lambda record: record.census_sha256,
+        lambda record: record.census_name,
+    ),
+    _FactCheck("seed", "seed_differs", lambda record: record.seed),
+    _FactCheck("years", "years_differ", lambda record: record.years),
+    _FactCheck(
+        "engine_version",
+        "engine_version_differs",
+        lambda record: record.engine_version,
+    ),
+)
+
+
+class ComparisonIntegrityService:
+    """Evaluate like-for-like verdicts from each scenario's selected result."""
+
+    def __init__(
+        self,
+        storage: WorkspaceStorage,
+        db_resolver: Optional[DatabasePathResolver] = None,
+    ) -> None:
+        self.storage = storage
+        self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
+
+    def evaluate(
+        self,
+        workspace: Workspace,
+        scenario_names: Mapping[str, str],
+        anchor_id: str,
+    ) -> ComparisonIntegrityResponse:
+        """Compare every scenario in ``scenario_names`` against ``anchor_id``."""
+        records = {
+            scenario_id: self.read_record(workspace, scenario_id, name)
+            for scenario_id, name in scenario_names.items()
+        }
+        anchor = records[anchor_id]
+        return ComparisonIntegrityResponse(
+            anchor_scenario_id=anchor_id,
+            anchor_scenario_name=anchor.name,
+            anchor_engine_version=anchor.engine_version,
+            scenarios=[
+                compare_records(anchor, record)
+                for scenario_id, record in records.items()
+                if scenario_id != anchor_id
+            ],
+        )
+
+    def read_record(
+        self, workspace: Workspace, scenario_id: str, name: str
+    ) -> RunRecord:
+        """Read one selected result: JSON/YAML files plus one metadata query."""
+        resolved = self.db_resolver.resolve(
+            workspace.id, scenario_id, verify_database=False
+        )
+        if not resolved.exists or resolved.source not in {"run", "scenario"}:
+            return RunRecord(scenario_id=scenario_id, name=name, has_run_record=False)
+        manifest = _read_manifest(resolved)
+        trust = add_current_config_drift(
+            read_run_trust(resolved.path, resolved.run_id),
+            self.storage.get_merged_config_for(workspace, scenario_id),
+        )
+        config = _read_run_config(resolved.config_path)
+        return RunRecord(
+            scenario_id=scenario_id,
+            name=name,
+            has_run_record=manifest is not None or trust.available,
+            config=config,
+            census_sha256=(
+                manifest.census_input.sha256
+                if manifest is not None and manifest.census_input is not None
+                else None
+            ),
+            census_name=_census_name(config),
+            seed=_seed(trust, manifest),
+            years=_years(resolved, manifest),
+            engine_version=trust.planalign_version
+            or (manifest.software.planalign_version if manifest else None),
+            notes=_notes(scenario_id, trust),
+        )
+
+
+def compare_records(anchor: RunRecord, scenario: RunRecord) -> ScenarioIntegrity:
+    """Like-for-like verdict for ``scenario`` against ``anchor``."""
+    reasons: list[IntegrityReason] = []
+    unevaluated: list[UnevaluatedCheck] = []
+    for fact in _FACT_CHECKS:
+        anchor_value, scenario_value = fact.value(anchor), fact.value(scenario)
+        missing = _missing(
+            fact.check, (anchor, anchor_value), (scenario, scenario_value)
+        )
+        unevaluated.extend(missing)
+        if not missing and anchor_value != scenario_value:
+            display = fact.display or fact.value
+            reasons.append(
+                IntegrityReason(
+                    code=fact.code,
+                    effect="breaks",
+                    anchor_value=_display(display(anchor)),
+                    scenario_value=_display(display(scenario)),
+                )
+            )
+    plan_differences: list[ConfigDelta] = []
+    if anchor.config is None or scenario.config is None:
+        unevaluated.extend(
+            _missing("config", (anchor, anchor.config), (scenario, scenario.config))
+        )
+    else:
+        config_reasons, plan_differences = _config_reasons(
+            anchor.config, scenario.config
+        )
+        reasons.extend(config_reasons)
+    reasons.extend(anchor.notes + scenario.notes)
+    return ScenarioIntegrity(
+        scenario_id=scenario.scenario_id,
+        scenario_name=scenario.name,
+        verdict=_verdict(reasons, unevaluated),
+        reasons=reasons,
+        unevaluated=unevaluated,
+        plan_design_differences=plan_differences,
+        engine_version=scenario.engine_version,
+    )
+
+
+def _verdict(
+    reasons: list[IntegrityReason], unevaluated: list[UnevaluatedCheck]
+) -> ComparisonVerdict:
+    if any(reason.effect == "breaks" for reason in reasons):
+        return "not_like_for_like"
+    if unevaluated:
+        return "unknown"
+    return "like_for_like"
+
+
+def _missing(
+    check: IntegrityCheck, *sides: tuple[RunRecord, Any]
+) -> list[UnevaluatedCheck]:
+    return [
+        UnevaluatedCheck(
+            check=check,
+            scenario_id=record.scenario_id,
+            cause="not_recorded" if record.has_run_record else "no_run_record",
+        )
+        for record, value in sides
+        if value is None
+    ]
+
+
+def _config_reasons(
+    anchor_config: Mapping[str, Any], scenario_config: Mapping[str, Any]
+) -> tuple[list[IntegrityReason], list[ConfigDelta]]:
+    differences, _ = diff_configs(anchor_config, scenario_config)
+    reasons: list[IntegrityReason] = []
+    plan_differences: list[ConfigDelta] = []
+    for delta in differences:
+        if delta.path in _CHECKED_SEPARATELY or delta.path in _IGNORED_PATHS:
+            continue
+        group = config_group(delta.path)
+        if group == "plan_design":
+            plan_differences.append(delta)
+            continue
+        reasons.append(
+            IntegrityReason(
+                code="config_differs",
+                effect="breaks",
+                anchor_value=delta.a,
+                scenario_value=delta.b,
+                path=delta.path,
+                group=group,
+            )
+        )
+    return reasons, plan_differences
+
+
+def _notes(scenario_id: str, trust: RunTrustResult) -> list[IntegrityReason]:
+    notes: list[IntegrityReason] = []
+    if {"current_config_mismatch", "current_seed_mismatch"} & set(trust.reasons):
+        notes.append(
+            IntegrityReason(
+                code="edited_since_run", effect="note", scenario_id=scenario_id
+            )
+        )
+    if "mixed_generation" in trust.reasons:
+        notes.append(
+            IntegrityReason(
+                code="mixed_generation", effect="note", scenario_id=scenario_id
+            )
+        )
+    return notes
+
+
+def _seed(
+    trust: RunTrustResult, manifest: Optional[RunProvenanceManifest]
+) -> Optional[int]:
+    if trust.available and trust.random_seed is not None:
+        return trust.random_seed
+    return manifest.random_seed if manifest is not None else None
+
+
+def _years(
+    resolved: ResolvedDatabasePath, manifest: Optional[RunProvenanceManifest]
+) -> Optional[tuple[int, int]]:
+    if resolved.start_year is not None and resolved.end_year is not None:
+        return (resolved.start_year, resolved.end_year)
+    if manifest is None:
+        return None
+    identity = manifest.run_identity
+    if identity.intended_start_year is None or identity.intended_end_year is None:
+        return None
+    return (identity.intended_start_year, identity.intended_end_year)
+
+
+def _census_name(config: Optional[Mapping[str, Any]]) -> Optional[str]:
+    """The census file name the run read (name only, never the full path)."""
+    for section in ("setup", "data_sources"):
+        values = config.get(section) if config else None
+        path = values.get("census_parquet_path") if isinstance(values, dict) else None
+        if isinstance(path, str) and path:
+            return Path(path).name
+    return None
+
+
+def _display(value: Any) -> Any:
+    if isinstance(value, tuple):
+        return f"{value[0]}–{value[1]}"
+    return value
+
+
+def _read_manifest(resolved: ResolvedDatabasePath) -> Optional[RunProvenanceManifest]:
+    if resolved.source != "run" or resolved.path is None:
+        return None
+    return read_run_manifest(resolved.path.parent)
+
+
+def read_run_manifest(run_dir: Path) -> Optional[RunProvenanceManifest]:
+    """Parse a run's ``provenance.json``; ``None`` when absent or unreadable."""
+    path = run_dir / MANIFEST_NAME
+    if not path.is_file():
+        return None
+    try:
+        return RunProvenanceManifest.model_validate_json(
+            path.read_text(encoding="utf-8")
+        )
+    except (OSError, ValidationError) as exc:
+        logger.info("Run provenance unreadable in %s: %s", run_dir.name, exc)
+        return None
+
+
+def _read_run_config(config_path: Optional[Path]) -> Optional[dict[str, Any]]:
+    if config_path is None:
+        return None
+    try:
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        logger.info("Run config unreadable in %s: %s", config_path.parent.name, exc)
+        return None
+    return config if isinstance(config, dict) else None
+
+
+__all__ = [
+    "CONFIG_GROUP_PREFIXES",
+    "ComparisonIntegrityService",
+    "RunRecord",
+    "compare_records",
+    "config_group",
+    "read_run_manifest",
+]

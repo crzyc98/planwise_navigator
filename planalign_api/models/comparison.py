@@ -80,6 +80,68 @@ class ConfigDiffResponse(APIModel):
     drift_warning: bool
 
 
+ComparisonVerdict = Literal["like_for_like", "not_like_for_like", "unknown"]
+ConfigGroup = Literal["plan_design", "employee_behavior", "workforce_and_pay", "other"]
+IntegrityCheck = Literal["census", "seed", "years", "engine_version", "config"]
+IntegrityReasonCode = Literal[
+    "census_differs",
+    "seed_differs",
+    "years_differ",
+    "engine_version_differs",
+    "config_differs",
+    "edited_since_run",
+    "mixed_generation",
+]
+
+
+class IntegrityReason(APIModel):
+    """One way a compared scenario differs from the anchor, or a caveat."""
+
+    code: IntegrityReasonCode
+    effect: Literal["breaks", "note"] = Field(
+        description="breaks: not like-for-like; note: reported, verdict unchanged"
+    )
+    anchor_value: Any = Field(default=None, description="Anchor scenario's value")
+    scenario_value: Any = Field(default=None, description="Compared scenario's value")
+    path: Optional[str] = Field(default=None, description="Config path, if any")
+    group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    scenario_id: Optional[str] = Field(
+        default=None, description="Scenario a note is about (anchor or compared)"
+    )
+
+
+class UnevaluatedCheck(APIModel):
+    """A like-for-like check that could not run, and why."""
+
+    check: IntegrityCheck
+    scenario_id: str = Field(description="Scenario whose record is missing")
+    cause: Literal["no_run_record", "not_recorded"]
+
+
+class ScenarioIntegrity(APIModel):
+    """Like-for-like verdict for one compared scenario against the anchor."""
+
+    scenario_id: str
+    scenario_name: str
+    verdict: ComparisonVerdict
+    reasons: List[IntegrityReason] = Field(default_factory=list)
+    unevaluated: List[UnevaluatedCheck] = Field(default_factory=list)
+    plan_design_differences: List[ConfigDelta] = Field(
+        default_factory=list,
+        description="Plan-design config differences (anchor=a, scenario=b)",
+    )
+    engine_version: Optional[str] = None
+
+
+class ComparisonIntegrityResponse(APIModel):
+    """Whether each compared scenario differs from the anchor only in plan design."""
+
+    anchor_scenario_id: str
+    anchor_scenario_name: str
+    anchor_engine_version: Optional[str] = None
+    scenarios: List[ScenarioIntegrity]
+
+
 class WorkforceComparisonYear(APIModel):
     """Workforce comparison for a single year."""
 

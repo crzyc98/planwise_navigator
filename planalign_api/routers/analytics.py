@@ -18,10 +18,12 @@ from ..models.analytics import (
     DCPlanComparisonResponse,
     GrandfatheredCostComparisonResponse,
 )
+from ..models.comparison import ComparisonIntegrityResponse
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
+from ..services.comparison_integrity import ComparisonIntegrityService
 from ..services.comparison_export_service import (
     ComparisonExportError,
     ComparisonExportService,
@@ -58,6 +60,13 @@ def get_comparison_export_service(
 ) -> ComparisonExportService:
     """Dependency to get the multi-scenario export service."""
     return ComparisonExportService(storage)
+
+
+def get_comparison_integrity_service(
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> ComparisonIntegrityService:
+    """Dependency to get the like-for-like comparison check."""
+    return ComparisonIntegrityService(storage)
 
 
 def _completed_scenario_names(
@@ -173,6 +182,55 @@ def get_dc_plan_analytics(
         )
 
     return analytics
+
+
+def _integrity_selection(
+    scenarios: str, anchor: Optional[str]
+) -> tuple[List[str], str]:
+    """Validate the compared scenario IDs and resolve the anchor."""
+    scenario_ids = list(
+        dict.fromkeys(s.strip() for s in scenarios.split(",") if s.strip())
+    )
+    if not 2 <= len(scenario_ids) <= MAX_SCENARIO_COMPARISON:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Select between 2 and {MAX_SCENARIO_COMPARISON} scenarios",
+        )
+    anchor_id = anchor or scenario_ids[0]
+    if anchor_id not in scenario_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The anchor must be one of the compared scenarios",
+        )
+    return scenario_ids, anchor_id
+
+
+@router.get(
+    "/{workspace_id}/analytics/compare/integrity",
+    response_model=ComparisonIntegrityResponse,
+)
+def compare_scenario_integrity(
+    workspace_id: str,
+    scenarios: str = Query(
+        ...,
+        description=f"Comma-separated scenario IDs (2 to {MAX_SCENARIO_COMPARISON})",
+    ),
+    anchor: Optional[str] = Query(
+        None, description="Scenario the others are compared against (default: first)"
+    ),
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: ComparisonIntegrityService = Depends(get_comparison_integrity_service),
+) -> ComparisonIntegrityResponse:
+    """Say whether each scenario differs from the anchor only in plan design."""
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    scenario_ids, anchor_id = _integrity_selection(scenarios, anchor)
+    names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+    return service.evaluate(workspace, names, anchor_id)
 
 
 @router.get(

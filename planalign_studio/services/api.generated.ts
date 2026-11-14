@@ -1284,6 +1284,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/compare/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Scenario Integrity
+         * @description Say whether each scenario differs from the anchor only in plan design.
+         */
+        get: operations["compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
         parameters: {
             query?: never;
@@ -4758,6 +4778,20 @@ export interface components {
             suggested_canonical_field: string | null;
         };
         /**
+         * ComparisonIntegrityResponse
+         * @description Whether each compared scenario differs from the anchor only in plan design.
+         */
+        ComparisonIntegrityResponse: {
+            /** Anchor Engine Version */
+            anchor_engine_version: string | null;
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /** Anchor Scenario Name */
+            anchor_scenario_name: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["ScenarioIntegrity"][];
+        };
+        /**
          * ComparisonResponse
          * @description Full comparison response.
          */
@@ -7665,6 +7699,48 @@ export interface components {
             /** Size Bytes */
             size_bytes: number | null;
         };
+        /**
+         * IntegrityReason
+         * @description One way a compared scenario differs from the anchor, or a caveat.
+         */
+        IntegrityReason: {
+            /**
+             * Anchor Value
+             * @description Anchor scenario's value
+             */
+            anchor_value: unknown;
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs" | "edited_since_run" | "mixed_generation";
+            /**
+             * Effect
+             * @description breaks: not like-for-like; note: reported, verdict unchanged
+             * @enum {string}
+             */
+            effect: "breaks" | "note";
+            /**
+             * Group
+             * @description Config group
+             */
+            group: ("plan_design" | "employee_behavior" | "workforce_and_pay" | "other") | null;
+            /**
+             * Path
+             * @description Config path, if any
+             */
+            path: string | null;
+            /**
+             * Scenario Id
+             * @description Scenario a note is about (anchor or compared)
+             */
+            scenario_id: string | null;
+            /**
+             * Scenario Value
+             * @description Compared scenario's value
+             */
+            scenario_value: unknown;
+        };
         /** JobError */
         JobError: {
             /** Failed Seed */
@@ -9599,6 +9675,32 @@ export interface components {
             years: components["schemas"]["ForfeitureYearRow"][];
         };
         /**
+         * ScenarioIntegrity
+         * @description Like-for-like verdict for one compared scenario against the anchor.
+         */
+        ScenarioIntegrity: {
+            /** Engine Version */
+            engine_version: string | null;
+            /**
+             * Plan Design Differences
+             * @description Plan-design config differences (anchor=a, scenario=b)
+             */
+            plan_design_differences: components["schemas"]["ConfigDelta"][];
+            /** Reasons */
+            reasons: components["schemas"]["IntegrityReason"][];
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /** Unevaluated */
+            unevaluated: components["schemas"]["UnevaluatedCheck"][];
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "like_for_like" | "not_like_for_like" | "unknown";
+        };
+        /**
          * ScenarioProvenance
          * @description Latest available run provenance for a scenario.
          */
@@ -11274,6 +11376,27 @@ export interface components {
              * @description Number of terminated employees in the group
              */
             terminated_count: number;
+        };
+        /**
+         * UnevaluatedCheck
+         * @description A like-for-like check that could not run, and why.
+         */
+        UnevaluatedCheck: {
+            /**
+             * Cause
+             * @enum {string}
+             */
+            cause: "no_run_record" | "not_recorded";
+            /**
+             * Check
+             * @enum {string}
+             */
+            check: "census" | "seed" | "years" | "engine_version" | "config";
+            /**
+             * Scenario Id
+             * @description Scenario whose record is missing
+             */
+            scenario_id: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -13877,6 +14000,48 @@ export interface operations {
                     "application/octet-stream": unknown;
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
                     "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated scenario IDs (2 to 6) */
+                scenarios: string;
+                /** @description Scenario the others are compared against (default: first) */
+                anchor?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonIntegrityResponse"];
                 };
             };
             /** @description Validation Error */

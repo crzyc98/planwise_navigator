@@ -4073,6 +4073,45 @@
         "title": "ColumnSuggestion",
         "type": "object"
       },
+      "ComparisonIntegrityResponse": {
+        "description": "Whether each compared scenario differs from the anchor only in plan design.",
+        "properties": {
+          "anchor_engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Engine Version"
+          },
+          "anchor_scenario_id": {
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "anchor_scenario_name": {
+            "title": "Anchor Scenario Name",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioIntegrity"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anchor_scenario_id",
+          "anchor_scenario_name",
+          "anchor_engine_version",
+          "scenarios"
+        ],
+        "title": "ComparisonIntegrityResponse",
+        "type": "object"
+      },
       "ComparisonResponse": {
         "description": "Full comparison response.",
         "properties": {
@@ -10146,6 +10185,94 @@
         "title": "InputFingerprint",
         "type": "object"
       },
+      "IntegrityReason": {
+        "description": "One way a compared scenario differs from the anchor, or a caveat.",
+        "properties": {
+          "anchor_value": {
+            "description": "Anchor scenario's value",
+            "title": "Anchor Value"
+          },
+          "code": {
+            "enum": [
+              "census_differs",
+              "seed_differs",
+              "years_differ",
+              "engine_version_differs",
+              "config_differs",
+              "edited_since_run",
+              "mixed_generation"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "effect": {
+            "description": "breaks: not like-for-like; note: reported, verdict unchanged",
+            "enum": [
+              "breaks",
+              "note"
+            ],
+            "title": "Effect",
+            "type": "string"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plan_design",
+                  "employee_behavior",
+                  "workforce_and_pay",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config group",
+            "title": "Group"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config path, if any",
+            "title": "Path"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scenario a note is about (anchor or compared)",
+            "title": "Scenario Id"
+          },
+          "scenario_value": {
+            "description": "Compared scenario's value",
+            "title": "Scenario Value"
+          }
+        },
+        "required": [
+          "code",
+          "effect",
+          "anchor_value",
+          "scenario_value",
+          "path",
+          "group",
+          "scenario_id"
+        ],
+        "title": "IntegrityReason",
+        "type": "object"
+      },
       "JobError": {
         "properties": {
           "failed_seed": {
@@ -14866,6 +14993,72 @@
         "title": "ScenarioForfeitureSeries",
         "type": "object"
       },
+      "ScenarioIntegrity": {
+        "description": "Like-for-like verdict for one compared scenario against the anchor.",
+        "properties": {
+          "engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "plan_design_differences": {
+            "description": "Plan-design config differences (anchor=a, scenario=b)",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDelta"
+            },
+            "title": "Plan Design Differences",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrityReason"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "unevaluated": {
+            "items": {
+              "$ref": "#/components/schemas/UnevaluatedCheck"
+            },
+            "title": "Unevaluated",
+            "type": "array"
+          },
+          "verdict": {
+            "enum": [
+              "like_for_like",
+              "not_like_for_like",
+              "unknown"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "verdict",
+          "reasons",
+          "unevaluated",
+          "plan_design_differences",
+          "engine_version"
+        ],
+        "title": "ScenarioIntegrity",
+        "type": "object"
+      },
       "ScenarioProvenance": {
         "description": "Latest available run provenance for a scenario.",
         "properties": {
@@ -18599,6 +18792,42 @@
           "confidence"
         ],
         "title": "TurnoverRateSuggestion",
+        "type": "object"
+      },
+      "UnevaluatedCheck": {
+        "description": "A like-for-like check that could not run, and why.",
+        "properties": {
+          "cause": {
+            "enum": [
+              "no_run_record",
+              "not_recorded"
+            ],
+            "title": "Cause",
+            "type": "string"
+          },
+          "check": {
+            "enum": [
+              "census",
+              "seed",
+              "years",
+              "engine_version",
+              "config"
+            ],
+            "title": "Check",
+            "type": "string"
+          },
+          "scenario_id": {
+            "description": "Scenario whose record is missing",
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check",
+          "scenario_id",
+          "cause"
+        ],
+        "title": "UnevaluatedCheck",
         "type": "object"
       },
       "ValidationError": {
@@ -23284,6 +23513,112 @@
           }
         },
         "summary": "Export Scenario Comparison",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/compare/integrity": {
+      "get": {
+        "description": "Say whether each scenario differs from the anchor only in plan design.",
+        "operationId": "compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated scenario IDs (2 to 6)",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated scenario IDs (2 to 6)",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Scenario the others are compared against (default: first)",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario the others are compared against (default: first)",
+              "title": "Anchor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonIntegrityResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Compare Scenario Integrity",
         "tags": [
           "Analytics"
         ]
