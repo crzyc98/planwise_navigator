@@ -2800,6 +2800,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/run-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scenario Run Changes
+         * @description Say what changed between a scenario's previous run and its selected result.
+         */
+        get: operations["get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/set-census-path": {
         parameters: {
             query?: never;
@@ -7713,7 +7733,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs" | "edited_since_run" | "mixed_generation";
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs" | "edited_since_run" | "mixed_generation" | "changed_since_previous_run";
             /**
              * Effect
              * @description breaks: not like-for-like; note: reported, verdict unchanged
@@ -9140,6 +9160,66 @@ export interface components {
              * @description Terminations in the bridge years
              */
             terminations: number;
+        };
+        /**
+         * RunChange
+         * @description One way a scenario's selected result differs from its previous run.
+         */
+        RunChange: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs";
+            /**
+             * Current Value
+             * @description Selected result's value
+             */
+            current_value: unknown;
+            /**
+             * Group
+             * @description Config group
+             */
+            group: ("plan_design" | "employee_behavior" | "workforce_and_pay" | "other") | null;
+            /**
+             * Path
+             * @description Config path, if any
+             */
+            path: string | null;
+            /**
+             * Previous Value
+             * @description Previous run's value
+             */
+            previous_value: unknown;
+        };
+        /**
+         * RunChangesResponse
+         * @description What changed between a scenario's previous run and its selected result.
+         */
+        RunChangesResponse: {
+            /**
+             * Changes
+             * @description Census, seed, years, engine version and non-plan settings first, then plan design settings
+             */
+            changes: components["schemas"]["RunChange"][];
+            /** Has Previous Run */
+            has_previous_run: boolean;
+            /**
+             * Previous Run At
+             * @description When the previous run started
+             */
+            previous_run_at: string | null;
+            /** Previous Run Id */
+            previous_run_id: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /**
+             * Unevaluated
+             * @description Checks one of the two runs did not record
+             */
+            unevaluated: ("census" | "seed" | "years" | "engine_version" | "config")[];
         };
         /**
          * RunDetails
@@ -17069,6 +17149,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunChangesResponse"];
                 };
             };
             /** @description Validation Error */

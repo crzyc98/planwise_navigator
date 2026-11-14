@@ -18,7 +18,7 @@ from ..models.analytics import (
     DCPlanComparisonResponse,
     GrandfatheredCostComparisonResponse,
 )
-from ..models.comparison import ComparisonIntegrityResponse
+from ..models.comparison import ComparisonIntegrityResponse, RunChangesResponse
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
@@ -231,6 +231,31 @@ def compare_scenario_integrity(
     scenario_ids, anchor_id = _integrity_selection(scenarios, anchor)
     names = _completed_scenario_names(storage, workspace_id, scenario_ids)
     return service.evaluate(workspace, names, anchor_id)
+
+
+@router.get(
+    "/{workspace_id}/scenarios/{scenario_id}/run-changes",
+    response_model=RunChangesResponse,
+)
+def get_scenario_run_changes(
+    workspace_id: str,
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: ComparisonIntegrityService = Depends(get_comparison_integrity_service),
+) -> RunChangesResponse:
+    """Say what changed between a scenario's previous run and its selected result."""
+    if not storage.get_workspace(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+    return service.run_changes(workspace_id, scenario_id, scenario.name)
 
 
 @router.get(

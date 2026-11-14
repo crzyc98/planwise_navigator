@@ -179,6 +179,8 @@ export type ComparisonIntegrityResponse = Schemas['ComparisonIntegrityResponse']
 export type ScenarioIntegrity = Schemas['ScenarioIntegrity'];
 export type IntegrityReason = Schemas['IntegrityReason'];
 export type UnevaluatedCheck = Schemas['UnevaluatedCheck'];
+export type RunChange = Schemas['RunChange'];
+export type RunChangesResponse = Schemas['RunChangesResponse'];
 
 // ============================================================================
 // API Error Handling
@@ -628,6 +630,19 @@ export async function getComparisonIntegrity(
     { signal }
   );
   return handleResponse<ComparisonIntegrityResponse>(response);
+}
+
+/** What changed between a scenario's previous run and its selected result (#1186). */
+export async function getScenarioRunChanges(
+  workspaceId: string,
+  scenarioId: string,
+  signal?: AbortSignal
+): Promise<RunChangesResponse> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/run-changes`,
+    { signal }
+  );
+  return handleResponse<RunChangesResponse>(response);
 }
 
 // ============================================================================

@@ -83,14 +83,18 @@ class ConfigDiffResponse(APIModel):
 ComparisonVerdict = Literal["like_for_like", "not_like_for_like", "unknown"]
 ConfigGroup = Literal["plan_design", "employee_behavior", "workforce_and_pay", "other"]
 IntegrityCheck = Literal["census", "seed", "years", "engine_version", "config"]
-IntegrityReasonCode = Literal[
+RunChangeCode = Literal[
     "census_differs",
     "seed_differs",
     "years_differ",
     "engine_version_differs",
     "config_differs",
+]
+IntegrityReasonCode = Literal[
+    RunChangeCode,
     "edited_since_run",
     "mixed_generation",
+    "changed_since_previous_run",
 ]
 
 
@@ -140,6 +144,36 @@ class ComparisonIntegrityResponse(APIModel):
     anchor_scenario_name: str
     anchor_engine_version: Optional[str] = None
     scenarios: List[ScenarioIntegrity]
+
+
+class RunChange(APIModel):
+    """One way a scenario's selected result differs from its previous run."""
+
+    code: RunChangeCode
+    path: Optional[str] = Field(default=None, description="Config path, if any")
+    group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    previous_value: Any = Field(default=None, description="Previous run's value")
+    current_value: Any = Field(default=None, description="Selected result's value")
+
+
+class RunChangesResponse(APIModel):
+    """What changed between a scenario's previous run and its selected result."""
+
+    scenario_id: str
+    scenario_name: str
+    has_previous_run: bool
+    previous_run_id: Optional[str] = None
+    previous_run_at: Optional[datetime] = Field(
+        default=None, description="When the previous run started"
+    )
+    changes: List[RunChange] = Field(
+        default_factory=list,
+        description="Census, seed, years, engine version and non-plan settings "
+        "first, then plan design settings",
+    )
+    unevaluated: List[IntegrityCheck] = Field(
+        default_factory=list, description="Checks one of the two runs did not record"
+    )
 
 
 class WorkforceComparisonYear(APIModel):

@@ -21,6 +21,7 @@ import {
 import { useChartTheme } from '../hooks/useChartTheme';
 import RunHealthSummary from './simulation/RunHealthSummary';
 import EngineVersionBadge from './EngineVersionBadge';
+import RunChangesSince from './RunChangesSince';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
@@ -589,6 +590,13 @@ export default function AnalyticsDashboard() {
                   <EngineVersionBadge scenario={selectedScenario} rerunDisabled={isSimulationRunning} />
                 </h3>
                 <p className="text-sm text-info-ink">{selectedScenario.description || 'No description'}</p>
+                <div className="mt-2 text-info-ink">
+                  <RunChangesSince
+                    workspaceId={selectedWorkspaceId}
+                    scenarioId={selectedScenario.id}
+                    resultRunId={selectedScenario.selected_result_run_id}
+                  />
+                </div>
               </div>
               <div className="text-right text-sm text-info-ink">
                 <p>Last run: {selectedScenario.last_run_at ? new Date(selectedScenario.last_run_at).toLocaleDateString() : 'Never'}</p>

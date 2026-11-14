@@ -5,6 +5,8 @@ change. That only holds when the results differ in plan design alone. For each
 compared scenario this service checks the anchor's and the scenario's selected
 results: census (provenance SHA-256), random seed, simulated years, engine
 version, and the archived run configs grouped by what each setting controls.
+The same comparison, run between a scenario's previous run and its selected
+result, says what changed since the previous run (#1186).
 
 A false "like-for-like" is the worst outcome, so the verdict is
 ``like_for_like`` only when every check ran and none found a difference.
@@ -17,7 +19,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import yaml
 from pydantic import ValidationError
@@ -30,6 +32,9 @@ from ..models.comparison import (
     IntegrityCheck,
     IntegrityReason,
     IntegrityReasonCode,
+    RunChange,
+    RunChangeCode,
+    RunChangesResponse,
     RunTrustResult,
     ScenarioIntegrity,
     UnevaluatedCheck,
@@ -44,6 +49,7 @@ from .database_path_resolver import (
     create_api_database_path_resolver,
 )
 from .provenance.capture import MANIFEST_NAME
+from .run_history import PreviousRun, find_previous_run, read_run_metadata
 from .run_trust import add_current_config_drift, read_run_trust
 
 logger = logging.getLogger(__name__)
@@ -258,17 +264,39 @@ class ComparisonIntegrityService:
             name=name,
             has_run_record=manifest is not None or trust.available,
             config=config,
-            census_sha256=(
-                manifest.census_input.sha256
-                if manifest is not None and manifest.census_input is not None
-                else None
-            ),
+            census_sha256=_census_sha256(manifest),
             census_name=_census_name(config),
             seed=_seed(trust, manifest),
             years=_years(resolved, manifest),
             engine_version=trust.planalign_version
             or (manifest.software.planalign_version if manifest else None),
-            notes=_notes(scenario_id, trust),
+            notes=_notes(scenario_id, trust)
+            + _previous_run_notes(_selected_run_dir(resolved), scenario_id),
+        )
+
+    def run_changes(
+        self, workspace_id: str, scenario_id: str, name: str
+    ) -> RunChangesResponse:
+        """What changed between a scenario's previous run and its selected result."""
+        resolved = self.db_resolver.resolve(
+            workspace_id, scenario_id, verify_database=False
+        )
+        compared = _since_previous_run(_selected_run_dir(resolved), scenario_id)
+        if compared is None:
+            return RunChangesResponse(
+                scenario_id=scenario_id, scenario_name=name, has_previous_run=False
+            )
+        previous, integrity = compared
+        return RunChangesResponse(
+            scenario_id=scenario_id,
+            scenario_name=name,
+            has_previous_run=True,
+            previous_run_id=previous.run_id,
+            previous_run_at=previous.started_at,
+            changes=_run_changes(integrity),
+            unevaluated=list(
+                dict.fromkeys(item.check for item in integrity.unevaluated)
+            ),
         )
 
 
@@ -312,6 +340,89 @@ def compare_records(anchor: RunRecord, scenario: RunRecord) -> ScenarioIntegrity
         plan_design_differences=plan_differences,
         engine_version=scenario.engine_version,
     )
+
+
+def read_run_files(run_dir: Path, scenario_id: str, name: str) -> RunRecord:
+    """What one run ran with, from its JSON/YAML files only (no database)."""
+    manifest = read_run_manifest(run_dir)
+    metadata = read_run_metadata(run_dir) or {}
+    config_path = run_dir / "config.yaml"
+    config = _read_run_config(config_path if config_path.is_file() else None)
+    seed = manifest.random_seed if manifest is not None else None
+    return RunRecord(
+        scenario_id=scenario_id,
+        name=name,
+        has_run_record=manifest is not None or bool(metadata),
+        config=config,
+        census_sha256=_census_sha256(manifest),
+        census_name=_census_name(config),
+        seed=seed if seed is not None else _int_or_none(metadata.get("seed")),
+        years=_file_years(metadata, manifest),
+        engine_version=manifest.software.planalign_version if manifest else None,
+    )
+
+
+def _selected_run_dir(resolved: ResolvedDatabasePath) -> Optional[Path]:
+    if resolved.source != "run" or resolved.path is None:
+        return None
+    return resolved.path.parent
+
+
+def _since_previous_run(
+    run_dir: Optional[Path], scenario_id: str
+) -> Optional[tuple[PreviousRun, ScenarioIntegrity]]:
+    """Compare the previous run (as anchor) with the selected result, files only."""
+    previous = find_previous_run(run_dir) if run_dir is not None else None
+    if run_dir is None or previous is None:
+        return None
+    integrity = compare_records(
+        read_run_files(previous.path, scenario_id, ""),
+        read_run_files(run_dir, scenario_id, ""),
+    )
+    return previous, integrity
+
+
+def _previous_run_notes(
+    run_dir: Optional[Path], scenario_id: str
+) -> list[IntegrityReason]:
+    """A note when anything other than plan design changed since the previous run."""
+    compared = _since_previous_run(run_dir, scenario_id)
+    if compared is None or not any(
+        reason.effect == "breaks" for reason in compared[1].reasons
+    ):
+        return []
+    return [
+        IntegrityReason(
+            code="changed_since_previous_run", effect="note", scenario_id=scenario_id
+        )
+    ]
+
+
+def _run_changes(integrity: ScenarioIntegrity) -> list[RunChange]:
+    """Non-plan differences first, then plan design (previous=anchor side)."""
+    changes = [
+        RunChange(
+            # Only fact and config checks break; notes are filtered out here.
+            code=cast(RunChangeCode, reason.code),
+            path=reason.path,
+            group=reason.group,
+            previous_value=reason.anchor_value,
+            current_value=reason.scenario_value,
+        )
+        for reason in integrity.reasons
+        if reason.effect == "breaks"
+    ]
+    changes.extend(
+        RunChange(
+            code="config_differs",
+            path=delta.path,
+            group="plan_design",
+            previous_value=delta.a,
+            current_value=delta.b,
+        )
+        for delta in integrity.plan_design_differences
+    )
+    return changes
 
 
 def _verdict(
@@ -394,12 +505,38 @@ def _years(
 ) -> Optional[tuple[int, int]]:
     if resolved.start_year is not None and resolved.end_year is not None:
         return (resolved.start_year, resolved.end_year)
+    return _manifest_years(manifest)
+
+
+def _file_years(
+    metadata: Mapping[str, Any], manifest: Optional[RunProvenanceManifest]
+) -> Optional[tuple[int, int]]:
+    start = _int_or_none(metadata.get("start_year"))
+    end = _int_or_none(metadata.get("end_year"))
+    if start is not None and end is not None:
+        return (start, end)
+    return _manifest_years(manifest)
+
+
+def _manifest_years(
+    manifest: Optional[RunProvenanceManifest],
+) -> Optional[tuple[int, int]]:
     if manifest is None:
         return None
     identity = manifest.run_identity
     if identity.intended_start_year is None or identity.intended_end_year is None:
         return None
     return (identity.intended_start_year, identity.intended_end_year)
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _census_sha256(manifest: Optional[RunProvenanceManifest]) -> Optional[str]:
+    if manifest is None or manifest.census_input is None:
+        return None
+    return manifest.census_input.sha256
 
 
 def _census_name(config: Optional[Mapping[str, Any]]) -> Optional[str]:
@@ -455,5 +592,6 @@ __all__ = [
     "RunRecord",
     "compare_records",
     "config_group",
+    "read_run_files",
     "read_run_manifest",
 ]

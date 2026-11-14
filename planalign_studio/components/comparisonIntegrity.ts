@@ -2,6 +2,8 @@ import type {
   ComparisonIntegrityResponse,
   ConfigDelta,
   IntegrityReason,
+  RunChange,
+  RunChangesResponse,
   ScenarioIntegrity,
   UnevaluatedCheck,
 } from '../services/api';
@@ -91,8 +93,9 @@ function plain(value: unknown): string {
   return value === null || value === undefined ? 'not recorded' : String(value);
 }
 
-export function describeReason(reason: IntegrityReason): string {
-  const pair = `${plain(reason.anchor_value)} vs ${plain(reason.scenario_value)}`;
+/** `joiner` separates the two values: " vs " across scenarios, " → " across runs. */
+export function describeReason(reason: IntegrityReason, joiner = ' vs '): string {
+  const pair = `${plain(reason.anchor_value)}${joiner}${plain(reason.scenario_value)}`;
   switch (reason.code) {
     case 'census_differs':
       return reason.anchor_value && reason.scenario_value && reason.anchor_value !== reason.scenario_value
@@ -105,16 +108,17 @@ export function describeReason(reason: IntegrityReason): string {
     case 'engine_version_differs':
       return `Engine version: ${pair}`;
     default:
-      return describeSetting(reason);
+      return describeSetting(reason, joiner);
   }
 }
 
-function describeSetting(reason: IntegrityReason): string {
+function describeSetting(reason: IntegrityReason, joiner: string): string {
   const path = reason.path ?? '';
   const label = settingLabel(path);
   const a = formatSetting(path, reason.anchor_value);
   const b = formatSetting(path, reason.scenario_value);
-  return a === null || b === null ? `${label} differs` : `${label}: ${a} vs ${b}`;
+  if (a === null || b === null) return joiner === ' vs ' ? `${label} differs` : `${label} changed`;
+  return `${label}: ${a}${joiner}${b}`;
 }
 
 function joinWords(words: string[]): string {
@@ -146,9 +150,14 @@ function unknownCause(checks: UnevaluatedCheck[], names: Record<string, string>)
 
 function describeNote(reason: IntegrityReason, names: Record<string, string>): string {
   const who = names[reason.scenario_id ?? ''] ?? 'A scenario';
-  return reason.code === 'edited_since_run'
-    ? `${who} was edited after its result ran. This compares the settings it ran with.`
-    : `${who}'s result mixes rows from runs with different settings or seeds.`;
+  switch (reason.code) {
+    case 'edited_since_run':
+      return `${who} was edited after its result ran. This compares the settings it ran with.`;
+    case 'changed_since_previous_run':
+      return `${who}'s assumptions or inputs changed since its previous run.`;
+    default:
+      return `${who}'s result mixes rows from runs with different settings or seeds.`;
+  }
 }
 
 function headline(item: ScenarioIntegrity, anchorName: string, names: Record<string, string>): string {
@@ -163,8 +172,8 @@ function headline(item: ScenarioIntegrity, anchorName: string, names: Record<str
 
 function breakingDetails(reasons: IntegrityReason[]): string[] {
   const breaking = reasons.filter(reason => reason.effect === 'breaks');
-  const facts = breaking.filter(reason => reason.code !== 'config_differs').map(describeReason);
-  const settings = breaking.filter(reason => reason.code === 'config_differs').map(describeReason);
+  const facts = breaking.filter(reason => reason.code !== 'config_differs').map(reason => describeReason(reason));
+  const settings = breaking.filter(reason => reason.code === 'config_differs').map(reason => describeReason(reason));
   const shown = settings.slice(0, MAX_SETTING_DETAILS);
   const hidden = settings.length - shown.length;
   return [...facts, ...shown, ...(hidden > 0 ? [`and ${hidden} more ${hidden === 1 ? 'setting' : 'settings'}`] : [])];
@@ -223,4 +232,48 @@ export function integrityRequest(
   const ids = [...new Set([anchorId, ...scenarioIds.filter(Boolean)])];
   if (ids.length < 2) return null;
   return { workspaceId, anchorId, scenarioIds: ids, key: `${workspaceId}|${anchorId}|${ids.join(',')}` };
+}
+
+export interface RunChangesSummary {
+  /** One sentence; the change list follows it when there is one. */
+  headline: string;
+  changes: string[];
+  /** What one of the runs didn't record, so "no change" can't be claimed for it. */
+  missing: string | null;
+}
+
+const MAX_RUN_CHANGES = 8;
+
+/** A change since the previous run in plain words, previous value first. */
+export function describeRunChange(change: RunChange): string {
+  return describeReason({
+    code: change.code,
+    effect: 'breaks',
+    anchor_value: change.previous_value,
+    scenario_value: change.current_value,
+    path: change.path,
+    group: change.group,
+    scenario_id: null,
+  }, ' → ');
+}
+
+/** "Since the previous run" copy for Overview (#1186). */
+export function summarizeRunChanges(result: RunChangesResponse): RunChangesSummary {
+  if (!result.has_previous_run) return { headline: 'No previous run to compare.', changes: [], missing: null };
+  const when = result.previous_run_at ? new Date(result.previous_run_at).toLocaleDateString() : null;
+  const missing = result.unevaluated.length > 0
+    ? `Couldn't compare the ${joinWords(result.unevaluated.map(check => CHECK_WORDS[check]))}: one of the runs didn't record it.`
+    : null;
+  if (result.changes.length === 0) {
+    const headline = missing ? 'No recorded settings changed since the previous run' : 'Same settings as the previous run';
+    return { headline: when ? `${headline} (${when}).` : `${headline}.`, changes: [], missing };
+  }
+  const described = result.changes.map(describeRunChange);
+  const shown = described.slice(0, MAX_RUN_CHANGES);
+  const hidden = described.length - shown.length;
+  return {
+    headline: when ? `Since the previous run (${when}):` : 'Since the previous run:',
+    changes: [...shown, ...(hidden > 0 ? [`and ${hidden} more ${hidden === 1 ? 'setting' : 'settings'}`] : [])],
+    missing,
+  };
 }

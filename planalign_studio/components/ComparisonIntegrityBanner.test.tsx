@@ -80,6 +80,18 @@ describe('like-for-like copy', () => {
     expect(summary.lines[0].tone).toBe('ok');
   });
 
+  it('notes a scenario whose assumptions changed since its previous run', () => {
+    const summary = summarizeIntegrity(response([scenario({
+      reasons: [
+        reason({ code: 'changed_since_previous_run', effect: 'note', scenario_id: 'a' }),
+        reason({ code: 'changed_since_previous_run', effect: 'note', scenario_id: 'b' }),
+      ],
+    })]));
+    expect(summary.anchorNotes).toEqual(["Baseline's assumptions or inputs changed since its previous run."]);
+    expect(summary.lines[0].notes).toEqual(["Richer match's assumptions or inputs changed since its previous run."]);
+    expect(summary.lines[0].tone).toBe('ok');
+  });
+
   it('says once when every result ran on the same engine version', () => {
     expect(summarizeIntegrity(response([scenario({}), scenario({ scenario_id: 'c' })])).versionNote)
       .toBe('All results ran on engine version 3.2.0.');

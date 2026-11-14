@@ -10200,7 +10200,8 @@
               "engine_version_differs",
               "config_differs",
               "edited_since_run",
-              "mixed_generation"
+              "mixed_generation",
+              "changed_since_previous_run"
             ],
             "title": "Code",
             "type": "string"
@@ -13768,6 +13769,144 @@
           "census_path"
         ],
         "title": "RollForwardSummary",
+        "type": "object"
+      },
+      "RunChange": {
+        "description": "One way a scenario's selected result differs from its previous run.",
+        "properties": {
+          "code": {
+            "enum": [
+              "census_differs",
+              "seed_differs",
+              "years_differ",
+              "engine_version_differs",
+              "config_differs"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "current_value": {
+            "description": "Selected result's value",
+            "title": "Current Value"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plan_design",
+                  "employee_behavior",
+                  "workforce_and_pay",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config group",
+            "title": "Group"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config path, if any",
+            "title": "Path"
+          },
+          "previous_value": {
+            "description": "Previous run's value",
+            "title": "Previous Value"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "group",
+          "previous_value",
+          "current_value"
+        ],
+        "title": "RunChange",
+        "type": "object"
+      },
+      "RunChangesResponse": {
+        "description": "What changed between a scenario's previous run and its selected result.",
+        "properties": {
+          "changes": {
+            "description": "Census, seed, years, engine version and non-plan settings first, then plan design settings",
+            "items": {
+              "$ref": "#/components/schemas/RunChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "has_previous_run": {
+            "title": "Has Previous Run",
+            "type": "boolean"
+          },
+          "previous_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the previous run started",
+            "title": "Previous Run At"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "unevaluated": {
+            "description": "Checks one of the two runs did not record",
+            "items": {
+              "enum": [
+                "census",
+                "seed",
+                "years",
+                "engine_version",
+                "config"
+              ],
+              "type": "string"
+            },
+            "title": "Unevaluated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "has_previous_run",
+          "previous_run_id",
+          "previous_run_at",
+          "changes",
+          "unevaluated"
+        ],
+        "title": "RunChangesResponse",
         "type": "object"
       },
       "RunDetails": {
@@ -30050,6 +30189,92 @@
         "summary": "Export Scenario Results",
         "tags": [
           "Scenarios"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/run-changes": {
+      "get": {
+        "description": "Say what changed between a scenario's previous run and its selected result.",
+        "operationId": "get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunChangesResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Scenario Run Changes",
+        "tags": [
+          "Analytics"
         ]
       }
     },
