@@ -454,9 +454,7 @@ def _render_pptx(report: ScenarioReport, output: Path) -> None:
         from pptx import Presentation
     except ImportError as exc:
         raise RuntimeError(
-            "PowerPoint reports need the python-pptx package, which isn't "
-            "installed. Install it with 'uv pip install python-pptx', then "
-            "restart Studio."
+            "PowerPoint reports require the optional python-pptx dependency"
         ) from exc
     presentation = Presentation()
     missing = missing_lines(report)
