@@ -400,6 +400,15 @@ def render_html(report: ScenarioReport, template_dir: Path | None = None) -> str
 # --------------------------------------------------------------------------
 # Chart
 # --------------------------------------------------------------------------
+def _axis_money(largest: float) -> Callable[[float, int], str]:
+    """Axis labels scaled to the data, so small plans do not read as $0.0M."""
+    if largest >= 1e6:
+        return lambda v, _: f"${v / 1e6:,.1f}M"
+    if largest >= 1e4:
+        return lambda v, _: f"${v / 1e3:,.0f}K"
+    return lambda v, _: f"${v:,.0f}"
+
+
 def _cost_chart(report: ScenarioReport) -> str:
     """Employer cost by year, one line per scenario with a result."""
     import matplotlib
@@ -423,7 +432,8 @@ def _cost_chart(report: ScenarioReport) -> str:
             label=_label(report, scenario),
         )
     axis.set_title("Employer cost by year", fontsize=10)
-    axis.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v / 1e6:,.1f}M"))
+    costs = [y.employer_cost or 0.0 for s in available for y in s.years]
+    axis.yaxis.set_major_formatter(FuncFormatter(_axis_money(max(costs, default=0.0))))
     axis.set_xticks(report.years)
     axis.grid(alpha=0.2)
     axis.legend(fontsize=8, frameon=False)
