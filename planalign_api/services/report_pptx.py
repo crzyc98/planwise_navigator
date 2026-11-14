@@ -85,7 +85,9 @@ def render_pptx(report: ScenarioReport, output: Path) -> None:
         from pptx.util import Inches
     except ImportError as exc:
         raise RuntimeError(
-            "PowerPoint reports require the optional python-pptx dependency"
+            "PowerPoint reports need the python-pptx package, which isn't "
+            "installed. Install it with 'uv pip install python-pptx', then "
+            "restart Studio."
         ) from exc
     deck = Presentation()
     deck.slide_width, deck.slide_height = Inches(SLIDE_W), Inches(SLIDE_H)
