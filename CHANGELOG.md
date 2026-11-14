@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
-- The scenario report (PDF, PowerPoint, HTML) now leads with each plan design in plain words and its employer cost against an anchor scenario, followed by cost by year, cost as % of capped pay, participation and average deferral, with cost definitions as notes and provenance in an appendix. Pick the anchor with `anchor=` on the report download or `planalign report --anchor`; a selected scenario without a usable result is listed as missing instead of dropped. Headcount and average pay are no longer in the report.
+- The scenario report (PDF, PowerPoint, HTML) now leads with each plan design in plain words and its employer cost against an anchor scenario, followed by cost by year, cost as % of capped pay, participation and average deferral, with cost definitions as notes and provenance in an appendix. Pick the anchor with `anchor=` on the report download or `planalign report --anchor`; a selected scenario without a usable result is listed as missing instead of dropped. Headcount and average pay are no longer in the report. A custom `--template-dir` template now fills only `{{ title }}`, `{{ body }}` and `{{ trace }}`; one written for the old `{{ rows }}`, `{{ charts }}`, `{{ provenance }}` or `{{ warnings }}` placeholders is rejected with an error instead of rendering without figures.
 
 ### Fixed
 

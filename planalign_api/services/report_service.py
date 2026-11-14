@@ -1,18 +1,22 @@
 """Assemble the plan-design comparison report.
 
-Every figure is read from ``AnalyticsService.get_dc_plan_analytics`` with the
-same arguments the Studio Cost Comparison page uses, so report figures equal
-the page's. The only arithmetic here is presentation: differences from the
-anchor scenario. Rendering lives in ``report_render``.
+Every figure is read from ``AnalyticsService.get_employer_cost_summary``, the
+same by-year rows and totals ``get_dc_plan_analytics`` gives the Studio Cost
+Comparison page, so report figures equal that page's default view: all
+employees, gross of forfeitures, with no grandfathering. The only arithmetic
+here is presentation: differences from the anchor scenario. Rendering lives in
+``report_render``.
 """
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from datetime import datetime, timezone
 from typing import Any
 
-from planalign_api.models.analytics import DCPlanAnalytics
+import duckdb
+
 from planalign_api.models.comparison import RunTrustResult
 from planalign_api.models.report import (
     MAX_REPORT_SCENARIOS,
@@ -24,14 +28,18 @@ from planalign_api.models.report import (
     ScenarioReport,
 )
 from planalign_api.models.scenario import Scenario
-from planalign_api.services.analytics_service import AnalyticsService
+from planalign_api.services.analytics_service import (
+    AnalyticsService,
+    EmployerCostSummary,
+)
 from planalign_api.services.config_diff_service import ConfigDiffService
 from planalign_api.services.database_path_resolver import (
     ResolvedDatabasePath,
     create_api_database_path_resolver,
+    is_selected_result,
 )
 from planalign_api.services.report_design import describe_plan_design
-from planalign_api.services.report_render import render_report
+from planalign_api.services.report_render import ReportTemplateError, render_report
 from planalign_api.services.run_trust import add_current_config_drift, read_run_trust
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
@@ -39,9 +47,12 @@ __all__ = [
     "ReportAnchorError",
     "ReportNotFoundError",
     "ReportRequestError",
+    "ReportTemplateError",
     "build_scenario_report",
     "render_report",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class ReportNotFoundError(ValueError):
@@ -166,6 +177,11 @@ def _scenario_section(
     scenario: Scenario,
     anchor_id: str,
 ) -> ReportScenario:
+    """One scenario's design and figures, all read from a single resolve.
+
+    Figures, the design's config and provenance come from the same resolved
+    database, so a run finishing mid-report cannot mix two runs.
+    """
     section = ReportScenario(
         scenario_id=scenario.id, name=scenario.name, is_anchor=scenario.id == anchor_id
     )
@@ -173,20 +189,19 @@ def _scenario_section(
         workspace_id, scenario.id
     )
     current_config = storage.get_merged_config(workspace_id, scenario.id)
-    if not resolved.exists or resolved.path is None:
+    if not is_selected_result(resolved, scenario.status):
         section.missing_reason = _MISSING_REASONS.get(scenario.status, _UNREADABLE)
         section.design = describe_plan_design(current_config)
         return section
     section.design = describe_plan_design(
-        _run_config(storage, workspace_id, scenario, current_config)
+        _design_config(report, section, storage, workspace_id, resolved)
+        or current_config
     )
-    analytics = AnalyticsService(storage).get_dc_plan_analytics(
-        workspace_id, scenario.id, scenario.name
-    )
-    if analytics is None or not analytics.contribution_by_year:
+    summary = _read_figures(storage, workspace_id, scenario, resolved)
+    if summary is None or not summary.contribution_by_year:
         section.missing_reason = _UNREADABLE
         return section
-    _fill_figures(section, analytics)
+    _fill_figures(section, summary)
     if scenario.status != "completed":
         report.warnings.append(
             ReportWarning(
@@ -199,22 +214,60 @@ def _scenario_section(
     return section
 
 
-def _run_config(
+def _design_config(
+    report: ScenarioReport,
+    section: ReportScenario,
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    resolved: ResolvedDatabasePath,
+) -> dict[str, Any] | None:
+    """The config archived with the resolved run: the design that actually ran.
+
+    None when the run archived no config (a legacy result) or its config cannot
+    be read; the caller then shows the current config. An unreadable archive is
+    flagged on the section and in the report warnings.
+    """
+    if resolved.config_path is None:
+        return None
+    try:
+        return ConfigDiffService(storage).get_effective_config(
+            workspace_id, section.scenario_id, resolved=resolved
+        )
+    except ValueError as exc:
+        logger.warning("Saved config unreadable for %s: %s", section.scenario_id, exc)
+        section.design_from_current_config = True
+        report.warnings.append(_saved_config_warning(section.name))
+        return None
+
+
+def _saved_config_warning(name: str) -> ReportWarning:
+    return ReportWarning(
+        code="saved_config_unreadable",
+        message=f"{name}: the configuration saved with its result could not be "
+        "read, so the plan design shown is the scenario's current configuration, "
+        "which may differ from the one that ran.",
+    )
+
+
+def _read_figures(
     storage: WorkspaceStorage,
     workspace_id: str,
     scenario: Scenario,
-    current_config: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """The config archived with the selected run: the design that actually ran."""
+    resolved: ResolvedDatabasePath,
+) -> EmployerCostSummary | None:
+    """Employer-cost figures from the resolved database, or None if unreadable."""
+    if resolved.path is None:
+        return None
     try:
-        return ConfigDiffService(storage).get_effective_config(
-            workspace_id, scenario.id
+        return AnalyticsService(storage).get_employer_cost_summary(
+            resolved.path, workspace_id, scenario.id
         )
-    except ValueError:
-        return current_config
+    except (duckdb.Error, TypeError, ValueError) as exc:
+        logger.warning("Report figures unreadable for %s: %s", scenario.id, exc)
+        return None
 
 
-def _fill_figures(section: ReportScenario, analytics: DCPlanAnalytics) -> None:
+def _fill_figures(section: ReportScenario, analytics: EmployerCostSummary) -> None:
     section.years = [
         ReportYear(
             year=item.year,
@@ -338,6 +391,16 @@ def _git_sha() -> str | None:
         return None
 
 
+def _current_design_note(report: ScenarioReport) -> str:
+    names = [s.name for s in report.scenarios if s.design_from_current_config]
+    if not names:
+        return ""
+    return (
+        f" For {', '.join(names)}, the configuration saved with the result could "
+        "not be read, so the current configuration is shown instead."
+    )
+
+
 def _definitions(report: ScenarioReport) -> list[ReportDefinition]:
     """Cost definitions, worded as on the Studio Cost Comparison page."""
     notes = [
@@ -346,7 +409,7 @@ def _definitions(report: ScenarioReport) -> list[ReportDefinition]:
             text="Plan designs are read from the configuration saved with each "
             "scenario's result, or the current configuration for a scenario without "
             "one. \u201cNot recorded\u201d means the setting is not in that "
-            "configuration.",
+            "configuration." + _current_design_note(report),
         ),
         ReportDefinition(
             term="employer_cost",

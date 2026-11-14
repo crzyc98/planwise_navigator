@@ -67,6 +67,11 @@ class ReportScenario(APIModel):
         default=None, description="Why the scenario has no usable result"
     )
     design: ReportPlanDesign | None = None
+    design_from_current_config: bool = Field(
+        default=False,
+        description="The saved run config was unreadable, so the design shown is "
+        "the current configuration",
+    )
     years: list[ReportYear] = Field(default_factory=list)
     total_employer_cost: float | None = None
     total_cost_pct_of_capped_pay: float | None = None

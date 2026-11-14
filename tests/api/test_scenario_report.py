@@ -45,6 +45,7 @@ BASELINE_DESIGN = {
         {"employee_min": 0.0, "employee_max": 0.03, "match_rate": 1.0},
         {"employee_min": 0.03, "employee_max": 0.05, "match_rate": 0.5},
     ],
+    "match_cap_percent": 0.04,
     "match_min_hours_annual": 1000,
     "match_require_year_end_active": True,
     "core_enabled": True,
@@ -56,6 +57,7 @@ RICHER_DESIGN = {
     "eligibility_months": 0,
     "default_deferral_percent": 6.0,
     "match_tiers": [{"employee_min": 0.0, "employee_max": 0.06, "match_rate": 1.0}],
+    "match_cap_percent": 0.06,
     "match_min_hours_annual": 0,
     "match_require_year_end_active": False,
     "core_enabled": False,
@@ -93,7 +95,9 @@ SNAPSHOT_DDL = """
 """
 
 
-def _build_db(path: Path, match_scale: float, run_id: str) -> None:
+def _build_db(
+    path: Path, match_scale: float, run_id: str, years: tuple[int, ...] = (2025, 2026)
+) -> None:
     """Three employees over 2025-2026; ``match_scale`` varies employer cost."""
     rows = [
         ("e1", 2025, True, 3000, 1500, 500, 0.06, 100000),
@@ -107,6 +111,8 @@ def _build_db(path: Path, match_scale: float, run_id: str) -> None:
     try:
         conn.execute(SNAPSHOT_DDL)
         for emp, year, enrolled, deferrals, match, core, rate, comp in rows:
+            if year not in years:
+                continue
             conn.execute(
                 "INSERT INTO fct_workforce_snapshot (employee_id, simulation_year, "
                 "employment_status, employee_hire_date, is_enrolled_flag, "
@@ -230,7 +236,9 @@ def test_designs_are_stated_in_plain_words(env):
     baseline = designs["Baseline"]
     assert baseline.eligibility == "Eligible to defer after 3 months of service."
     assert baseline.auto_enrollment == (
-        "New hires are auto-enrolled at 3% of pay and may opt out."
+        "In the first plan year, eligible employees hired on or after 2020-01-01 "
+        "(the engine default) who are not yet enrolled are auto-enrolled at 3% of "
+        "pay; after that, only each year's new hires are. Employees may opt out."
     )
     assert baseline.escalation == "Deferrals rise 1% a year, up to 10% of pay."
     assert baseline.match == (
@@ -243,8 +251,9 @@ def test_designs_are_stated_in_plain_words(env):
     assert richer.eligibility == "Eligible to defer immediately on hire."
     assert richer.match == "100% of the first 6% deferred (up to 6% of pay)."
     assert richer.core == "No core contribution."
-    assert designs["Re-enroll All"].auto_enrollment.startswith(
-        "All eligible employees, including current ones, are auto-enrolled"
+    assert designs["Re-enroll All"].auto_enrollment == (
+        "Eligible employees hired on or after 2020-01-01 (the engine default) who "
+        "are not yet enrolled are auto-enrolled at 3% of pay and may opt out."
     )
 
 
@@ -410,3 +419,158 @@ def test_design_without_dc_plan_is_not_recorded_rather_than_assumed():
     partial = describe_plan_design({"dc_plan": {"match_enabled": False}})
     assert partial.match == "No employer match."
     assert partial.eligibility == NOT_RECORDED
+
+
+# --------------------------------------------------------------------------
+# Result selection, single resolve, saved config, horizons, templates
+# --------------------------------------------------------------------------
+def test_never_run_scenario_does_not_borrow_a_workspace_database(env):
+    """A legacy workspace-level DB is not a never-run scenario's result."""
+    _build_db(
+        env.storage._workspace_path(env.workspace_id) / "simulation.duckdb",
+        9.0,
+        "run-shared",
+    )
+    report = _comparison(env)
+    unrun = next(s for s in report.scenarios if s.scenario_id == env.unrun.id)
+
+    assert unrun.missing_reason == "Not run yet."
+    assert unrun.total_employer_cost is None
+    assert all(p.scenario_id != env.unrun.id for p in report.provenance)
+
+
+def test_each_scenario_is_resolved_once_and_full_analytics_are_not_run(
+    env, monkeypatch
+):
+    from planalign_api.services.database_path_resolver import DatabasePathResolver
+
+    calls: list[str] = []
+    original = DatabasePathResolver.resolve
+
+    def counting(self, workspace_id, scenario_id, **kwargs):
+        calls.append(scenario_id)
+        return original(self, workspace_id, scenario_id, **kwargs)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("the report must not re-resolve via full analytics")
+
+    monkeypatch.setattr(DatabasePathResolver, "resolve", counting)
+    monkeypatch.setattr(AnalyticsService, "get_dc_plan_analytics", forbidden)
+    report = _comparison(env)
+
+    assert sorted(calls) == sorted([env.baseline.id, env.richer.id, env.unrun.id])
+    assert report.anchor.total_employer_cost is not None
+
+
+def test_unreadable_saved_config_is_flagged_not_silently_replaced(
+    env, monkeypatch, tmp_path
+):
+    from planalign_api.services.database_path_resolver import DatabasePathResolver
+
+    broken = tmp_path / "config.yaml"
+    broken.write_text("dc_plan: [unclosed\n", encoding="utf-8")
+    original = DatabasePathResolver.resolve
+
+    def with_broken_config(self, workspace_id, scenario_id, **kwargs):
+        resolved = original(self, workspace_id, scenario_id, **kwargs)
+        if scenario_id != env.baseline.id:
+            return resolved
+        return resolved.model_copy(update={"config_path": broken})
+
+    monkeypatch.setattr(DatabasePathResolver, "resolve", with_broken_config)
+    report = _comparison(env)
+    baseline = report.anchor
+
+    assert baseline.available and baseline.design_from_current_config
+    assert baseline.design.eligibility == "Eligible to defer after 3 months of service."
+    warning = next(w for w in report.warnings if w.code == "saved_config_unreadable")
+    assert warning.message.startswith("Baseline: the configuration saved")
+    assert "current configuration" in warning.message
+    note = report.definitions[report.note("design") - 1].text
+    assert "For Baseline, the configuration saved with the result could not" in note
+    richer = next(s for s in report.scenarios if s.scenario_id == env.richer.id)
+    assert not richer.design_from_current_config
+
+
+def test_different_horizons_are_labelled_and_totals_not_compared(env):
+    """Anchor 2025-2026 vs a 2025-only comparison: no cross-horizon total."""
+    database = (
+        env.storage._scenario_path(env.workspace_id, env.richer.id)
+        / "simulation.duckdb"
+    )
+    database.unlink()  # replace the fixture's two-year result with a one-year one
+    _build_db(database, 1.5, "run-short", years=(2025,))
+    report = build_scenario_report(
+        env.storage, env.workspace_id, env.baseline.id, [env.richer.id]
+    )
+    richer = next(s for s in report.scenarios if s.scenario_id == env.richer.id)
+
+    assert [y.year for y in richer.years] == [2025]
+    assert richer.total_difference_from_anchor is None
+    assert richer.years[0].difference_from_anchor is not None
+    assert any(w.code == "year_mismatch" for w in report.warnings)
+
+    lead = lead_lines(report)
+    assert "though not every scenario covers every year" in lead[0]
+    assert lead[1].startswith("Baseline: $") and " over 2025–2026 " in lead[1]
+    assert " over 2025; it covers different years from Baseline" in lead[2]
+
+    summary = next(t for t in report_tables(report) if t.key == "summary")
+    assert summary.title == "Employer cost"
+    assert "Participation (final year)" in summary.header
+    assert [row[0] for row in summary.rows] == [
+        "Baseline (anchor) (2025–2026)",
+        "Richer Match (2025)",
+    ]
+    assert summary.rows[1][2] == "—"  # no total difference across horizons
+    by_year = next(t for t in report_tables(report) if t.key == "employer-cost")
+    assert by_year.rows[1] == ["2026", by_year.rows[1][1], "—"]
+
+
+def test_same_horizon_summary_keeps_the_year_label(env):
+    summary = next(t for t in report_tables(_comparison(env)) if t.key == "summary")
+    assert summary.title == "Employer cost, 2025–2026"
+    assert "Participation (2026)" in summary.header
+    assert summary.rows[0][0] == "Baseline (anchor)"
+
+
+def test_template_without_body_placeholder_is_rejected(env, tmp_path):
+    from typer.testing import CliRunner
+
+    from planalign_api.services.report_render import ReportTemplateError
+    from planalign_cli.main import app
+
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    (templates / "report.html").write_text(
+        "<h1>{{ title }}</h1>{{ rows }}{{ charts }}", encoding="utf-8"
+    )
+    report = _comparison(env)
+    with pytest.raises(ReportTemplateError, match=r"\{\{ body \}\}"):
+        render_html(report, templates)
+    with pytest.raises(ReportTemplateError, match="Cannot read report template"):
+        render_html(report, tmp_path / "missing")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "report",
+            env.baseline.id,
+            "--workspace",
+            env.workspace_id,
+            "--format",
+            "html",
+            "--output",
+            str(tmp_path / "out.html"),
+            "--template-dir",
+            str(templates),
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    assert "{{ body }}" in result.output
+    assert not (tmp_path / "out.html").exists()
+
+    (templates / "report.html").write_text(
+        "<h1>{{ title }}</h1>{{ body }}<p>{{ trace }}</p>", encoding="utf-8"
+    )
+    assert "Plan designs" in render_html(report, templates)
