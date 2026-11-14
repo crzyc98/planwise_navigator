@@ -45,7 +45,7 @@ import {
   type GrandfatherInput,
 } from './costSummary';
 import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
-import { reportRequest } from './reportExport';
+import { reportBasisNote, reportRequest } from './reportExport';
 import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
   listScenarios,
@@ -516,6 +516,8 @@ export default function ScenarioCostComparison() {
   const netActive = costView === 'net' && (
     grandfatherExisting ? grandfatherData !== null : forfeitureData !== null
   );
+
+  const reportNote = reportBasisNote({ cohort, costView, grandfatherExisting });
 
   const policyReducesCost = POLICY_REDUCES_EMPLOYER_COST[forfeiturePolicy];
 
@@ -1337,6 +1339,7 @@ export default function ScenarioCostComparison() {
             busy={reportBusy}
             disabled={selectedScenarioIds.length === 0 || exporting !== null}
           />
+          {reportNote && <p className="text-[11px] text-ink-subtle">{reportNote}</p>}
           {exporting === 'xlsx' && (
             <p className="text-[11px] text-ink-subtle">
               Large Excel exports can take several minutes. Tableau is much faster.

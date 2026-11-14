@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError, downloadScenarioReport, scenarioReportUrl } from '../services/api';
-import { reportRequest } from './reportExport';
+import { REPORT_BASIS_NOTE, reportBasisNote, reportRequest } from './reportExport';
 
 const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
 
@@ -65,5 +65,22 @@ describe('downloadScenarioReport errors', () => {
     const error = await downloadScenarioReport('w', 's', { format: 'pdf' }).catch(e => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error.message).toMatch(/PDF reports.*renderer isn't installed/);
+  });
+});
+
+describe('reportBasisNote', () => {
+  const base = { cohort: 'all', costView: 'gross', grandfatherExisting: false } as const;
+
+  it('says nothing when the view already matches the report basis', () => {
+    expect(reportBasisNote(base)).toBeNull();
+  });
+
+  it.each([
+    { cohort: 'new_hires' },
+    { cohort: 'baseline' },
+    { costView: 'net' },
+    { grandfatherExisting: true },
+  ] as const)('notes the difference when %o is set', override => {
+    expect(reportBasisNote({ ...base, ...override })).toBe(REPORT_BASIS_NOTE);
   });
 });
