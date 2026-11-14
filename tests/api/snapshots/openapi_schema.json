@@ -3972,6 +3972,283 @@
         "title": "CensusStatus",
         "type": "object"
       },
+      "CensusTieOut": {
+        "description": "Census tie-out for one scenario's selected run.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "census_as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "End of the census plan year.",
+            "title": "Census As Of Date"
+          },
+          "census_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census file name recorded in the run's config.",
+            "title": "Census File"
+          },
+          "census_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Census Year"
+          },
+          "first_simulated_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Simulated Year"
+          },
+          "growth_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Configured annual headcount growth (fraction).",
+            "title": "Growth Rate"
+          },
+          "raise_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Configured annual COLA plus merit (fraction).",
+            "title": "Raise Rate"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CensusTieOutRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "source_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence naming the census file, census year and first simulated year, and when the comparison is meaningful. Shown as is by the Studio panel and the report.",
+            "title": "Source Note"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "available",
+          "unavailable_reason",
+          "run_id",
+          "census_file",
+          "census_year",
+          "census_as_of_date",
+          "first_simulated_year",
+          "growth_rate",
+          "raise_rate",
+          "source_note",
+          "rows"
+        ],
+        "title": "CensusTieOut",
+        "type": "object"
+      },
+      "CensusTieOutRow": {
+        "description": "One metric: census value, first-simulated-year value and how they compare.",
+        "properties": {
+          "census_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census-year value; null when the census lacks the data.",
+            "title": "Census Value"
+          },
+          "definition": {
+            "description": "The definition applied to both sides.",
+            "title": "Definition",
+            "type": "string"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Simulated minus census, in the row's unit.",
+            "title": "Difference"
+          },
+          "expected_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census value carried forward by the configured growth and raises.",
+            "title": "Expected Value"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "description": "What the comparison shows and what to check.",
+            "title": "Message",
+            "type": "string"
+          },
+          "metric": {
+            "enum": [
+              "active_headcount",
+              "eligible_count",
+              "participation_rate",
+              "average_deferral_rate",
+              "total_pay",
+              "employer_match",
+              "employer_core"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "relative_difference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Simulated over census minus 1, for counts and dollars with a non-zero census value; null for rates.",
+            "title": "Relative Difference"
+          },
+          "simulated_value": {
+            "title": "Simulated Value",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "ties",
+              "gap",
+              "not_in_census"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The row ties when the simulated value is within this distance of the expected value (same unit).",
+            "title": "Tolerance"
+          },
+          "unit": {
+            "description": "Rates are fractions (0.06 = 6%).",
+            "enum": [
+              "count",
+              "rate",
+              "dollars"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "label",
+          "unit",
+          "definition",
+          "census_value",
+          "simulated_value",
+          "expected_value",
+          "difference",
+          "relative_difference",
+          "tolerance",
+          "status",
+          "message"
+        ],
+        "title": "CensusTieOutRow",
+        "type": "object"
+      },
       "Citation": {
         "additionalProperties": false,
         "properties": {
@@ -27313,6 +27590,92 @@
         "summary": "Update Scenario",
         "tags": [
           "Scenarios"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out": {
+      "get": {
+        "description": "Compare the run's archived census with its first simulated year.\n\nReturns one row per metric (headcount, eligibility, participation,\ndeferral, pay, match, core) with a status of ``ties``, ``gap`` or\n``not_in_census``. A run without an archived census returns\n``available: false`` with a reason.",
+        "operationId": "get_census_tie_out_api_workspaces__workspace_id__scenarios__scenario_id__analytics_census_tie_out_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CensusTieOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Census Tie Out",
+        "tags": [
+          "Analytics"
         ]
       }
     },

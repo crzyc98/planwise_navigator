@@ -2411,6 +2411,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Census Tie Out
+         * @description Compare the run's archived census with its first simulated year.
+         *
+         *     Returns one row per metric (headcount, eligibility, participation,
+         *     deferral, pay, match, core) with a status of ``ties``, ``gap`` or
+         *     ``not_in_census``. A run without an archived census returns
+         *     ``available: false`` with a reason.
+         */
+        get: operations["get_census_tie_out_api_workspaces__workspace_id__scenarios__scenario_id__analytics_census_tie_out_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/dc-plan": {
         parameters: {
             query?: never;
@@ -4594,6 +4619,114 @@ export interface components {
              * @description Workspace simulation start year
              */
             start_year: number;
+        };
+        /**
+         * CensusTieOut
+         * @description Census tie-out for one scenario's selected run.
+         */
+        CensusTieOut: {
+            /** Available */
+            available: boolean;
+            /**
+             * Census As Of Date
+             * @description End of the census plan year.
+             */
+            census_as_of_date: string | null;
+            /**
+             * Census File
+             * @description Census file name recorded in the run's config.
+             */
+            census_file: string | null;
+            /** Census Year */
+            census_year: number | null;
+            /** First Simulated Year */
+            first_simulated_year: number | null;
+            /**
+             * Growth Rate
+             * @description Configured annual headcount growth (fraction).
+             */
+            growth_rate: number | null;
+            /**
+             * Raise Rate
+             * @description Configured annual COLA plus merit (fraction).
+             */
+            raise_rate: number | null;
+            /** Rows */
+            rows: components["schemas"]["CensusTieOutRow"][];
+            /** Run Id */
+            run_id: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /**
+             * Source Note
+             * @description One sentence naming the census file, census year and first simulated year, and when the comparison is meaningful. Shown as is by the Studio panel and the report.
+             */
+            source_note: string | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+        };
+        /**
+         * CensusTieOutRow
+         * @description One metric: census value, first-simulated-year value and how they compare.
+         */
+        CensusTieOutRow: {
+            /**
+             * Census Value
+             * @description Census-year value; null when the census lacks the data.
+             */
+            census_value: number | null;
+            /**
+             * Definition
+             * @description The definition applied to both sides.
+             */
+            definition: string;
+            /**
+             * Difference
+             * @description Simulated minus census, in the row's unit.
+             */
+            difference: number | null;
+            /**
+             * Expected Value
+             * @description Census value carried forward by the configured growth and raises.
+             */
+            expected_value: number | null;
+            /** Label */
+            label: string;
+            /**
+             * Message
+             * @description What the comparison shows and what to check.
+             */
+            message: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "active_headcount" | "eligible_count" | "participation_rate" | "average_deferral_rate" | "total_pay" | "employer_match" | "employer_core";
+            /**
+             * Relative Difference
+             * @description Simulated over census minus 1, for counts and dollars with a non-zero census value; null for rates.
+             */
+            relative_difference: number | null;
+            /** Simulated Value */
+            simulated_value: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ties" | "gap" | "not_in_census";
+            /**
+             * Tolerance
+             * @description The row ties when the simulated value is within this distance of the expected value (same unit).
+             */
+            tolerance: number | null;
+            /**
+             * Unit
+             * @description Rates are fractions (0.06 = 6%).
+             * @enum {string}
+             */
+            unit: "count" | "rate" | "dollars";
         };
         /** Citation */
         Citation: {
@@ -15845,6 +15978,44 @@ export interface operations {
             /** @description Validation Error */
             422: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_census_tie_out_api_workspaces__workspace_id__scenarios__scenario_id__analytics_census_tie_out_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CensusTieOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
                     [name: string]: unknown;
                 };
                 content: {
