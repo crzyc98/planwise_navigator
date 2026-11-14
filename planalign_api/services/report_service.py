@@ -35,7 +35,6 @@ from planalign_api.storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
-TIE_OUT_SCOPE_NOTE = "Meaningful only for a scenario that models the current plan."
 _TIE_OUT_STATUS = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
 
 
@@ -416,12 +415,7 @@ def _render_pptx(report: ScenarioReport, output: Path) -> None:
     )
     _add_pptx_footer(provenance, report)
     if report.census_tie_out is not None:
-        tie_out = presentation.slides.add_slide(presentation.slide_layouts[5])
-        tie_out.shapes.title.text = "Census tie-out"
-        tie_out.shapes.add_textbox(1e6, 1.5e6, 8e6, 5e6).text_frame.text = (
-            _tie_out_text(report.census_tie_out)
-        )
-        _add_pptx_footer(tie_out, report)
+        _add_tie_out_slide(presentation, report)
     presentation.save(str(output))
 
 
@@ -450,21 +444,13 @@ def tie_out_difference(row: CensusTieOutRow) -> str:
     value = row.difference
     if value is None:
         return "—"
-    sign = "-" if value < 0 else "+"
+    # The sign follows the shown figure, so a value that rounds to zero reads "+0".
     if row.unit == "rate":
-        return f"{sign}{abs(value * 100):.1f} pts"
-    whole = f"{abs(math.floor(value + 0.5)):,}"
-    return f"{sign}{'$' if row.unit == 'dollars' else ''}{whole}"
-
-
-def tie_out_source(tie_out: CensusTieOut) -> str:
-    """The sentence naming the census and years, as the panel words it."""
-    file = tie_out.census_file or "the archived census"
-    return (
-        f"Compares {file} (census year {tie_out.census_year}) with "
-        f"{tie_out.first_simulated_year}, the first simulated year, allowing for "
-        f"one year of the configured growth and raises. {TIE_OUT_SCOPE_NOTE}"
-    )
+        points = f"{abs(value * 100):.1f}"
+        return f"{'-' if value < 0 and float(points) else '+'}{points} pts"
+    whole = abs(math.floor(value + 0.5))
+    sign = "-" if value < 0 and whole else "+"
+    return f"{sign}{'$' if row.unit == 'dollars' else ''}{whole:,}"
 
 
 def _tie_out_html(tie_out: CensusTieOut | None) -> str:
@@ -487,28 +473,87 @@ def _tie_out_html(tie_out: CensusTieOut | None) -> str:
         for row in tie_out.rows
     )
     return (
-        f"{heading}<p>{html.escape(tie_out_source(tie_out))}</p>"
+        f"{heading}<p>{html.escape(tie_out.source_note or '')}</p>"
         f"<table><thead><tr><th>Metric</th><th>Census {tie_out.census_year}</th>"
         f"<th>Simulated {tie_out.first_simulated_year}</th><th>Difference</th>"
         f"<th>Status</th></tr></thead><tbody>{rows}</tbody></table>"
     )
 
 
-def _tie_out_text(tie_out: CensusTieOut) -> str:
-    if not tie_out.available:
-        return tie_out.unavailable_reason or ""
-    lines = [
-        f"{row.label} | {tie_out_value(row, row.census_value)} | "
-        f"{tie_out_value(row, row.simulated_value)} | {tie_out_difference(row)} | "
-        f"{_TIE_OUT_STATUS[row.status]}"
-        + (f"\n    {row.message}" if row.status == "gap" else "")
+def _tie_out_cells(tie_out: CensusTieOut) -> list[list[str]]:
+    """Header and one row per metric, as the panel and the HTML table show them."""
+    header = [
+        "Metric",
+        f"Census {tie_out.census_year}",
+        f"Simulated {tie_out.first_simulated_year}",
+        "Difference",
+        "Status",
+    ]
+    return [header] + [
+        [
+            row.label,
+            tie_out_value(row, row.census_value),
+            tie_out_value(row, row.simulated_value),
+            tie_out_difference(row),
+            _TIE_OUT_STATUS[row.status],
+        ]
         for row in tie_out.rows
     ]
-    header = (
-        f"Metric | Census {tie_out.census_year} | "
-        f"Simulated {tie_out.first_simulated_year} | Difference | Status"
+
+
+def _add_text(
+    slide, box: tuple[int, int, int, int], lines: list[str], size: int
+) -> None:
+    """A wrapped textbox at ``size`` points that shrinks text to fit if needed."""
+    from pptx.enum.text import MSO_AUTO_SIZE
+    from pptx.util import Pt
+
+    frame = slide.shapes.add_textbox(*box).text_frame
+    frame.word_wrap = True
+    frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    for index, line in enumerate(lines):
+        paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+        paragraph.text = line
+        paragraph.font.size = Pt(size)
+
+
+def _add_tie_out_slide(presentation, report: ScenarioReport) -> None:
+    """Note, table and gap messages, sized to stay inside a 10 x 7.5 in slide."""
+    from pptx.util import Inches, Pt
+
+    tie_out = report.census_tie_out
+    assert tie_out is not None
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Census tie-out"
+    left, width = Inches(0.5), Inches(9)
+    if not tie_out.available:
+        _add_text(
+            slide,
+            (left, Inches(1.6), width, Inches(1)),
+            [tie_out.unavailable_reason or ""],
+            14,
+        )
+        _add_pptx_footer(slide, report)
+        return
+    _add_text(
+        slide, (left, Inches(1.3), width, Inches(0.6)), [tie_out.source_note or ""], 11
     )
-    return "\n".join([tie_out_source(tie_out), header, *lines])
+    cells = _tie_out_cells(tie_out)
+    table = slide.shapes.add_table(
+        len(cells), 5, left, Inches(1.95), width, Inches(0.28) * len(cells)
+    ).table
+    for row_index, values in enumerate(cells):
+        for column, value in enumerate(values):
+            cell = table.cell(row_index, column)
+            cell.text = value
+            cell.text_frame.paragraphs[0].font.size = Pt(10)
+    gaps = [
+        f"{row.label}: {row.message}" for row in tie_out.rows if row.status == "gap"
+    ]
+    if gaps:
+        top = Inches(2.05) + Inches(0.28) * len(cells)
+        _add_text(slide, (left, top, width, Inches(6.55) - top), gaps, 9)
+    _add_pptx_footer(slide, report)
 
 
 def _money(value: float | None) -> str:

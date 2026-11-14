@@ -19,10 +19,9 @@ from planalign_api.services import report_service
 from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.current_result import publish_current_result
 from planalign_api.services.report_service import (
-    TIE_OUT_SCOPE_NOTE,
     _render_html,
+    render_report,
     tie_out_difference,
-    tie_out_source,
     tie_out_value,
 )
 from planalign_api.services.run_health import with_census_tie_out
@@ -185,8 +184,8 @@ def test_report_table_matches_the_service_rows(tmp_path: Path) -> None:
     )
     html = _render_html(report, None)
     assert "<h2>Census tie-out</h2>" in html
-    assert tie_out_source(tie_out) in html
-    assert TIE_OUT_SCOPE_NOTE in html
+    assert tie_out.source_note and tie_out.source_note in html
+    assert "Meaningful only for a scenario that models the current plan." in html
     assert "census_2024.parquet (census year 2024) with 2025" in html
     body = html.split("<h2>Census tie-out</h2>", 1)[1]
     for row in tie_out.rows:
@@ -238,3 +237,72 @@ def test_report_tie_out_failure_becomes_a_warning(tmp_path, monkeypatch) -> None
     )
     assert result is None
     assert [w.code for w in report.warnings] == ["census_tie_out_unavailable"]
+
+
+@pytest.mark.parametrize(
+    ("unit", "difference", "shown"),
+    [
+        ("count", -0.4, "+0"),
+        ("dollars", -0.5, "+$0"),
+        ("rate", -0.0004, "+0.0 pts"),
+        ("dollars", -0.6, "-$1"),
+        ("rate", -0.0006, "-0.1 pts"),
+    ],
+)
+def test_difference_that_rounds_to_zero_has_no_minus_sign(
+    tmp_path: Path, unit: str, difference: float, shown: str
+) -> None:
+    _build_tied_run(tmp_path)
+    row = (
+        _tie_out(tmp_path)
+        .rows[0]
+        .model_copy(update={"unit": unit, "difference": difference})
+    )
+    assert tie_out_difference(row) == shown
+
+
+def _all_gaps(tie_out: CensusTieOut) -> CensusTieOut:
+    """Every row a gap, so the slide carries the longest possible content."""
+    rows = [
+        row.model_copy(update={"status": "gap", "message": row.message * 2})
+        for row in tie_out.rows
+    ]
+    return tie_out.model_copy(update={"rows": rows})
+
+
+def test_pptx_tie_out_slide_fits_and_wraps(tmp_path: Path) -> None:
+    pptx = pytest.importorskip("pptx")
+    pytest.importorskip("pptx.enum.text")
+    _build_tied_run(tmp_path / "run", OVER_MATCH)
+    tie_out = _all_gaps(_tie_out(tmp_path / "run"))
+    report = ScenarioReport(
+        title="Report", generated_at=datetime.now(timezone.utc), census_tie_out=tie_out
+    )
+    output = render_report(report, tmp_path / "report.pptx", "pptx")
+
+    deck = pptx.Presentation(str(output))
+    slide = next(
+        s
+        for s in deck.slides
+        if s.shapes.title and s.shapes.title.text == "Census tie-out"
+    )
+    footer = slide.shapes[-1]
+    body = [
+        shape for shape in slide.shapes if shape not in (slide.shapes.title, footer)
+    ]
+    assert len(body) == 3  # source note, table, gap messages
+    for shape in body:
+        assert shape.left >= 0 and shape.top >= 0
+        assert shape.left + shape.width <= deck.slide_width
+        assert shape.top + shape.height <= footer.top
+    note, table, gaps = body
+    for frame in (note.text_frame, gaps.text_frame):
+        assert frame.word_wrap
+        assert frame.auto_size == pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    assert note.text_frame.text == tie_out.source_note
+    assert len(gaps.text_frame.paragraphs) == len(tie_out.rows)
+    assert all(p.font.size.pt == 9 for p in gaps.text_frame.paragraphs)
+    cells = table.table
+    assert (len(cells.rows), len(cells.columns)) == (len(tie_out.rows) + 1, 5)
+    assert cells.cell(6, 0).text == "Employer match"
+    assert cells.cell(6, 3).text == tie_out_difference(tie_out.rows[5])
