@@ -220,31 +220,17 @@ def analyze_scenario(
         else:
             table = Table(title=f"Scenario analysis: {report.title}")
             table.add_column("Year")
-            table.add_column("Headcount", justify="right")
-            table.add_column("Avg comp", justify="right")
-            table.add_column("Participation", justify="right")
             table.add_column("Employer cost", justify="right")
-            for item in report.years:
+            table.add_column("% of capped pay", justify="right")
+            table.add_column("Participation", justify="right")
+            table.add_column("Avg deferral", justify="right")
+            for item in report.anchor.years:
                 table.add_row(
                     str(item.year),
-                    str(
-                        item.headcount if item.headcount is not None else "Unavailable"
-                    ),
-                    (
-                        f"${item.average_compensation:,.0f}"
-                        if item.average_compensation is not None
-                        else "Unavailable"
-                    ),
-                    (
-                        f"{item.participation_rate:.1f}%"
-                        if item.participation_rate is not None
-                        else "Unavailable"
-                    ),
-                    (
-                        f"${item.employer_cost:,.0f}"
-                        if item.employer_cost is not None
-                        else "Unavailable"
-                    ),
+                    _fmt(item.employer_cost, "${:,.0f}"),
+                    _fmt(item.cost_pct_of_capped_pay, "{:.2f}%"),
+                    _fmt(item.participation_rate, "{:.1f}%"),
+                    _fmt(item.average_deferral_rate, "{:.1f}%"),
                 )
             console.print(table)
             for warning in report.warnings:
@@ -254,6 +240,10 @@ def analyze_scenario(
     except Exception as e:
         show_error_message(f"Scenario analysis failed: {e}")
         raise typer.Exit(1)
+
+
+def _fmt(value: Optional[float], pattern: str) -> str:
+    return "Unavailable" if value is None else pattern.format(value)
 
 
 def _get_workforce_data(
