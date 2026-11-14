@@ -1081,6 +1081,17 @@ export async function getDCPlanAnalytics(
   return handleResponse<DCPlanAnalytics>(response);
 }
 
+export type CensusTieOut = Schemas['CensusTieOut'];
+
+export type CensusTieOutRow = Schemas['CensusTieOutRow'];
+
+export async function getCensusTieOut(workspaceId: string, scenarioId: string): Promise<CensusTieOut> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/census-tie-out`
+  );
+  return handleResponse<CensusTieOut>(response);
+}
+
 export async function compareDCPlanAnalytics(
   workspaceId: string,
   scenarioIds: string[],
