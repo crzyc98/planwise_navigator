@@ -13844,6 +13844,17 @@
       },
       "RunHealthReport": {
         "properties": {
+          "census_tie_out": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunHealthTieOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the selected run's census tie-out has a gap; null when it ties, is unavailable, or the run isn't the selected result."
+          },
           "counts": {
             "$ref": "#/components/schemas/RunHealthCounts"
           },
@@ -13891,9 +13902,33 @@
           "run_id",
           "disposition",
           "counts",
-          "findings"
+          "findings",
+          "census_tie_out"
         ],
         "title": "RunHealthReport",
+        "type": "object"
+      },
+      "RunHealthTieOut": {
+        "description": "Census tie-out rows that differ from the census (gaps only).",
+        "properties": {
+          "labels": {
+            "description": "Labels of the rows with a gap.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "labels",
+          "message"
+        ],
+        "title": "RunHealthTieOut",
         "type": "object"
       },
       "RunIdentityEvidence": {

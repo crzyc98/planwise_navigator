@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The API can now compare a scenario's census with its first simulated year (`GET /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out`). For active headcount, eligible count, participation, average deferral, total pay, employer match and employer core it gives both values under one definition, the difference, a tolerance that allows for the configured growth and raises, and whether the row ties, has a gap or isn't in the census, with a line on what to check. It reads the census archived with the run, not the workspace's current file.
 - Overview has a Census Tie-out panel for the selected scenario. It shows each metric's census-year and first-simulated-year values, the difference and whether it ties, with a line on what to check for each gap, and names the census file and years it used. It's meaningful only for a scenario that models the current plan.
+- When a scenario's census tie-out has gaps, Run Health shows one line naming the rows that differ, linking to the Overview panel, and the scenario report includes the tie-out table. Neither ever fails or blocks a run.
 
 ### Changed
 

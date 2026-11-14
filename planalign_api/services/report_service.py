@@ -8,13 +8,17 @@ implementation.
 from __future__ import annotations
 
 import base64
+import html
 import io
+import logging
+import math
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from planalign_api.models.census_tie_out import CensusTieOut, CensusTieOutRow
 from planalign_api.models.report import (
     ReportProvenance,
     ReportWarning,
@@ -22,11 +26,17 @@ from planalign_api.models.report import (
     ScenarioReport,
 )
 from planalign_api.services.analytics_service import AnalyticsService
+from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.database_path_resolver import (
     create_api_database_path_resolver,
 )
 from planalign_api.services.run_trust import add_current_config_drift, read_run_trust
 from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+logger = logging.getLogger(__name__)
+
+TIE_OUT_SCOPE_NOTE = "Meaningful only for a scenario that models the current plan."
+_TIE_OUT_STATUS = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
 
 
 class ReportNotFoundError(ValueError):
@@ -79,6 +89,10 @@ def build_scenario_report(
         )
         if index > 0 and metrics:
             report.comparison_years[selected_scenario.id] = metrics
+        if index == 0 and metrics:
+            report.census_tie_out = _census_tie_out(
+                report, storage, workspace_id, selected_scenario
+            )
     if not report.provenance and not report.warnings:
         raise ReportNotFoundError("No completed selected results were found")
     return report
@@ -155,6 +169,25 @@ def _append_scenario(
         "config", storage.get_merged_config(workspace_id, scenario.id) or {}
     )
     return metrics
+
+
+def _census_tie_out(
+    report: ScenarioReport, storage: WorkspaceStorage, workspace_id: str, scenario
+) -> CensusTieOut | None:
+    """The same tie-out the Overview panel shows; a failure only adds a warning."""
+    try:
+        return CensusTieOutService(storage).get_tie_out(
+            workspace_id, scenario.id, scenario.name
+        )
+    except Exception:  # the tie-out is advisory and must never block a report
+        logger.exception("Census tie-out failed for scenario %s", scenario.id)
+        report.warnings.append(
+            ReportWarning(
+                code="census_tie_out_unavailable",
+                message="The census tie-out could not be computed for this report.",
+            )
+        )
+        return None
 
 
 def _resolve_scenario(storage: WorkspaceStorage, workspace_id: str, identifier: str):
@@ -308,6 +341,7 @@ def _render_html(report: ScenarioReport, template_dir: Path | None) -> str:
         .replace("{{ provenance }}", provenance)
         .replace("{{ warnings }}", warnings)
         .replace("{{ charts }}", charts)
+        .replace("{{ tie_out }}", _tie_out_html(report.census_tie_out))
         .replace("{{ trace }}", trace)
     )
 
@@ -381,6 +415,13 @@ def _render_pptx(report: ScenarioReport, output: Path) -> None:
         for item in report.provenance
     )
     _add_pptx_footer(provenance, report)
+    if report.census_tie_out is not None:
+        tie_out = presentation.slides.add_slide(presentation.slide_layouts[5])
+        tie_out.shapes.title.text = "Census tie-out"
+        tie_out.shapes.add_textbox(1e6, 1.5e6, 8e6, 5e6).text_frame.text = (
+            _tie_out_text(report.census_tie_out)
+        )
+        _add_pptx_footer(tie_out, report)
     presentation.save(str(output))
 
 
@@ -394,6 +435,82 @@ def _add_pptx_footer(slide, report: ScenarioReport) -> None:
     )
 
 
+def tie_out_value(row: CensusTieOutRow, value: float | None) -> str:
+    """A tie-out value as the Studio panel formats it."""
+    if value is None:
+        return "—"
+    if row.unit == "rate":
+        return f"{value * 100:.1f}%"
+    whole = f"{math.floor(value + 0.5):,}"  # half up, like JavaScript Math.round
+    return f"${whole}" if row.unit == "dollars" else whole
+
+
+def tie_out_difference(row: CensusTieOutRow) -> str:
+    """A tie-out difference as the Studio panel formats it."""
+    value = row.difference
+    if value is None:
+        return "—"
+    sign = "-" if value < 0 else "+"
+    if row.unit == "rate":
+        return f"{sign}{abs(value * 100):.1f} pts"
+    whole = f"{abs(math.floor(value + 0.5)):,}"
+    return f"{sign}{'$' if row.unit == 'dollars' else ''}{whole}"
+
+
+def tie_out_source(tie_out: CensusTieOut) -> str:
+    """The sentence naming the census and years, as the panel words it."""
+    file = tie_out.census_file or "the archived census"
+    return (
+        f"Compares {file} (census year {tie_out.census_year}) with "
+        f"{tie_out.first_simulated_year}, the first simulated year, allowing for "
+        f"one year of the configured growth and raises. {TIE_OUT_SCOPE_NOTE}"
+    )
+
+
+def _tie_out_html(tie_out: CensusTieOut | None) -> str:
+    if tie_out is None:
+        return ""
+    heading = "<h2>Census tie-out</h2>"
+    if not tie_out.available:
+        return f"{heading}<p>{html.escape(tie_out.unavailable_reason or '')}</p>"
+    rows = "".join(
+        f"<tr><td>{html.escape(row.label)}"
+        + (
+            f"<br/><small>{html.escape(row.message)}</small>"
+            if row.status == "gap"
+            else ""
+        )
+        + f"</td><td>{tie_out_value(row, row.census_value)}</td>"
+        f"<td>{tie_out_value(row, row.simulated_value)}</td>"
+        f"<td>{tie_out_difference(row)}</td>"
+        f"<td class='tie-{row.status}'>{_TIE_OUT_STATUS[row.status]}</td></tr>"
+        for row in tie_out.rows
+    )
+    return (
+        f"{heading}<p>{html.escape(tie_out_source(tie_out))}</p>"
+        f"<table><thead><tr><th>Metric</th><th>Census {tie_out.census_year}</th>"
+        f"<th>Simulated {tie_out.first_simulated_year}</th><th>Difference</th>"
+        f"<th>Status</th></tr></thead><tbody>{rows}</tbody></table>"
+    )
+
+
+def _tie_out_text(tie_out: CensusTieOut) -> str:
+    if not tie_out.available:
+        return tie_out.unavailable_reason or ""
+    lines = [
+        f"{row.label} | {tie_out_value(row, row.census_value)} | "
+        f"{tie_out_value(row, row.simulated_value)} | {tie_out_difference(row)} | "
+        f"{_TIE_OUT_STATUS[row.status]}"
+        + (f"\n    {row.message}" if row.status == "gap" else "")
+        for row in tie_out.rows
+    ]
+    header = (
+        f"Metric | Census {tie_out.census_year} | "
+        f"Simulated {tie_out.first_simulated_year} | Difference | Status"
+    )
+    return "\n".join([tie_out_source(tie_out), header, *lines])
+
+
 def _money(value: float | None) -> str:
     return "Unavailable" if value is None else f"${value:,.0f}"
 
@@ -402,4 +519,4 @@ def _pct(value: float | None) -> str:
     return "Unavailable" if value is None else f"{value:.1f}%"
 
 
-_DEFAULT_TEMPLATE = """<!doctype html><html><head><meta charset='utf-8'><style>@page{size:letter landscape;margin:0.45in}body{font-family:Arial;color:#273238}h1{color:#2f7d32;border-bottom:4px solid #2f7d32;padding-bottom:12px}table{border-collapse:collapse;width:100%;margin-top:18px}th{background:#2f7d32;color:white}td,th{padding:9px;border:1px solid #d6ded9;text-align:right}td:first-child,th:first-child{text-align:left}.charts{display:block;width:100%}.charts img{display:inline-block;width:46%;vertical-align:top;margin:6px}.warning{color:#9a6700}.error{color:#b42318}footer{position:fixed;bottom:0;font-size:9px;color:#64736d}</style></head><body><h1>{{ title }}</h1><p>Executive summary generated from the selected PlanAlign result.</p><table><thead><tr><th>Year</th><th>Headcount</th><th>Average compensation</th><th>Participation</th><th>Employer cost</th></tr></thead><tbody>{{ rows }}</tbody></table><div class='charts'>{{ charts }}</div><h2>Assumptions and provenance</h2><ul>{{ provenance }}</ul><ul>{{ warnings }}</ul><footer>Traceable PlanAlign report — {{ trace }}</footer></body></html>"""
+_DEFAULT_TEMPLATE = """<!doctype html><html><head><meta charset='utf-8'><style>@page{size:letter landscape;margin:0.45in}body{font-family:Arial;color:#273238}h1{color:#2f7d32;border-bottom:4px solid #2f7d32;padding-bottom:12px}table{border-collapse:collapse;width:100%;margin-top:18px}th{background:#2f7d32;color:white}td,th{padding:9px;border:1px solid #d6ded9;text-align:right}td:first-child,th:first-child{text-align:left}.charts{display:block;width:100%}.charts img{display:inline-block;width:46%;vertical-align:top;margin:6px}.warning{color:#9a6700}td small{color:#64736d}.tie-gap{color:#9a6700}.error{color:#b42318}footer{position:fixed;bottom:0;font-size:9px;color:#64736d}</style></head><body><h1>{{ title }}</h1><p>Executive summary generated from the selected PlanAlign result.</p><table><thead><tr><th>Year</th><th>Headcount</th><th>Average compensation</th><th>Participation</th><th>Employer cost</th></tr></thead><tbody>{{ rows }}</tbody></table><div class='charts'>{{ charts }}</div>{{ tie_out }}<h2>Assumptions and provenance</h2><ul>{{ provenance }}</ul><ul>{{ warnings }}</ul><footer>Traceable PlanAlign report — {{ trace }}</footer></body></html>"""

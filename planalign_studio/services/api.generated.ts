@@ -9045,6 +9045,8 @@ export interface components {
         };
         /** RunHealthReport */
         RunHealthReport: {
+            /** @description Set when the selected run's census tie-out has a gap; null when it ties, is unavailable, or the run isn't the selected result. */
+            census_tie_out: components["schemas"]["RunHealthTieOut"] | null;
             counts: components["schemas"]["RunHealthCounts"];
             /** Disposition */
             disposition: string | null;
@@ -9059,6 +9061,19 @@ export interface components {
              * @enum {string}
              */
             status: "clean" | "warnings" | "failed" | "missing_provenance" | "unavailable";
+        };
+        /**
+         * RunHealthTieOut
+         * @description Census tie-out rows that differ from the census (gaps only).
+         */
+        RunHealthTieOut: {
+            /**
+             * Labels
+             * @description Labels of the rows with a gap.
+             */
+            labels: string[];
+            /** Message */
+            message: string;
         };
         /** RunIdentityEvidence */
         RunIdentityEvidence: {

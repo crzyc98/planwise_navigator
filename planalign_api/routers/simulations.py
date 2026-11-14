@@ -35,7 +35,9 @@ from ..storage.workspace_storage import WorkspaceStorage
 from ..models.run_health import RunHealthReport
 from ..models.scenario import Scenario
 from ..models.workspace import Workspace
-from ..services.run_health import build_run_health
+from ..models.census_tie_out import CensusTieOut
+from ..services.census_tie_out import CensusTieOutService
+from ..services.run_health import TieOutLoader, build_run_health, with_census_tie_out
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
 from ..services.artifact_tickets import create_artifact_ticket
@@ -745,7 +747,11 @@ def get_run_health(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Run {run_id} not found",
         )
-    return build_run_health(scenario_id, run_path.name, run_path)
+    report = build_run_health(scenario_id, run_path.name, run_path)
+    return with_census_tie_out(
+        report,
+        _tie_out_loader(storage, workspace.id, scenario, scenario_path, report.run_id),
+    )
 
 
 @router.get("/{scenario_id}/run-health", response_model=RunHealthReport)
@@ -787,7 +793,36 @@ def get_scenario_run_health(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         )
-    return build_run_health(scenario_id, run_path.name, run_path)
+    report = build_run_health(scenario_id, run_path.name, run_path)
+    return with_census_tie_out(
+        report,
+        _tie_out_loader(storage, workspace.id, scenario, scenario_path, report.run_id),
+    )
+
+
+def _tie_out_loader(
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    scenario: Scenario,
+    scenario_path: Path,
+    run_id: str,
+) -> TieOutLoader:
+    """Tie out only the scenario's selected result run.
+
+    That run is complete and its database is never written again (a new run
+    gets its own directory), so the read-only open can't meet a writer's lock.
+    The Overview panel shows the same run, which the Run Health line links to.
+    """
+
+    def load() -> Optional[CensusTieOut]:
+        context = resolve_scenario_read_context(scenario_path, verify_database=False)
+        if str(context.result_run_id) != run_id:
+            return None
+        return CensusTieOutService(storage).get_tie_out(
+            workspace_id, scenario.id, scenario.name
+        )
+
+    return load
 
 
 def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:

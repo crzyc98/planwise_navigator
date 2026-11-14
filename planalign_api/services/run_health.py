@@ -8,16 +8,25 @@ exposed (mirroring ``DataValidator.to_safe_results``).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from typing import Callable, Optional
 
 from pydantic import ValidationError
 
+from ..models.census_tie_out import CensusTieOut
 from ..models.provenance import CapturedValidationResult, RunProvenanceManifest
 from ..models.run_health import (
     RunHealthCounts,
     RunHealthFinding,
     RunHealthReport,
+    RunHealthTieOut,
 )
+
+logger = logging.getLogger(__name__)
+
+# Returns the tie-out for the run, or None when it shouldn't be computed.
+TieOutLoader = Callable[[], Optional[CensusTieOut]]
 
 MANIFEST_FILENAME = "provenance.json"
 _VALIDATION_STAGE = "VALIDATION"
@@ -112,3 +121,37 @@ def _safe_message(result: CapturedValidationResult) -> str:
         plural = "" if affected == 1 else "s"
         detail = f"{affected} record{plural} affected"
     return f"{noun} in {result.simulation_year}: {detail}."
+
+
+def with_census_tie_out(report: RunHealthReport, load: TieOutLoader) -> RunHealthReport:
+    """Add one tie-out line when the run's census tie-out has a gap.
+
+    The tie-out is advisory: any failure is logged and Run Health is returned
+    unchanged, and a tie-out for a different run than ``report`` is ignored.
+    """
+    try:
+        tie_out = load()
+    except Exception:  # the tie-out is advisory and must never break Run Health
+        logger.exception(
+            "Census tie-out failed for run %s; Run Health omits it", report.run_id
+        )
+        return report
+    if tie_out is None or tie_out.run_id != report.run_id:
+        return report
+    summary = tie_out_summary(tie_out)
+    return report.model_copy(update={"census_tie_out": summary}) if summary else report
+
+
+def tie_out_summary(tie_out: CensusTieOut) -> Optional[RunHealthTieOut]:
+    """The single Run Health line for a tie-out's gaps (None when none)."""
+    labels = [row.label for row in tie_out.rows if row.status == "gap"]
+    if not tie_out.available or not labels:
+        return None
+    rows = "row differs" if len(labels) == 1 else "rows differ"
+    return RunHealthTieOut(
+        labels=labels,
+        message=(
+            f"{len(labels)} census tie-out {rows} from the census: "
+            f"{', '.join(labels)}"
+        ),
+    )
