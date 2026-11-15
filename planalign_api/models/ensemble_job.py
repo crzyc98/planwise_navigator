@@ -93,3 +93,66 @@ class EnsembleJob(APIModel):
     failed_seeds: list[int] = Field(default_factory=list)
     error: Optional[EnsembleError] = None
     output: Optional[EnsembleOutput] = None
+
+
+class CostBand(APIModel):
+    """P10-P90 of one scenario's employer cost across its ensemble's seeds."""
+
+    p10: float
+    p90: float
+    n_seeds: int
+
+
+class YearCostBand(CostBand):
+    year: int
+
+
+class DifferenceRange(APIModel):
+    """Spread of (scenario - anchor) employer cost, differenced seed by seed."""
+
+    min: float
+    max: float
+    p10: float
+    p90: float
+    n_seeds: int
+
+
+class YearDifferenceRange(DifferenceRange):
+    year: int
+
+
+class ScenarioCostRange(APIModel):
+    """Seed ranges for one compared scenario; empty when there are none."""
+
+    scenario_id: str
+    job_id: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+    years: list[YearCostBand] = Field(
+        default_factory=list, description="Annual employer cost, P10-P90"
+    )
+    total: Optional[CostBand] = Field(
+        default=None, description="Employer cost summed over the ensemble's years"
+    )
+    paired: bool = Field(
+        default=False,
+        description="Whether differences from the anchor were taken seed by seed",
+    )
+    difference_years: list[YearDifferenceRange] = Field(default_factory=list)
+    difference_total: Optional[DifferenceRange] = None
+    reason: Optional[str] = Field(
+        default=None, description="Why ranges or pairing are missing, in one line"
+    )
+
+
+class EnsembleCostRanges(APIModel):
+    """Seed ranges beside Cost Comparison's gross employer cost.
+
+    The metric is ``total_employer_plan_cost``: the sum of employer match and
+    core over every snapshot row, the same quantity as the page's gross
+    employer cost for all employees.
+    """
+
+    anchor_scenario_id: str
+    scenarios: list[ScenarioCostRange]

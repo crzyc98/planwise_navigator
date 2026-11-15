@@ -2337,6 +2337,22 @@ export async function getEnsembleAttribution(
   return handleResponse<EnsembleAttributionRow[]>(response);
 }
 
+export type EnsembleCostRanges = Schemas['EnsembleCostRanges'];
+export type ScenarioCostRange = Schemas['ScenarioCostRange'];
+
+/** Seed ranges for Cost Comparison: each scenario's latest finished ensemble, paired with the anchor. */
+export async function getEnsembleCostRanges(
+  workspaceId: string,
+  scenarioIds: string[],
+  anchorScenarioId: string
+): Promise<EnsembleCostRanges> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), anchor: anchorScenarioId });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/ensembles/cost-ranges?${params}`
+  );
+  return handleResponse<EnsembleCostRanges>(response);
+}
+
 // ---------------------------------------------------------------------------
 // Parameter fit & backtest (#588) -- fit simulation parameters from census
 // history, score them against held-out years, apply a pack to a new scenario.

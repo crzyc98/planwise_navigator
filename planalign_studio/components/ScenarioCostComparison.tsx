@@ -32,6 +32,8 @@ import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
 import CostBreakdownTooltip from './CostBreakdownTooltip';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
+import { buildSeedRangeView, describeDifference, formatCostBand, formatDifference, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
+import { useEnsembleCostRanges } from '../hooks/useEnsembleCostRanges';
 import {
   listScenarios,
   compareDCPlanAnalytics,
@@ -486,6 +488,20 @@ export default function ScenarioCostComparison() {
     });
     return Array.from(allYears).sort((a, b) => a - b);
   }, [comparisonData]);
+
+  // -------------------------------------------------------------------------
+  // Derived Data: Seed ranges beside gross employer cost
+  // -------------------------------------------------------------------------
+  const ensembleRanges = useEnsembleCostRanges(
+    activeWorkspace?.id, selectedScenarioIds, anchorScenarioId, comparisonData !== null
+  );
+  const seedRanges = useMemo(() => buildSeedRangeView(
+    ensembleRanges,
+    new Map((comparisonData?.analytics ?? []).map(a => [a.scenario_id, a.contribution_by_year.map(y => y.year)])),
+    anchorScenarioId,
+  ), [ensembleRanges, comparisonData, anchorScenarioId]);
+  const seedRangesHidden = seedRangeHiddenReason(cohort, grandfatherExisting);
+  const seedRangeFor = (id: string) => (seedRangesHidden === null ? seedRanges.rows.get(id) : undefined);
 
   useEffect(() => {
     if (grandfatherCutoffYear === null && anchorAnalytics) {
@@ -1983,6 +1999,7 @@ export default function ScenarioCostComparison() {
                         const anchorTotal = displayedTotalFor(anchorAnalytics);
                         if (total !== null && anchorTotal !== null) delta = total - anchorTotal;
                       }
+                      const seedRange = seedRangeFor(id);
                       const rateDelta = !isAnchor
                         && totalRate !== null
                         && anchorTotalRate !== null
@@ -2029,14 +2046,25 @@ export default function ScenarioCostComparison() {
                                 </td>
                               );
                             }
+                            const band = seedRangeFor(id)?.years.get(year);
                             return (
                               <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
                                 {formatCurrency(displayedCost)}
+                                {band && (
+                                  <div className="text-[10px] text-ink-subtle" title={`P10–P90 across ${band.n_seeds} seeds`}>
+                                    {formatCostBand(band)}
+                                  </div>
+                                )}
                               </td>
                             );
                           })}
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
                             {total === null ? (grandfatherLoading ? 'loading…' : 'unavailable') : formatCurrency(total)}
+                            {total !== null && seedRange?.total && (
+                              <div className="text-[10px] font-normal text-ink-subtle" title={`P10–P90 across ${seedRange.total.n_seeds} seeds`}>
+                                {formatCostBand(seedRange.total)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             {isAnchor || total === null || delta === null ? (
@@ -2045,6 +2073,14 @@ export default function ScenarioCostComparison() {
                               <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
                                 {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
                               </span>
+                            )}
+                            {!isAnchor && delta !== null && seedRange?.difference && (
+                              <div
+                                className="mt-1.5 text-[10px] text-ink-subtle font-mono"
+                                title={describeDifference(delta, seedRange.difference)}
+                              >
+                                {formatDifference(seedRange.difference)}
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -2211,6 +2247,16 @@ export default function ScenarioCostComparison() {
                   </tbody>
                 </table>
               </div>
+              {(seedRanges.rows.size > 0 || seedRanges.notes.length > 0) && (
+                <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted space-y-1">
+                  <p>{seedRangesHidden ?? SEED_RANGE_FOOTNOTE}</p>
+                  {seedRangesHidden === null && seedRanges.notes.map(note => (
+                    <p key={note.scenarioId}>
+                      <strong>{comparisonData.scenario_names[note.scenarioId] ?? note.scenarioId}:</strong> {note.reason}
+                    </p>
+                  ))}
+                </div>
+              )}
               {netActive && (
                 <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted">
                   Offsets apply the year after the terminations that generated them, under

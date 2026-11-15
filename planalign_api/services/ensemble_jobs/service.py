@@ -18,8 +18,10 @@ from planalign_ensemble.models import EnsembleSpec
 from planalign_ensemble.planner import plan_ensemble
 from planalign_orchestrator.config.simulation import SimulationSettings
 
+from ...constants import MAX_SCENARIO_COMPARISON
 from ...models.ensemble_job import (
     TERMINAL_STATUSES,
+    EnsembleCostRanges,
     EnsembleError,
     EnsembleEstimate,
     EnsembleJob,
@@ -44,6 +46,12 @@ from .runner import (
     JobPaths,
     build_cli_command,
     default_registry,
+)
+from .cost_ranges import (
+    EnsembleSeedCosts,
+    build_cost_ranges,
+    latest_finished_job,
+    load_seed_costs,
 )
 from .processes import stop_job
 from .store import ENSEMBLE_DB_FILENAME, EnsembleJobStore, is_job_id
@@ -133,6 +141,25 @@ class EnsembleJobService:
         if scenario_id is None:
             return jobs
         return [job for job in jobs if job.scenario_id == scenario_id]
+
+    def cost_ranges(
+        self, workspace_id: str, scenario_ids: list[str], anchor_id: str
+    ) -> EnsembleCostRanges:
+        """Employer-cost seed ranges for compared scenarios, paired with the anchor."""
+        if not 1 <= len(scenario_ids) <= MAX_SCENARIO_COMPARISON:
+            raise EnsembleJobError(
+                422, f"compare 1 to {MAX_SCENARIO_COMPARISON} scenarios"
+            )
+        if anchor_id not in scenario_ids:
+            raise EnsembleJobError(422, "anchor must be one of the compared scenarios")
+        for scenario_id in scenario_ids:
+            self._require_scenario(workspace_id, scenario_id)
+        jobs = self.store.list_jobs(workspace_id)
+        ensembles: dict[str, Optional[EnsembleSeedCosts]] = {}
+        for scenario_id in scenario_ids:
+            job = latest_finished_job(jobs, scenario_id)
+            ensembles[scenario_id] = load_seed_costs(job) if job else None
+        return build_cost_ranges(scenario_ids, anchor_id, ensembles)
 
     def cancel(self, workspace_id: str, job_id: str) -> EnsembleJob:
         job = self.get(workspace_id, job_id)
