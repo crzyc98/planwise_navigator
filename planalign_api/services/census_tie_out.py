@@ -10,8 +10,11 @@ run by applying one definition per metric to both sides:
 * Simulated side: ``fct_workforce_snapshot`` for the run's first simulated year.
 
 Both sides are first reduced to the same per-employee columns
-(``_pay``, ``_deferral``, ``_match``, ``_core``, ``_eligible``) for active
-employees, then aggregated by one shared SQL statement (``_AGGREGATE_SQL``):
+(``_active``, ``_eligible``, ``_pay``, ``_deferral``, ``_match``, ``_core``)
+for everyone on the side, then aggregated by one shared SQL statement
+(``_AGGREGATE_SQL``). Counts and rates use active employees only; dollar rows
+use everyone paid during the year, including people who left, so the census
+total is what the sponsor actually paid:
 
 =====================  ===================================================  ==========================================================
 Metric                 Definition (both sides)                              Census column -> snapshot column
@@ -21,14 +24,21 @@ eligible_count         Active employees eligible to defer at year end.      elig
 participation_rate     Share of eligible employees deferring above 0%.      employee_deferral_rate -> current_deferral_rate if enrolled
 average_deferral_rate  Mean deferral rate of eligible employees, 0 for      employee_deferral_rate -> current_deferral_rate if enrolled
                        non-participants.
-total_pay              Earned (prorated) pay of active employees.           employee_plan_year_compensation -> prorated_annual_compensation
-employer_match         Employer match dollars for active employees.         employer_match_contribution -> employer_match_amount
-employer_core          Employer core dollars for active employees.          employer_core_contribution -> employer_core_amount
+total_pay              Pay earned during the year by everyone, leavers in.  employee_plan_year_compensation -> prorated_annual_compensation
+employer_match         Employer match dollars for everyone, leavers in.     employer_match_contribution -> employer_match_amount
+employer_core          Employer core dollars for everyone, leavers in.      employer_core_contribution -> employer_core_amount
 =====================  ===================================================  ==========================================================
 
 "Active" on the census side is the engine's starting population
 (``int_baseline_workforce``): the active flag and no termination date at all,
-so a row with a later termination date is not counted.
+so a row with a later termination date is not counted. The simulated side's
+active employees are the snapshot's ``active`` rows.
+
+Dollar rows sum every ``stg_census_data`` row (one per employee; the staging
+model deduplicates) and every first-year ``fct_workforce_snapshot`` row (one
+per employee per year, active and terminated). Census rows for people who left
+before the census year are summed as given, which is normally zero pay; the
+snapshot never holds them.
 
 The census as-of date is the end of the census plan year, by the rule in
 ``dbt/macros/utils/census_plan_calendar.sql``: the run's configured
@@ -200,35 +210,37 @@ _METRICS: tuple[_MetricSpec, ...] = (
         "total_pay",
         "Total pay",
         "dollars",
-        "Pay earned during the year by employees active at year end.",
+        "Pay earned during the year by everyone paid, including people who left.",
         "employee_plan_year_compensation",
         "growth_and_raises",
         DOLLAR_TOLERANCE,
-        "Check that the census pay column is the year's earnings, the census "
-        "pay basis setting and the raise settings.",
+        "Check that the census pay column is the year's earnings, that the "
+        "census lists everyone paid during the year, including people who "
+        "left, the census pay basis setting and the raise settings.",
         "The census has no pay, so total pay can't be compared.",
     ),
     _MetricSpec(
         "employer_match",
         "Employer match",
         "dollars",
-        "Employer match dollars for the year, employees active at year end.",
+        "Employer match dollars for the year, including people who left.",
         "employer_match_contribution",
         "growth_and_raises",
         DOLLAR_TOLERANCE,
-        "Check the match formula and match eligibility.",
+        "Check the match formula, match eligibility, and that the census lists "
+        "everyone paid during the year, including people who left.",
         "The census has no employer match column, so match can't be compared.",
     ),
     _MetricSpec(
         "employer_core",
         "Employer core",
         "dollars",
-        "Employer core (non-elective) dollars for the year, employees active "
-        "at year end.",
+        "Employer core (non-elective) dollars for the year, including people who left.",
         "employer_core_contribution",
         "growth_and_raises",
         DOLLAR_TOLERANCE,
-        "Check the core contribution rate and core eligibility.",
+        "Check the core contribution rate, core eligibility, and that the "
+        "census lists everyone paid during the year, including people who left.",
         "The census has no employer core column, so core can't be compared.",
     ),
 )
@@ -241,14 +253,16 @@ _CENSUS_VALUE_COLUMNS = (
     "eligibility_entry_date",
 )
 
-# One aggregation for both sides; each side supplies the `pop` relation.
+# One aggregation for both sides; each side supplies the `pop` relation with
+# every row it has. Counts and rates filter to `_active`; dollars sum everyone.
 _AGGREGATE_SQL = """
     SELECT
-      COUNT(*) AS active_headcount,
-      COUNT(*) FILTER (WHERE _eligible) AS eligible_count,
+      COUNT(*) FILTER (WHERE _active) AS active_headcount,
+      COUNT(*) FILTER (WHERE _active AND _eligible) AS eligible_count,
       AVG(CASE WHEN _deferral > 0 THEN 1.0 ELSE 0.0 END)
-        FILTER (WHERE _eligible) AS participation_rate,
-      AVG(COALESCE(_deferral, 0)) FILTER (WHERE _eligible) AS average_deferral_rate,
+        FILTER (WHERE _active AND _eligible) AS participation_rate,
+      AVG(COALESCE(_deferral, 0))
+        FILTER (WHERE _active AND _eligible) AS average_deferral_rate,
       COALESCE(SUM(_pay), 0) AS total_pay,
       COALESCE(SUM(_match), 0) AS employer_match,
       COALESCE(SUM(_core), 0) AS employer_core
@@ -537,9 +551,9 @@ def _census_population_sql(columns: set[str], available: set[str]) -> str:
           {_value("employee_deferral_rate", available, "_deferral")},
           {_value("employer_match_contribution", available, "_match")},
           {_value("employer_core_contribution", available, "_core")},
-          {eligible} AS _eligible
+          {eligible} AS _eligible,
+          ({active_filter_sql(columns)} AND {still_employed}) AS _active
         FROM {CENSUS_TABLE}
-        WHERE {active_filter_sql(columns)} AND {still_employed}
     """
 
 
@@ -556,9 +570,10 @@ def _simulated_population_sql(use_eligibility: bool) -> str:
             AS _deferral,
           CAST(employer_match_amount AS DOUBLE) AS _match,
           CAST(employer_core_amount AS DOUBLE) AS _core,
-          {eligible} AS _eligible
+          {eligible} AS _eligible,
+          UPPER(employment_status) = 'ACTIVE' AS _active
         FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-        WHERE simulation_year = $year AND UPPER(employment_status) = 'ACTIVE'
+        WHERE simulation_year = $year
     """
 
 

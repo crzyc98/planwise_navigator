@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The API can now compare a scenario's census with its first simulated year (`GET /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out`). For active headcount, eligible count, participation, average deferral, total pay, employer match and employer core it gives both values under one definition, the difference, a tolerance that allows for the configured growth and raises, and whether the row ties, has a gap or isn't in the census, with a line on what to check. It reads the census archived with the run, not the workspace's current file. Studio doesn't show it yet.
+- The API can now compare a scenario's census with its first simulated year (`GET /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out`). For active headcount, eligible count, participation, average deferral, total pay, employer match and employer core it gives both values under one definition, the difference, a tolerance that allows for the configured growth and raises, and whether the row ties, has a gap or isn't in the census, with a line on what to check. Total pay, employer match and employer core count everyone paid in the year, including people who left, so the census total is what the sponsor paid; headcount, eligible count and the rates count employees active at year end. It reads the census archived with the run, not the workspace's current file. Studio doesn't show it yet.
 
 ### Changed
 

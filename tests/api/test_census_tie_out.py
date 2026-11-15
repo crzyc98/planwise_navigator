@@ -72,6 +72,7 @@ def _create_census(
     """stg_census_data as the staging model writes it (absent columns are NULL)."""
     match = f"{census.pay * census.match_rate}" if with_contributions else "NULL"
     core = f"{census.pay * census.core_rate}" if with_contributions else "NULL"
+    leaver = "0" if with_contributions else "NULL"
     conn.execute(f"""
         CREATE TABLE stg_census_data AS
         SELECT
@@ -91,9 +92,10 @@ def _create_census(
             AS eligibility_entry_date
         FROM range({census.headcount}) t(i)
         UNION ALL
-        -- A terminated census row never counts as active.
-        SELECT 'T1', DATE '2010-01-01', DATE '2024-05-01', FALSE, 40000, 0.1,
-          {match}, {core}, DATE '2010-01-01'
+        -- A terminated census row never counts as active. It has no dollars, so
+        -- the totals still tie; leavers' dollars are tested separately.
+        SELECT 'T1', DATE '2010-01-01', DATE '2023-05-01', FALSE, 0, 0.1,
+          {leaver}, {leaver}, DATE '2010-01-01'
     """)
 
 
@@ -116,7 +118,8 @@ def _create_snapshot(conn: duckdb.DuckDBPyConnection, sim: Population) -> None:
           {sim.pay * sim.core_rate}::DOUBLE AS employer_core_amount
         FROM range({sim.headcount}) t(i), (VALUES (2025), (2026)) y(year)
         UNION ALL
-        SELECT 'X1', 2025, 'terminated', 'eligible', TRUE, 0.1, 99999, 999, 999
+        -- A terminated snapshot row with no dollars: never counted as active.
+        SELECT 'X1', 2025, 'terminated', 'eligible', TRUE, 0.1, 0, 0, 0
     """)
 
 
@@ -200,7 +203,7 @@ def test_wrong_match_formula_is_a_match_gap(tmp_path: Path) -> None:
     message = _row(result, "employer_match").message
     assert message.startswith("Employer match is ")
     assert "above the census" in message
-    assert "Check the match formula and match eligibility." in message
+    assert "Check the match formula, match eligibility" in message
 
 
 def test_wrong_eligibility_rule_is_an_eligible_count_gap(tmp_path: Path) -> None:
@@ -375,6 +378,43 @@ def test_census_rows_with_a_later_termination_date_are_not_active(
 
     assert row.census_value == 100
     assert row.status == "ties"
+
+
+def test_dollar_rows_include_leavers_and_counts_do_not(tmp_path: Path) -> None:
+    # Five census-year leavers and five first-year leavers, each with pay, match
+    # and core: the dollars are what the sponsor paid, so both totals include
+    # them, while headcount and the rates stay on active employees.
+    _build_run(tmp_path)
+    with duckdb.connect(str(_run_dir(tmp_path) / "simulation.duckdb")) as conn:
+        conn.execute("""
+            INSERT INTO stg_census_data
+            SELECT 'L' || i, DATE '2015-06-01', DATE '2024-09-01', FALSE, 20000,
+              0.06, 600, 400, DATE '2016-01-01'
+            FROM range(5) t(i)
+        """)
+        conn.execute("""
+            INSERT INTO fct_workforce_snapshot
+            SELECT 'Y' || i, 2025, 'terminated', 'eligible', TRUE, 0.06, 21000,
+              630, 420
+            FROM range(5) t(i)
+        """)
+
+    result = _tie_out(tmp_path)
+
+    pay = _row(result, "total_pay")
+    assert pay.census_value == pytest.approx(5_000_000 + 5 * 20_000)
+    assert pay.simulated_value == pytest.approx(103 * 52_500 + 5 * 21_000)
+    match = _row(result, "employer_match")
+    assert match.census_value == pytest.approx(60 * 1_500 + 5 * 600)
+    assert match.simulated_value == pytest.approx(62 * 1_575 + 5 * 630)
+    core = _row(result, "employer_core")
+    assert core.census_value == pytest.approx(100 * 1_000 + 5 * 400)
+    assert core.simulated_value == pytest.approx(103 * 1_050 + 5 * 420)
+    headcount = _row(result, "active_headcount")
+    assert (headcount.census_value, headcount.simulated_value) == (100, 103)
+    assert _row(result, "eligible_count").census_value == 100
+    assert _row(result, "participation_rate").census_value == pytest.approx(0.6)
+    assert set(_statuses(result).values()) == {"ties"}
 
 
 def test_non_calendar_plan_year_sets_the_as_of_date(tmp_path: Path) -> None:
