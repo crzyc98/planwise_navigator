@@ -26,9 +26,9 @@
     CASE
         {%- for row in bands.rows %}
         {%- if row['max_value'] | int >= 999 %}
-        WHEN {{ column_name }} >= {{ row['min_value'] }} THEN '{{ row['band_label'] }}'
+        WHEN {{ column_name }} >= {{ row['min_value'] }} THEN '{{ row['band_label'] | replace("'", "''") }}'
         {%- else %}
-        WHEN {{ column_name }} >= {{ row['min_value'] }} AND {{ column_name }} < {{ row['max_value'] }} THEN '{{ row['band_label'] }}'
+        WHEN {{ column_name }} >= {{ row['min_value'] }} AND {{ column_name }} < {{ row['max_value'] }} THEN '{{ row['band_label'] | replace("'", "''") }}'
         {%- endif %}
         {%- endfor %}
         ELSE 'Unknown'

@@ -299,6 +299,16 @@ def validate_bands(bands: list, band_type: str) -> List[SeedConfigValidationErro
                     )
                 )
 
+        label = band.get("band_label", "")
+        if not isinstance(label, str) or "'" in label:
+            errors.append(
+                SeedConfigValidationError(
+                    section=section,
+                    field=f"band[{idx}].band_label",
+                    message="band_label must be text without single quotes",
+                )
+            )
+
         # Validate min_value < max_value
         min_val = band.get("min_value")
         max_val = band.get("max_value")
