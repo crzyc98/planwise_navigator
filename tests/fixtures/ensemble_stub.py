@@ -46,11 +46,18 @@ def _run_seeds(seeds: list[int], fail: set[int]) -> None:
         )
 
 
+_STUBBORN_CHILD = (
+    "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+    "time.sleep(120)"
+)
+
+
 def _sleep_with_child(output_root: Path, seed: int) -> int:
-    """Start a long seed with a grandchild in its own session, then hang."""
+    """Start a long seed with a grandchild in its own session that ignores
+    SIGTERM (like a seed worker mid-dbt), then hang."""
     emit_pool_event(PoolEvent(EventKind.JOB_STARTED, f"seed_{seed}"))
     child = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(120)"],
+        [sys.executable, "-c", _STUBBORN_CHILD],
         start_new_session=True,
     )
     output_root.mkdir(parents=True, exist_ok=True)

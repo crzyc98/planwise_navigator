@@ -15,6 +15,8 @@ from pydantic import Field
 
 from .base import APIModel
 
+# Bands need at least this many successful seeds (passed as --min-seeds).
+MIN_SEED_COUNT = 5
 MAX_SEED_COUNT = 50
 
 EnsembleJobStatus = Literal[
@@ -28,7 +30,7 @@ TERMINAL_STATUSES: frozenset[str] = frozenset(
 
 
 class EnsembleRequest(APIModel):
-    seed_count: int = Field(default=10, ge=2, le=MAX_SEED_COUNT)
+    seed_count: int = Field(default=10, ge=MIN_SEED_COUNT, le=MAX_SEED_COUNT)
 
 
 class EnsembleEstimate(APIModel):
@@ -38,8 +40,7 @@ class EnsembleEstimate(APIModel):
     seeds: list[int]
     start_year: int
     end_year: int
-    run_count: int
-    workers: int = Field(description="Seeds run at once (max_concurrent_simulations)")
+    run_count: int = Field(description="Seed runs, one at a time")
     seconds_per_run: float
     estimated_seconds: float
     time_basis: TimeBasis = Field(

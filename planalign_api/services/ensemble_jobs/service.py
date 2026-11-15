@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,9 +12,11 @@ from typing import Any, Callable, Coroutine, Optional
 from uuid import uuid4
 
 import anyio.from_thread
+from pydantic import ValidationError
 
 from planalign_ensemble.models import EnsembleSpec
 from planalign_ensemble.planner import plan_ensemble
+from planalign_orchestrator.config.simulation import SimulationSettings
 
 from ...models.ensemble_job import (
     TERMINAL_STATUSES,
@@ -43,13 +44,15 @@ from .runner import (
     JobPaths,
     build_cli_command,
     default_registry,
-    terminate_orphan,
 )
+from .processes import stop_job
 from .store import ENSEMBLE_DB_FILENAME, EnsembleJobStore, is_job_id
 
 logger = logging.getLogger(__name__)
 
-CANCEL_WAIT_SECONDS = 8.0
+# Covers the SIGTERM grace, the SIGKILL wait (processes.CANCEL_GRACE_SECONDS
+# each) and finalizing.
+CANCEL_WAIT_SECONDS = 20.0
 # A 5-year production-path run on the ~7k-employee reference census takes
 # ~132-141s wall (docs/perf/run_cost_profile_production.md), so ~30s per
 # simulated year. Used only when the scenario has no completed run to measure.
@@ -73,14 +76,12 @@ class EnsembleJobService:
         self,
         storage: WorkspaceStorage,
         *,
-        max_workers: int = 1,
         registry: EnsembleRegistry = default_registry,
         command_factory: CommandFactory = build_cli_command,
     ):
         self.storage = storage
         self.store = EnsembleJobStore(storage.workspaces_root)
         self.registry = registry
-        self.max_workers = max_workers
         self.runner = EnsembleJobRunner(self.store, registry, command_factory)
 
     # -- requests ------------------------------------------------------------
@@ -153,19 +154,17 @@ class EnsembleJobService:
     def _estimate(
         self, scenario: Scenario, config: dict[str, Any], seed_count: int
     ) -> EnsembleEstimate:
-        simulation = config.get("simulation") or {}
-        start_year = int(simulation.get("start_year", 2025))
-        end_year = int(simulation.get("end_year", 2027))
+        settings = _simulation_settings(config)
+        start_year, end_year = settings.start_year, settings.end_year
         plan = plan_ensemble(
             EnsembleSpec(
                 scenario_id=scenario.id,
                 seed_count=seed_count,
-                base_seed=int(simulation.get("random_seed", 42)),
+                base_seed=settings.random_seed,
                 start_year=start_year,
                 end_year=end_year,
             )
         )
-        workers = min(self.max_workers, seed_count)
         horizon = end_year - start_year + 1
         measured = self._measured_seconds_per_year(scenario)
         per_year = measured if measured is not None else DEFAULT_SECONDS_PER_RUN_YEAR
@@ -176,11 +175,8 @@ class EnsembleJobService:
             start_year=start_year,
             end_year=end_year,
             run_count=plan.total_run_count,
-            workers=workers,
             seconds_per_run=round(per_run, 1),
-            estimated_seconds=round(
-                per_run * math.ceil(plan.total_run_count / workers), 1
-            ),
+            estimated_seconds=round(per_run * plan.total_run_count, 1),
             time_basis="measured" if measured is not None else "default",
             estimated_disk_mib=round(plan.estimated_disk_mib, 1),
         )
@@ -285,11 +281,8 @@ def fail_interrupted_ensembles(storage: WorkspaceStorage) -> int:
 
 
 def fail_interrupted_job(store: EnsembleJobStore, job: EnsembleJob) -> None:
-    """Stop any orphaned child, drop scratch, and record why the job ended."""
-    pid = store.recorded_process(job.workspace_id, job.job_id)
-    if pid is not None:
-        terminate_orphan(pid, job.job_id)
-        store.clear_process(job.workspace_id, job.job_id)
+    """Stop any leftover processes, drop scratch, and record why the job ended."""
+    stop_job(job.job_id)
     store.remove_work(job.workspace_id, job.job_id)
     was = job.status
 
@@ -308,6 +301,28 @@ def fail_interrupted_job(store: EnsembleJobStore, job: EnsembleJob) -> None:
 
     store.update(job.workspace_id, job.job_id, _mark)
     logger.warning("Marked ensemble %s failed: interrupted while %s", job.job_id, was)
+
+
+def _simulation_settings(config: dict[str, Any]) -> SimulationSettings:
+    """Years and base seed, validated by the engine's own settings model.
+
+    The CLI rejects a config without both years, so refuse it here rather
+    than guess them; the seed defaults exactly as the engine's does.
+    """
+    try:
+        settings = SimulationSettings.model_validate(config.get("simulation") or {})
+    except ValidationError as exc:
+        fields = sorted({".".join(map(str, e["loc"])) for e in exc.errors()})
+        raise EnsembleJobError(
+            422, f"The scenario's simulation settings are invalid: {', '.join(fields)}"
+        ) from exc
+    if settings.end_year < settings.start_year:
+        raise EnsembleJobError(
+            422,
+            f"The scenario ends ({settings.end_year}) before it starts "
+            f"({settings.start_year}).",
+        )
+    return settings
 
 
 def _cancel_queued(job: EnsembleJob) -> None:

@@ -3,7 +3,6 @@
 Each job owns ``workspaces/<ws>/ensembles/<job_id>/``::
 
     job.json         the EnsembleJob record (atomic temp-file + rename writes)
-    process.json     the CLI child's pid while it runs
     work/            config, seeds, dbt overlay and per-seed databases;
                      removed when the job ends
     ensemble.duckdb  the aggregate, kept for completed/partial jobs
@@ -12,7 +11,6 @@ Each job owns ``workspaces/<ws>/ensembles/<job_id>/``::
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import shutil
@@ -29,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 JOBS_DIRNAME = "ensembles"
 JOB_FILENAME = "job.json"
-PROCESS_FILENAME = "process.json"
 WORK_DIRNAME = "work"
 LOG_FILENAME = "job.log"
 ENSEMBLE_DB_FILENAME = "ensemble.duckdb"
@@ -95,21 +92,6 @@ class EnsembleJobStore:
             mutate(job)
             self.save(job)
             return job
-
-    def record_process(self, workspace_id: str, job_id: str, pid: int) -> None:
-        path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
-        atomic_write_json(path, {"pid": pid})
-
-    def recorded_process(self, workspace_id: str, job_id: str) -> Optional[int]:
-        path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
-        try:
-            pid = json.loads(path.read_text(encoding="utf-8")).get("pid")
-        except (OSError, ValueError):
-            return None
-        return pid if isinstance(pid, int) else None
-
-    def clear_process(self, workspace_id: str, job_id: str) -> None:
-        (self.job_dir(workspace_id, job_id) / PROCESS_FILENAME).unlink(missing_ok=True)
 
     def remove_work(self, workspace_id: str, job_id: str) -> None:
         shutil.rmtree(self.work_dir(workspace_id, job_id), ignore_errors=True)

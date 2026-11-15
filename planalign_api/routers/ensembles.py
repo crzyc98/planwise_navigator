@@ -47,10 +47,7 @@ router = APIRouter()
 def get_ensemble_job_service(
     settings: APISettings = Depends(get_settings),
 ) -> EnsembleJobService:
-    return EnsembleJobService(
-        WorkspaceStorage(settings.workspaces_root),
-        max_workers=settings.max_concurrent_simulations,
-    )
+    return EnsembleJobService(WorkspaceStorage(settings.workspaces_root))
 
 
 @router.get("/ensembles/discover", response_model=list[EnsembleDatabaseSummary])

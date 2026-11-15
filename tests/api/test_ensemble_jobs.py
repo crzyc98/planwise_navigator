@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+import duckdb
 import psutil
 import pytest
 import yaml
@@ -26,6 +29,7 @@ from fastapi.testclient import TestClient
 
 from planalign_api.config import APISettings
 from planalign_api.models.ensemble_job import (
+    MIN_SEED_COUNT,
     EnsembleEstimate,
     EnsembleJob,
     EnsembleProgress,
@@ -38,10 +42,19 @@ from planalign_api.services.ensemble_jobs import (
     EnsembleJobService,
     fail_interrupted_ensembles,
 )
-from planalign_api.services.ensemble_jobs.runner import EnsembleRegistry, JobPaths
+from planalign_api.services.ensemble_jobs import processes
+from planalign_api.services.ensemble_jobs.runner import (
+    EnsembleJobRunner,
+    EnsembleRegistry,
+    JobPaths,
+    build_cli_command,
+    collect_output,
+)
 from planalign_api.services.ensemble_jobs.store import EnsembleJobStore
 from planalign_api.services.simulation import run_slots
 from planalign_api.storage.workspace_storage import WorkspaceStorage
+from planalign_ensemble.aggregate import aggregate_ensemble
+from planalign_ensemble.models import MetricSeedValue
 from planalign_ensemble.progress import (
     ENV_FLAG,
     emit_pool_event,
@@ -52,6 +65,7 @@ from planalign_orchestrator.run_pool import EventKind, PoolEvent
 pytestmark = [pytest.mark.fast]
 
 STUB = Path(__file__).parents[1] / "fixtures" / "ensemble_stub.py"
+SEEDS = [7, 1008, 2009, 3010, 4011]
 TERMINAL = {"completed", "partial", "failed", "cancelled"}
 
 
@@ -102,6 +116,11 @@ def default_slot_limit(monkeypatch) -> None:
     monkeypatch.setattr(run_slots, "get_settings", lambda: APISettings())
 
 
+@pytest.fixture(autouse=True)
+def short_kill_grace(monkeypatch) -> None:
+    monkeypatch.setattr(processes, "CANCEL_GRACE_SECONDS", 1.0)
+
+
 @pytest.fixture
 def harness(tmp_path) -> Harness:
     storage = WorkspaceStorage(tmp_path / "workspaces")
@@ -145,7 +164,7 @@ def _wait_terminal(client: TestClient, harness: Harness, job_id: str) -> dict:
     return _wait(_poll)
 
 
-def _start(client: TestClient, harness: Harness, seed_count: int = 3) -> dict:
+def _start(client: TestClient, harness: Harness, seed_count: int = 5) -> dict:
     response = client.post(harness.scenario_url(), json={"seed_count": seed_count})
     assert response.status_code == 202, response.text
     return response.json()
@@ -157,18 +176,17 @@ def _start(client: TestClient, harness: Harness, seed_count: int = 3) -> dict:
 
 
 def test_estimate_is_returned_before_anything_starts(client, harness) -> None:
-    response = client.post(harness.scenario_url("/estimate"), json={"seed_count": 3})
+    response = client.post(harness.scenario_url("/estimate"), json={"seed_count": 5})
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["seeds"] == [7, 1008, 2009]  # base seed + 1001*i, as the CLI does
+    assert body["seeds"] == SEEDS  # base seed + 1001*i, as the CLI does
     assert (body["start_year"], body["end_year"]) == (2026, 2027)
-    assert body["run_count"] == 3
-    assert body["workers"] == 1
+    assert body["run_count"] == 5
     assert body["time_basis"] == "default"
     assert body["seconds_per_run"] == 60.0  # 30s per run-year x 2 years
-    assert body["estimated_seconds"] == 180.0
-    assert body["estimated_disk_mib"] == pytest.approx(3 * (11.6 * 2 + 18) + 4)
+    assert body["estimated_seconds"] == 300.0
+    assert body["estimated_disk_mib"] == pytest.approx(5 * (11.6 * 2 + 18) + 4)
     assert harness.commands.calls == []
     assert not (
         harness.storage.workspaces_root / harness.workspace_id / "ensembles"
@@ -198,11 +216,11 @@ def test_estimate_scales_the_scenarios_last_completed_run(client, harness) -> No
             )
         )
 
-    body = client.post(harness.scenario_url("/estimate"), json={"seed_count": 4}).json()
+    body = client.post(harness.scenario_url("/estimate"), json={"seed_count": 5}).json()
 
     assert body["time_basis"] == "measured"
     assert body["seconds_per_run"] == 100.0  # 50s/year from "new" x 2 years
-    assert body["estimated_seconds"] == 400.0
+    assert body["estimated_seconds"] == 500.0
 
 
 # ---------------------------------------------------------------------------
@@ -215,15 +233,15 @@ def test_ensemble_completes_with_per_seed_progress_and_reader_ids(
 ) -> None:
     job = _start(client, harness)
     assert job["status"] == "queued"
-    assert job["seeds"] == [7, 1008, 2009]
-    assert job["estimate"]["run_count"] == 3
+    assert job["seeds"] == SEEDS
+    assert job["estimate"]["run_count"] == 5
 
     done = _wait_terminal(client, harness, job["job_id"])
 
     assert done["status"] == "completed", done
     assert done["progress"] == {
-        "seeds_total": 3,
-        "seeds_completed": 3,
+        "seeds_total": 5,
+        "seeds_completed": 5,
         "seeds_failed": 0,
         "current_seed": None,
         "updated_at": done["progress"]["updated_at"],
@@ -242,7 +260,7 @@ def test_ensemble_completes_with_per_seed_progress_and_reader_ids(
 
 
 def test_list_filters_by_scenario(client, harness) -> None:
-    job = _start(client, harness, seed_count=2)
+    job = _start(client, harness)
     _wait_terminal(client, harness, job["job_id"])
 
     everything = client.get(harness.jobs_url()).json()
@@ -259,8 +277,8 @@ def test_some_failed_seeds_is_a_partial_outcome(client, harness) -> None:
     done = _wait_terminal(client, harness, _start(client, harness)["job_id"])
 
     assert done["status"] == "partial"
-    assert done["failed_seeds"] == [2009]
-    assert done["progress"]["seeds_completed"] == 2
+    assert done["failed_seeds"] == [4011]
+    assert done["progress"]["seeds_completed"] == 4
     assert done["progress"]["seeds_failed"] == 1
     assert done["error"]["kind"] == "seeds_failed"
     assert done["output"]["ensemble_id"] == "ens-stub"
@@ -288,7 +306,7 @@ def test_a_cli_error_fails_without_leaking_server_paths(client, harness) -> None
 def test_missing_census_is_refused_before_queueing(client, harness, tmp_path) -> None:
     (tmp_path / "census.parquet").unlink()
 
-    response = client.post(harness.scenario_url(), json={"seed_count": 2})
+    response = client.post(harness.scenario_url(), json={"seed_count": 5})
 
     assert response.status_code == 422
     assert client.get(harness.jobs_url()).json() == []
@@ -299,7 +317,9 @@ def test_missing_census_is_refused_before_queueing(client, harness, tmp_path) ->
 # ---------------------------------------------------------------------------
 
 
-def test_cancel_running_stops_the_whole_process_tree(client, harness) -> None:
+def test_cancel_running_waits_for_the_whole_process_tree(
+    client, harness, monkeypatch
+) -> None:
     harness.commands.behaviour = "sleep"
     job = _start(client, harness)
     store = EnsembleJobStore(harness.storage.workspaces_root)
@@ -314,16 +334,18 @@ def test_cancel_running_stops_the_whole_process_tree(client, harness) -> None:
             and (child_pid_file / "child.pid").exists()
         )
     )
-    cli_pid = store.recorded_process(harness.workspace_id, job["job_id"])
     child_pid = int((child_pid_file / "child.pid").read_text())
+    pids = {process.pid for process in processes.job_processes(job["job_id"])}
+    assert child_pid in pids and len(pids) == 2  # the CLI stub and its grandchild
 
     response = client.post(harness.jobs_url(f"/{job['job_id']}/cancel"))
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "cancelled"
-    assert cli_pid is not None
-    for pid in (cli_pid, child_pid):
-        _wait(lambda pid=pid: not _alive(pid), timeout=15)
+    # The grandchild ignores SIGTERM in its own session; cancel only returns
+    # once it has been killed and work/ is gone.
+    assert not any(_alive(pid) for pid in pids)
+    assert not store.work_dir(harness.workspace_id, job["job_id"]).exists()
     again = client.post(harness.jobs_url(f"/{job['job_id']}/cancel"))
     assert again.status_code == 409
 
@@ -343,7 +365,7 @@ def test_cancel_while_queued_never_starts(harness) -> None:
         holder = asyncio.create_task(_hold_slot(release))
         await asyncio.sleep(0)
         job = service.start(
-            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=2)
+            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=5)
         )
         await asyncio.sleep(0.2)
         assert service.get(harness.workspace_id, job.job_id).status == "queued"
@@ -387,7 +409,7 @@ def test_ensemble_waits_for_a_running_simulation(harness) -> None:
         holder = asyncio.create_task(_hold_slot(release))
         await asyncio.sleep(0)
         job = service.start(
-            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=2)
+            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=5)
         )
         await asyncio.sleep(0.3)
         while_held = service.get(harness.workspace_id, job.job_id).status
@@ -406,7 +428,7 @@ def test_simulation_waits_for_a_running_ensemble(harness) -> None:
 
     async def main() -> None:
         job = service.start(
-            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=2)
+            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=5)
         )
         while (
             service.get(harness.workspace_id, job.job_id).progress.current_seed is None
@@ -444,7 +466,6 @@ def _record(harness: Harness, status: str) -> EnsembleJob:
         start_year=2026,
         end_year=2027,
         run_count=2,
-        workers=1,
         seconds_per_run=60.0,
         estimated_seconds=120.0,
         time_basis="default",
@@ -466,6 +487,15 @@ def _record(harness: Harness, status: str) -> EnsembleJob:
     )
 
 
+def _marked_sleeper(job_id: str) -> subprocess.Popen[bytes]:
+    """A leftover seed worker: carries the job marker, its own session."""
+    return subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(120)"],
+        env={**os.environ, processes.JOB_ENV_MARKER: job_id},
+        start_new_session=True,
+    )
+
+
 def test_restart_marks_queued_and_running_jobs_failed(harness) -> None:
     store = EnsembleJobStore(harness.storage.workspaces_root)
     queued, running, finished = (
@@ -474,16 +504,19 @@ def test_restart_marks_queued_and_running_jobs_failed(harness) -> None:
     for job in (queued, running, finished):
         store.save(job)
     store.work_dir(harness.workspace_id, running.job_id).mkdir()
-    orphan = subprocess.Popen(
-        [sys.executable, "-c", "import time, sys; time.sleep(120)", running.job_id]
-    )
-    store.record_process(harness.workspace_id, running.job_id, orphan.pid)
+    # No pid is recorded anywhere: the CLI parent is already gone.
+    orphan = _marked_sleeper(running.job_id)
+    unrelated = _marked_sleeper(f"ens_{uuid.uuid4().hex[:12]}")
     try:
+        _wait(lambda: processes.job_processes(running.job_id))
         assert fail_interrupted_ensembles(harness.storage) == 2
         assert orphan.wait(timeout=15) is not None
+        assert unrelated.poll() is None
     finally:
-        if orphan.poll() is None:
-            orphan.kill()
+        for process in (orphan, unrelated):
+            if process.poll() is None:
+                process.kill()
+                process.wait()
 
     for job in (queued, running):
         record = store.load(harness.workspace_id, job.job_id)
@@ -493,6 +526,38 @@ def test_restart_marks_queued_and_running_jobs_failed(harness) -> None:
     assert not store.work_dir(harness.workspace_id, running.job_id).exists()
     untouched = store.load(harness.workspace_id, finished.job_id)
     assert untouched is not None and untouched.status == "completed"
+
+
+def test_api_shutdown_stops_the_child_and_leaves_the_job_for_recovery(
+    harness,
+) -> None:
+    harness.commands.behaviour = "sleep"
+    service = harness.service()
+
+    async def main() -> tuple[str, set[int]]:
+        job = service.start(
+            harness.workspace_id, harness.scenario_id, EnsembleRequest(seed_count=5)
+        )
+        while not len(processes.job_processes(job.job_id)) == 2:
+            await asyncio.sleep(0.05)
+        pids = {process.pid for process in processes.job_processes(job.job_id)}
+        current = asyncio.current_task()
+        for task in asyncio.all_tasks():
+            if task is not current:
+                task.cancel()  # what uvicorn shutdown/reload does
+        await asyncio.sleep(0.2)
+        return job.job_id, pids
+
+    job_id, pids = asyncio.run(main())
+
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    record = store.load(harness.workspace_id, job_id)
+    assert record is not None and record.status == "running"
+    assert store.work_dir(harness.workspace_id, job_id).exists()
+    # The CLI got SIGTERM; the SIGTERM-ignoring grandchild is left to recovery.
+    assert fail_interrupted_ensembles(harness.storage) == 1
+    assert not any(_alive(pid) for pid in pids)
+    assert not store.work_dir(harness.workspace_id, job_id).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -508,8 +573,8 @@ def test_ids_and_bounds_are_validated(client, harness) -> None:
     assert client.get(harness.jobs_url("/..%2F..%2Fworkspace.json")).status_code == 404
     assert client.get(harness.jobs_url("/fit_abc")).status_code == 404
     bad_scenario = f"/api/workspaces/{harness.workspace_id}/scenarios/x/ensembles"
-    assert client.post(bad_scenario, json={"seed_count": 2}).status_code == 404
-    for seed_count in (1, 51):
+    assert client.post(bad_scenario, json={"seed_count": 5}).status_code == 404
+    for seed_count in (4, 51):
         response = client.post(harness.scenario_url(), json={"seed_count": seed_count})
         assert response.status_code == 422
     assert (
@@ -547,3 +612,103 @@ def test_progress_records_are_emitted_only_when_enabled(monkeypatch, capsys) -> 
     }
     assert parse_progress_line("  ✓ seed_7 completed (1.0s)") is None
     assert parse_progress_line("PLANALIGN_ENSEMBLE_PROGRESS|{not json") is None
+
+
+# ---------------------------------------------------------------------------
+# Command line, bands, and finalize edge cases
+# ---------------------------------------------------------------------------
+
+
+def _paths(root: Path) -> JobPaths:
+    work = root / "job" / "work"
+    return JobPaths(
+        work_dir=work,
+        config=work / "scenario.yaml",
+        dbt_project=work / "dbt_project",
+        output_root=work / "output",
+        database=root / "job" / "ensemble.duckdb",
+    )
+
+
+def test_cli_runs_seeds_one_at_a_time_with_five_seed_bands(tmp_path, harness) -> None:
+    job = _record(harness, "queued")
+    command = build_cli_command(job, _paths(tmp_path))
+
+    def option(name: str) -> str:
+        return command[command.index(name) + 1]
+
+    assert option("--parallel") == "1"
+    assert option("--min-seeds") == "5"
+    assert option("--seed-list") == "7,1008"
+    assert command[4] == "2026-2027"
+
+
+def test_nine_successful_seeds_produce_bands() -> None:
+    values = [
+        MetricSeedValue(
+            ensemble_id="e",
+            scenario_id="s",
+            metric="active_headcount",
+            simulation_year=2026,
+            seed=seed,
+            value=float(1000 + seed),
+        )
+        for seed in range(9)
+    ]
+
+    (band,) = aggregate_ensemble(values, min_seeds=MIN_SEED_COUNT, n_seeds_requested=10)
+
+    assert band.is_sufficient
+    assert None not in (band.p10, band.p25, band.p50, band.p75, band.p90)
+
+
+def test_an_unreadable_aggregate_stays_out_of_the_job_dir(tmp_path) -> None:
+    paths = _paths(tmp_path)
+    source = paths.output_root / "20260101T000000Z-s" / "ensemble.duckdb"
+    source.parent.mkdir(parents=True)
+    with duckdb.connect(str(source)) as conn:
+        conn.execute("CREATE TABLE unrelated (x INTEGER)")
+
+    assert collect_output(paths) is None
+    assert not paths.database.exists()
+
+
+def test_cancel_during_error_handling_is_recorded_as_cancelled(
+    tmp_path, harness
+) -> None:
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    job = _record(harness, "running")
+    store.save(job)
+    registry = EnsembleRegistry()
+    runner = EnsembleJobRunner(store, registry)
+    registry.claim(job.job_id)
+    assert registry.begin(job.job_id)
+    registry.cancel(job.job_id)
+
+    runner.settle(job, _paths(tmp_path), None, "boom (error_id: x)", deque())
+
+    record = store.load(harness.workspace_id, job.job_id)
+    assert record is not None and record.status == "cancelled"
+
+
+@pytest.mark.parametrize(
+    ("simulation", "detail"),
+    [
+        ({"start_year": 2027, "end_year": 2026}, "ends (2026) before it starts"),
+        ({"end_year": 2028}, "start_year"),
+    ],
+)
+def test_bad_simulation_years_are_a_clear_422(
+    client, harness, simulation, detail
+) -> None:
+    workspace = harness.storage.get_workspace(harness.workspace_id)
+    assert workspace is not None
+    base = dict(workspace.base_config)
+    base["simulation"] = {**simulation, "random_seed": 7}
+    harness.storage.update_workspace(harness.workspace_id, base_config=base)
+
+    for url in (harness.scenario_url("/estimate"), harness.scenario_url()):
+        response = client.post(url, json={"seed_count": 5})
+        assert response.status_code == 422, response.text
+        assert detail in response.json()["detail"]
+    assert harness.commands.calls == []

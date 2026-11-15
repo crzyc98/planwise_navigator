@@ -6456,7 +6456,10 @@ export interface components {
             estimated_disk_mib: number;
             /** Estimated Seconds */
             estimated_seconds: number;
-            /** Run Count */
+            /**
+             * Run Count
+             * @description Seed runs, one at a time
+             */
             run_count: number;
             /** Seconds Per Run */
             seconds_per_run: number;
@@ -6472,11 +6475,6 @@ export interface components {
              * @enum {string}
              */
             time_basis: "measured" | "default";
-            /**
-             * Workers
-             * @description Seeds run at once (max_concurrent_simulations)
-             */
-            workers: number;
         };
         /** EnsembleJob */
         EnsembleJob: {

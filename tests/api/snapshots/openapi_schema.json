@@ -7555,6 +7555,7 @@
             "type": "number"
           },
           "run_count": {
+            "description": "Seed runs, one at a time",
             "title": "Run Count",
             "type": "integer"
           },
@@ -7585,11 +7586,6 @@
             ],
             "title": "Time Basis",
             "type": "string"
-          },
-          "workers": {
-            "description": "Seeds run at once (max_concurrent_simulations)",
-            "title": "Workers",
-            "type": "integer"
           }
         },
         "required": [
@@ -7598,7 +7594,6 @@
           "start_year",
           "end_year",
           "run_count",
-          "workers",
           "seconds_per_run",
           "estimated_seconds",
           "time_basis",
@@ -7820,7 +7815,7 @@
           "seed_count": {
             "default": 10,
             "maximum": 50.0,
-            "minimum": 2.0,
+            "minimum": 5.0,
             "title": "Seed Count",
             "type": "integer"
           }
