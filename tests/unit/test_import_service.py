@@ -397,3 +397,36 @@ def test_download_reroots_record_from_exported_workspace(
     )
     assert resp.status_code == 200
     assert resp.content == b"PAR1"
+
+
+def test_resolve_reroots_windows_export_path(service, workspace_id, tmp_workspaces):
+    inside = _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(
+        service, workspace_id, r"C:\Users\x\old-ws\data\imports\inside.parquet"
+    )
+    assert service.resolve_parquet_path(workspace_id, pf) == inside.resolve()
+
+
+def test_resolve_rejects_non_parquet_files_inside_workspace(
+    service, workspace_id, tmp_workspaces
+):
+    log = tmp_workspaces / workspace_id / "data" / "imports" / "audit.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("audit")
+    pf = _record(service, workspace_id, "/old/root/ws/data/imports/audit.log")
+    assert service.resolve_parquet_path(workspace_id, pf) is None
+
+
+def test_delete_stale_record_keeps_file_with_same_name(
+    api_client, service, workspace_id, tmp_workspaces
+):
+    # A stale exported record must not delete the live file it re-roots to.
+    census = tmp_workspaces / workspace_id / "data" / "census.parquet"
+    census.parent.mkdir(parents=True, exist_ok=True)
+    census.write_bytes(b"PAR1 live")
+    pf = _record(service, workspace_id, "/old/root/old-ws/data/census.parquet")
+    resp = api_client.delete(
+        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    )
+    assert resp.status_code == 204
+    assert census.read_bytes() == b"PAR1 live"
