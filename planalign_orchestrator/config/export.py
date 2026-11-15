@@ -410,6 +410,27 @@ _SCOPE_MAP = {
 }
 
 
+def _export_dc_plan_scope(
+    dc_plan_dict: Optional[Dict[str, Any]], dbt_vars: Dict[str, Any]
+) -> None:
+    """Map the Studio auto-enrollment scope to its dbt value.
+
+    dbt reads the scope through a quoted SQL string literal and only branches
+    on the two known values, so anything else is rejected.
+    """
+    scope = (dc_plan_dict or {}).get("auto_enroll_scope")
+    if scope is None:
+        return
+    dbt_scope = _SCOPE_MAP.get(scope) or (
+        scope if scope in _SCOPE_MAP.values() else None
+    )
+    if dbt_scope is None:
+        raise ValueError(
+            f"dc_plan.auto_enroll_scope must be one of {sorted(_SCOPE_MAP)}"
+        )
+    dbt_vars["auto_enrollment_scope"] = dbt_scope
+
+
 def _apply_hire_date_cutoff(
     dc_plan_dict: Dict[str, Any],
     dbt_vars: Dict[str, Any],
@@ -534,11 +555,6 @@ def _apply_dc_plan_enrollment_overrides(
             float(dc_plan_dict["default_deferral_percent"]) / 100.0
         )
 
-    # Scope mapping with fallback passthrough
-    scope = dc_plan_dict.get("auto_enroll_scope")
-    if scope is not None:
-        dbt_vars["auto_enrollment_scope"] = _SCOPE_MAP.get(scope, scope)
-
     # Legacy segment rates are ignored; the target and bands are authoritative.
     _set_if_not_none(
         dbt_vars, "opt_out_rate_target", dc_plan_dict.get("opt_out_rate_target"), float
@@ -644,6 +660,8 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             e,
             exc_info=True,
         )
+    # Outside the try above: an invalid scope must fail the export, not warn.
+    _export_dc_plan_scope(_resolve_dc_plan_dict(cfg), dbt_vars)
 
     return dbt_vars
 

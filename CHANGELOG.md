@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment `scope` other than `all_eligible_employees` or `new_hires_only`. A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. Existing scenarios use ids and census paths that already pass, so their results don't change.
+- Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. Existing scenarios use ids and census paths that already pass, so their results don't change.
 
 ## [3.2.0] - 2026-11-12
 
