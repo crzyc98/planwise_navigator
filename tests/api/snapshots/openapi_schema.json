@@ -14661,6 +14661,12 @@
             ],
             "title": "Completed At"
           },
+          "current": {
+            "default": false,
+            "description": "Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did",
+            "title": "Current",
+            "type": "boolean"
+          },
           "difference_total": {
             "anyOf": [
               {
@@ -14759,6 +14765,7 @@
           "completed_at",
           "start_year",
           "end_year",
+          "current",
           "years",
           "total",
           "paired",

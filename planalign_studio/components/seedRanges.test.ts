@@ -16,6 +16,7 @@ function range(id: string, overrides: Partial<ScenarioCostRange> = {}): Scenario
     completed_at: null,
     start_year: 2026,
     end_year: 2027,
+    current: true,
     years: [
       { year: 2026, p10: 900_000, p90: 1_100_000, n_seeds: 10 },
       { year: 2027, p10: 950_000, p90: 1_150_000, n_seeds: 10 },
@@ -60,6 +61,15 @@ describe('buildSeedRangeView', () => {
     expect(view.notes).toEqual([{ scenarioId: 'p', reason }]);
     expect(view.rows.get('p')?.total).not.toBeNull();
     expect(view.rows.get('p')?.difference).toBeNull();
+  });
+
+  it('shows only a note for an ensemble run on older settings', () => {
+    const reason = "Its ensemble was run before this scenario's settings changed; run a new ensemble to see a range.";
+    const stale = range('p', { current: false, years: [], total: null, reason });
+    const view = buildSeedRangeView([range('a'), stale], years, 'a');
+
+    expect(view.rows.has('p')).toBe(false);
+    expect(view.notes).toEqual([{ scenarioId: 'p', reason }]);
   });
 
   it('drops ranges whose ensemble covers other years than the results shown', () => {

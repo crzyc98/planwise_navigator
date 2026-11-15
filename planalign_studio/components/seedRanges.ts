@@ -4,7 +4,8 @@
  * The ensemble metric is gross match + core over every employee, so ranges sit
  * only beside that same number: not beside grandfathered or cohort-filtered
  * costs, and not beside net-of-forfeiture rows. Differences come from the API
- * already paired seed by seed with the anchor.
+ * already paired seed by seed with the anchor, and only for ensembles run on
+ * the same settings (config fingerprint) as the results shown.
  */
 import type { DCPlanCohort, ScenarioCostRange } from '../services/api';
 
@@ -64,6 +65,10 @@ export function buildSeedRangeView(
 
   for (const range of ranges) {
     if (range.job_id === null) continue; // no ensemble: point figures stay as they are
+    if (!range.current) {
+      notes.push({ scenarioId: range.scenario_id, reason: range.reason ?? 'Its ensemble was run on other settings.' });
+      continue;
+    }
     if (!matches(range)) {
       notes.push({
         scenarioId: range.scenario_id,

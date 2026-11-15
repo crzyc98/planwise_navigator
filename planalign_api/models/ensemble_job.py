@@ -129,6 +129,13 @@ class ScenarioCostRange(APIModel):
     completed_at: Optional[datetime] = None
     start_year: Optional[int] = None
     end_year: Optional[int] = None
+    current: bool = Field(
+        default=False,
+        description=(
+            "Whether the ensemble ran on the same settings (config fingerprint) "
+            "as the scenario's results shown; ranges are only given when it did"
+        ),
+    )
     years: list[YearCostBand] = Field(
         default_factory=list, description="Annual employer cost, P10-P90"
     )

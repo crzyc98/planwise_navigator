@@ -30,7 +30,9 @@ from ...models.ensemble_job import (
 )
 from ...models.scenario import Scenario
 from ...storage.workspace_storage import WorkspaceStorage
+from ..database_path_resolver import create_api_database_path_resolver
 from ..path_guard import PathGuardError, require_canonical_uuid
+from ..run_trust import read_run_trust
 from ..simulation.run_execution import (
     prepare_dbt_project,
     scenario_pack_seeds,
@@ -159,7 +161,22 @@ class EnsembleJobService:
         for scenario_id in scenario_ids:
             job = latest_finished_job(jobs, scenario_id)
             ensembles[scenario_id] = load_seed_costs(job) if job else None
-        return build_cost_ranges(scenario_ids, anchor_id, ensembles)
+        fingerprints = {
+            scenario_id: self._results_fingerprint(workspace_id, scenario_id)
+            for scenario_id in scenario_ids
+        }
+        return build_cost_ranges(scenario_ids, anchor_id, ensembles, fingerprints)
+
+    def _results_fingerprint(
+        self, workspace_id: str, scenario_id: str
+    ) -> Optional[str]:
+        """Config fingerprint stamped on the run Cost Comparison is showing."""
+        resolved = create_api_database_path_resolver(self.storage).resolve(
+            workspace_id, scenario_id
+        )
+        if not resolved.exists or resolved.path is None:
+            return None
+        return read_run_trust(resolved.path, resolved.run_id).config_fingerprint
 
     def cancel(self, workspace_id: str, job_id: str) -> EnsembleJob:
         job = self.get(workspace_id, job_id)

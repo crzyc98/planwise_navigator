@@ -4,6 +4,11 @@ A difference from the anchor is taken seed by seed (seed s of a scenario minus
 seed s of the anchor), then summarized. Two separate bands can't be subtracted:
 the seeds that make a scenario expensive usually make the anchor expensive too,
 so the paired spread is far narrower than the bands suggest.
+
+An ensemble is used only when it ran on the same settings as the results on
+screen: its config fingerprint (stamped by the ensemble runner) must equal the
+one stamped on the scenario's selected run. Both are
+``compute_config_fingerprint`` over the merged config Studio writes for the run.
 """
 
 from __future__ import annotations
@@ -45,6 +50,13 @@ FINISHED_STATUSES = frozenset({"completed", "partial"})
 
 NO_ENSEMBLE = "No finished ensemble for this scenario."
 NO_ANCHOR_ENSEMBLE = "The anchor scenario has no finished ensemble to pair with."
+STALE_ENSEMBLE = (
+    "Its ensemble was run before this scenario's settings changed; "
+    "run a new ensemble to see a range."
+)
+STALE_ANCHOR = (
+    "The anchor's ensemble was run before its settings changed, so they aren't paired."
+)
 DIFFERENT_SEEDS = (
     "Its ensemble used different seeds from the anchor's, so they aren't paired."
 )
@@ -60,6 +72,7 @@ class EnsembleSeedCosts:
     end_year: int
     completed_at: Optional[datetime]
     values: Mapping[int, Mapping[int, float]]  # seed -> year -> cost
+    config_fingerprint: Optional[str] = None
 
     @property
     def years(self) -> range:
@@ -102,6 +115,7 @@ def load_seed_costs(job: EnsembleJob) -> Optional[EnsembleSeedCosts]:
         rows = read_seed_values(
             database, job.output.ensemble_scenario_id, job.output.ensemble_id
         )
+        fingerprint = _ensemble_fingerprint(database, job.output.ensemble_id)
     except (InvalidEnsembleDatabaseError, duckdb.Error) as exc:
         logger.warning("Ensemble %s results are unreadable: %s", job.job_id, exc)
         return None
@@ -116,6 +130,39 @@ def load_seed_costs(job: EnsembleJob) -> Optional[EnsembleSeedCosts]:
         end_year=job.end_year,
         completed_at=job.completed_at,
         values=dict(values),
+        config_fingerprint=fingerprint,
+    )
+
+
+def _ensemble_fingerprint(database: Path, ensemble_id: str) -> Optional[str]:
+    """The config fingerprint the runner stamped on this ensemble's headline run."""
+    with duckdb.connect(str(database), read_only=True) as connection:
+        has_table = connection.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'run_metadata'"
+        ).fetchone()
+        if has_table is None:
+            return None
+        row = connection.execute(
+            "SELECT config_fingerprint FROM run_metadata "
+            "WHERE ensemble_id = ? AND ensemble_role = 'headline' "
+            "ORDER BY run_timestamp DESC LIMIT 1",
+            [ensemble_id],
+        ).fetchone()
+    return str(row[0]) if row and row[0] else None
+
+
+def is_current(
+    costs: Optional[EnsembleSeedCosts], results_fingerprint: Optional[str]
+) -> bool:
+    """Whether the ensemble ran on the settings behind the results shown.
+
+    A missing fingerprint on either side can't be shown to match, so it counts
+    as stale rather than risk a range from other settings.
+    """
+    return (
+        costs is not None
+        and costs.config_fingerprint is not None
+        and costs.config_fingerprint == results_fingerprint
     )
 
 
@@ -123,39 +170,66 @@ def build_cost_ranges(
     scenario_ids: Sequence[str],
     anchor_id: str,
     ensembles: Mapping[str, Optional[EnsembleSeedCosts]],
+    result_fingerprints: Mapping[str, Optional[str]],
 ) -> EnsembleCostRanges:
-    anchor = ensembles.get(anchor_id)
-    return EnsembleCostRanges(
-        anchor_scenario_id=anchor_id,
-        scenarios=[
-            _scenario_range(sid, ensembles.get(sid), anchor, is_anchor=sid == anchor_id)
-            for sid in scenario_ids
-        ],
+    current = {
+        sid: is_current(ensembles.get(sid), result_fingerprints.get(sid))
+        for sid in scenario_ids
+    }
+    anchor = ensembles.get(anchor_id) if current.get(anchor_id) else None
+    anchor_missing = (
+        NO_ANCHOR_ENSEMBLE if ensembles.get(anchor_id) is None else STALE_ANCHOR
     )
+    scenarios: list[ScenarioCostRange] = []
+    for sid in scenario_ids:
+        costs = ensembles.get(sid)
+        if costs is None:
+            scenarios.append(ScenarioCostRange(scenario_id=sid, reason=NO_ENSEMBLE))
+        elif not current[sid]:
+            scenarios.append(_stale_range(sid, costs))
+        elif sid == anchor_id:
+            scenarios.append(_bands(sid, costs))
+        else:
+            scenarios.append(
+                _paired_range(_bands(sid, costs), costs, anchor, anchor_missing)
+            )
+    return EnsembleCostRanges(anchor_scenario_id=anchor_id, scenarios=scenarios)
 
 
-def _scenario_range(
-    scenario_id: str,
-    costs: Optional[EnsembleSeedCosts],
-    anchor: Optional[EnsembleSeedCosts],
-    *,
-    is_anchor: bool = False,
-) -> ScenarioCostRange:
-    if costs is None:
-        return ScenarioCostRange(scenario_id=scenario_id, reason=NO_ENSEMBLE)
-    result = ScenarioCostRange(
+def _stale_range(scenario_id: str, costs: EnsembleSeedCosts) -> ScenarioCostRange:
+    return ScenarioCostRange(
         scenario_id=scenario_id,
         job_id=costs.job_id,
         completed_at=costs.completed_at,
         start_year=costs.start_year,
         end_year=costs.end_year,
+        reason=STALE_ENSEMBLE,
+    )
+
+
+def _bands(scenario_id: str, costs: EnsembleSeedCosts) -> ScenarioCostRange:
+    return ScenarioCostRange(
+        scenario_id=scenario_id,
+        job_id=costs.job_id,
+        completed_at=costs.completed_at,
+        start_year=costs.start_year,
+        end_year=costs.end_year,
+        current=True,
         years=_year_bands(costs),
         total=_band(costs.total(seed) for seed in costs.complete_seeds()),
     )
-    if is_anchor:
-        return result
+
+
+def _paired_range(
+    result: ScenarioCostRange,
+    costs: EnsembleSeedCosts,
+    anchor: Optional[EnsembleSeedCosts],
+    anchor_missing: str,
+) -> ScenarioCostRange:
+    if anchor is None:
+        return result.model_copy(update={"reason": anchor_missing})
     common, reason = pair_seeds(costs, anchor)
-    if anchor is None or reason is not None:
+    if reason is not None:
         return result.model_copy(update={"reason": reason})
     return result.model_copy(
         update={
@@ -169,11 +243,9 @@ def _scenario_range(
 
 
 def pair_seeds(
-    costs: EnsembleSeedCosts, anchor: Optional[EnsembleSeedCosts]
+    costs: EnsembleSeedCosts, anchor: EnsembleSeedCosts
 ) -> tuple[list[int], Optional[str]]:
     """Seeds both ensembles finished, or why the two can't be paired."""
-    if anchor is None:
-        return [], NO_ANCHOR_ENSEMBLE
     if sorted(costs.seeds) != sorted(anchor.seeds):
         return [], DIFFERENT_SEEDS
     if (costs.start_year, costs.end_year) != (anchor.start_year, anchor.end_year):

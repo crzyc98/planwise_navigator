@@ -9518,6 +9518,12 @@ export interface components {
         ScenarioCostRange: {
             /** Completed At */
             completed_at: string | null;
+            /**
+             * Current
+             * @description Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did
+             * @default false
+             */
+            current: boolean;
             difference_total: components["schemas"]["DifferenceRange"] | null;
             /** Difference Years */
             difference_years: components["schemas"]["YearDifferenceRange"][];

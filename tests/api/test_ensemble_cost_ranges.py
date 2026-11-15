@@ -1,8 +1,10 @@
 """Seed ranges beside Cost Comparison: bands, seed-by-seed pairing, endpoint.
 
 Fixture ensemble databases are written through the real
-``write_ensemble_results`` and job records through the real job store, so
-nothing here runs a simulation.
+``write_ensemble_results`` and ``write_ensemble_provenance``, and job records
+through the real job store, so nothing here runs a simulation. The fingerprint
+test prepares a Studio run and an ensemble job through their real input code
+and loads each config the way its CLI path does.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Mapping, Optional
 
+import duckdb
 import pytest
 import yaml
 from fastapi import FastAPI
@@ -32,13 +35,26 @@ from planalign_api.services.ensemble_jobs.cost_ranges import (
     DIFFERENT_SEEDS,
     NO_ANCHOR_ENSEMBLE,
     NO_ENSEMBLE,
+    STALE_ANCHOR,
+    STALE_ENSEMBLE,
     EnsembleSeedCosts,
     build_cost_ranges,
 )
 from planalign_api.services.ensemble_jobs.store import EnsembleJobStore
+from planalign_api.services.simulation.service import SimulationService
 from planalign_api.storage.workspace_storage import WorkspaceStorage
+from planalign_cli.commands.simulate import _build_ensemble_spec
+from planalign_cli.integration.orchestrator_wrapper import OrchestratorWrapper
 from planalign_ensemble.aggregate import aggregate_ensemble, write_ensemble_results
-from planalign_ensemble.models import MetricSeedValue
+from planalign_ensemble.models import EnsembleSpec, MetricSeedValue
+from planalign_ensemble.planner import plan_ensemble
+from planalign_ensemble.provenance import write_ensemble_provenance
+from planalign_ensemble.runner import _with_config_fingerprint
+from planalign_orchestrator.run_metadata import (
+    RUN_METADATA_TABLE,
+    _CREATE_TABLE_SQL,
+    compute_config_fingerprint,
+)
 
 pytestmark = [pytest.mark.fast]
 
@@ -59,6 +75,7 @@ def _costs(
     seeds: tuple[int, ...] = SEEDS,
     years: tuple[int, int] = (YEARS[0], YEARS[-1]),
     job_id: str = "ens_000000000001",
+    fingerprint: Optional[str] = "fp",
 ) -> EnsembleSeedCosts:
     return EnsembleSeedCosts(
         job_id=job_id,
@@ -67,11 +84,19 @@ def _costs(
         end_year=years[1],
         completed_at=None,
         values=values,
+        config_fingerprint=fingerprint,
     )
 
 
-def _build(proposed: Optional[EnsembleSeedCosts], anchor: Optional[EnsembleSeedCosts]):
-    result = build_cost_ranges(["a", "p"], "a", {"a": anchor, "p": proposed})
+def _build(
+    proposed: Optional[EnsembleSeedCosts],
+    anchor: Optional[EnsembleSeedCosts],
+    results: Optional[Mapping[str, Optional[str]]] = None,
+):
+    fingerprints = results if results is not None else {"a": "fp", "p": "fp"}
+    result = build_cost_ranges(
+        ["a", "p"], "a", {"a": anchor, "p": proposed}, fingerprints
+    )
     return {item.scenario_id: item for item in result.scenarios}
 
 
@@ -176,6 +201,104 @@ def test_too_few_common_seeds_is_not_paired() -> None:
     assert proposed.total is None  # fewer than five seeds: no band either
 
 
+def test_an_ensemble_on_other_settings_shows_no_range() -> None:
+    ranges = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp", "p": "fp-new"})
+    proposed = ranges["p"]
+
+    assert proposed.reason == STALE_ENSEMBLE
+    assert not proposed.current and not proposed.paired
+    assert proposed.years == [] and proposed.total is None
+    assert proposed.job_id is not None
+    assert ranges["a"].current and ranges["a"].total is not None
+
+
+def test_a_stale_anchor_pairs_with_nothing() -> None:
+    ranges = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp-new", "p": "fp"})
+
+    assert ranges["a"].reason == STALE_ENSEMBLE and ranges["a"].total is None
+    assert ranges["p"].reason == STALE_ANCHOR
+    assert ranges["p"].total is not None and not ranges["p"].paired
+
+
+def test_an_unknown_fingerprint_on_either_side_counts_as_stale() -> None:
+    no_results = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp", "p": None})
+    assert no_results["p"].reason == STALE_ENSEMBLE
+
+    unstamped = _build(_costs(PROPOSED, fingerprint=None), _costs(ANCHOR))
+    assert unstamped["p"].reason == STALE_ENSEMBLE
+
+
+def test_no_anchor_ensemble_reason_differs_from_a_stale_one() -> None:
+    assert _build(_costs(PROPOSED), None)["p"].reason == NO_ANCHOR_ENSEMBLE
+
+
+# ---------------------------------------------------------------------------
+# Fingerprints: a Studio run and an ensemble of the same scenario agree
+# ---------------------------------------------------------------------------
+
+
+def _studio_run_fingerprint(storage, workspace_id: str, scenario_id: str, tmp: Path):
+    """What the orchestrator stamps on a Studio run's run_metadata.
+
+    Studio writes config.yaml through ``_prepare_simulation`` and runs
+    ``planalign simulate --config``, whose OrchestratorWrapper loads it and
+    hands that config unchanged to ``check_and_record_run``.
+    """
+    run_dir = tmp / f"run-{uuid.uuid4().hex[:6]}"
+    run_dir.mkdir()
+    config = storage.get_merged_config(workspace_id, scenario_id)
+    SimulationService(storage)._prepare_simulation(
+        workspace_id, scenario_id, config, run_dir
+    )
+    wrapper = OrchestratorWrapper(run_dir / "config.yaml", run_dir / "sim.duckdb")
+    return compute_config_fingerprint(wrapper.config)
+
+
+def _ensemble_fingerprint(storage, workspace_id: str, scenario_id: str, tmp: Path):
+    """What the ensemble runner stamps for a Studio ensemble job."""
+    service = EnsembleJobService(storage)
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    config = service._config(scenario)
+    job = service._new_job(scenario, service._estimate(scenario, config, 5))
+    paths = service._prepare_inputs(job, scenario, config)
+    spec, loaded = _build_ensemble_spec(
+        job.start_year,
+        job.end_year,
+        paths.config,
+        paths.dbt_project,
+        None,
+        ",".join(str(seed) for seed in job.seeds),
+        False,
+        None,
+        None,
+        5,
+        True,
+        None,
+        EnsembleSpec,
+    )
+    plan = plan_ensemble(spec, output_root=tmp / "plans")
+    return _with_config_fingerprint(plan, loaded).config_fingerprint
+
+
+def test_studio_run_and_ensemble_fingerprints_match_until_the_match_changes(
+    tmp_path,
+) -> None:
+    workspace = _Workspace(tmp_path)
+    scenario_id = workspace.scenario("Proposed")
+    storage, ws = workspace.storage, workspace.workspace_id
+
+    ensemble = _ensemble_fingerprint(storage, ws, scenario_id, tmp_path)
+    assert ensemble
+    assert _studio_run_fingerprint(storage, ws, scenario_id, tmp_path) == ensemble
+
+    storage.update_scenario(
+        ws, scenario_id, config_overrides={"dc_plan": {"match_cap_percent": 0.06}}
+    )
+    rerun = _studio_run_fingerprint(storage, ws, scenario_id, tmp_path)
+    assert rerun != ensemble
+    assert _ensemble_fingerprint(storage, ws, scenario_id, tmp_path) == rerun
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -207,12 +330,25 @@ class _Workspace:
         *,
         status: str = "completed",
         created_at: datetime = datetime(2026, 11, 1, tzinfo=timezone.utc),
+        fingerprint: str = "fp",
     ) -> str:
         job_id = f"ens_{uuid.uuid4().hex[:12]}"
         database = self.store.job_dir(self.workspace_id, job_id) / "ensemble.duckdb"
+        plan = plan_ensemble(
+            EnsembleSpec(
+                scenario_id="scenario-in-db",
+                seed_count=len(SEEDS),
+                base_seed=SEEDS[0],
+                start_year=YEARS[0],
+                end_year=YEARS[-1],
+            ),
+            output_root=database.parent / "plan",
+            config_fingerprint=fingerprint,
+        )
+        plan = plan.model_copy(update={"ensemble_db_path": database})
         seed_values = [
             MetricSeedValue(
-                ensemble_id="ens-x",
+                ensemble_id=plan.ensemble_id,
                 scenario_id="scenario-in-db",
                 metric=metric,
                 simulation_year=year,
@@ -226,6 +362,7 @@ class _Workspace:
         write_ensemble_results(
             database, aggregate_ensemble(seed_values, min_seeds=5), seed_values
         )
+        write_ensemble_provenance(plan)
         estimate = EnsembleEstimate(
             seed_count=len(SEEDS),
             seeds=list(SEEDS),
@@ -254,12 +391,27 @@ class _Workspace:
                 progress=EnsembleProgress(seeds_total=len(SEEDS)),
                 output=EnsembleOutput(
                     database_path=str(database.resolve()),
-                    ensemble_id="ens-x",
+                    ensemble_id=plan.ensemble_id,
                     ensemble_scenario_id="scenario-in-db",
                 ),
             )
         )
         return job_id
+
+    def results(self, scenario_id: str, fingerprint: str = "fp") -> None:
+        """A (legacy-located) result database stamped like a real run."""
+        path = (
+            self.storage._scenario_path(self.workspace_id, scenario_id)
+            / "simulation.duckdb"
+        )
+        with duckdb.connect(str(path)) as conn:
+            conn.execute(_CREATE_TABLE_SQL)
+            conn.execute(
+                f"INSERT INTO {RUN_METADATA_TABLE} (run_id, run_timestamp, run_type, "
+                "config_fingerprint, random_seed, start_year, end_year) "
+                "VALUES ('run-1', now(), 'simulate', ?, 7, 2026, 2027)",
+                [fingerprint],
+            )
 
 
 @pytest.fixture
@@ -287,6 +439,8 @@ def _get(client: TestClient, workspace: _Workspace, scenarios: list[str], anchor
 
 def test_endpoint_pairs_latest_finished_ensembles(client, workspace) -> None:
     anchor, proposed, bare = (workspace.scenario(n) for n in ("A", "P", "B"))
+    for scenario_id in (anchor, proposed, bare):
+        workspace.results(scenario_id)
     workspace.finished_job(anchor, ANCHOR)
     stale = {s: {y: 0.0 for y in v} for s, v in PROPOSED.items()}
     workspace.finished_job(
@@ -307,6 +461,24 @@ def test_endpoint_pairs_latest_finished_ensembles(client, workspace) -> None:
     assert by_id[anchor]["total"]["p10"] == 1250.0
     assert by_id[bare]["reason"] == NO_ENSEMBLE
     assert by_id[bare]["total"] is None
+
+
+def test_endpoint_hides_an_ensemble_from_before_a_settings_change(
+    client, workspace
+) -> None:
+    anchor, proposed = workspace.scenario("A"), workspace.scenario("P")
+    workspace.results(anchor)
+    workspace.results(proposed, fingerprint="fp-after-match-change")
+    workspace.finished_job(anchor, ANCHOR)
+    workspace.finished_job(proposed, PROPOSED)
+
+    body = _get(client, workspace, [anchor, proposed], anchor).json()
+
+    by_id = {item["scenario_id"]: item for item in body["scenarios"]}
+    assert by_id[proposed]["reason"] == STALE_ENSEMBLE
+    assert by_id[proposed]["current"] is False
+    assert by_id[proposed]["total"] is None and by_id[proposed]["years"] == []
+    assert by_id[anchor]["current"] is True and by_id[anchor]["total"] is not None
 
 
 def test_endpoint_validates_ids_and_anchor(client, workspace) -> None:
