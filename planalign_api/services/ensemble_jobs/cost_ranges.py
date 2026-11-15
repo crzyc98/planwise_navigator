@@ -248,9 +248,9 @@ def _paired_range(
     if anchor.costs is None:
         reason = ANCHOR_REASONS.get(anchor.reason or NO_ENSEMBLE, NO_ANCHOR_ENSEMBLE)
         return result.model_copy(update={"reason": reason})
-    common, reason = pair_seeds(costs, anchor.costs)
-    if reason is not None:
-        return result.model_copy(update={"reason": reason})
+    common, unpaired = pair_seeds(costs, anchor.costs)
+    if unpaired is not None:
+        return result.model_copy(update={"reason": unpaired})
     years = []
     for year in costs.years:
         spread = _difference(
