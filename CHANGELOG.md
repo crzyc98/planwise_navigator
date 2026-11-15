@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Studio's API can now run a seed ensemble for a scenario: it estimates the run count, time and disk first, then queues the ensemble behind other simulations, reports progress per seed, and can cancel it. Each ensemble's results stay in the workspace, and a run where some seeds fail is reported as partial. `planalign simulate --seeds` also takes `--parallel` to cap how many seeds run at once.
 - Cost Comparison shows how much each employer cost moves across simulation seeds when the compared scenarios have seed ensembles: P10–P90 beside each annual and total cost, and the range of the difference from the anchor, taken seed by seed (for example, "saves $40K–$80K"). An ensemble run before the scenario's settings changed shows no range, ensembles on different seeds or years aren't paired, and the page says why in each case.
+- Studio's Ensembles page can now run an ensemble: pick a scenario and seed count, review the estimated time and disk, then follow its progress, cancel it, or open its results with one click. No terminal or file path needed; opening a database by path moved under Advanced.
 
 ### Changed
 
