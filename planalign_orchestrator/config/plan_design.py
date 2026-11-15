@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, RootModel, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    RootModel,
+    field_validator,
+    model_validator,
+)
 
 from .workforce import ReenrollmentSweepSettings
 
@@ -14,19 +22,36 @@ MatchFormulaFamily = Literal[
 ]
 CoreFormulaFamily = Literal["flat", "graded_by_service", "points_based", "age_banded"]
 
+# Scenario and plan-design ids are written into dbt SQL as string literals, so
+# they are limited to characters that need no quoting or escaping.
+_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9 _.:-]{1,128}")
+
+
+def check_identifier(value: str) -> str:
+    """Return ``value`` if it is a safe scenario or plan-design identifier."""
+    if not _IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"invalid identifier {value!r}: use 1-128 letters, digits, spaces, "
+            "or the characters _ . : -"
+        )
+    return value
+
+
+ConfigIdentifier = Annotated[str, AfterValidator(check_identifier)]
+
 
 class HireDateCutoffRule(BaseModel):
     """Assign employees hired on or after a cutoff to a design."""
 
     type: Literal["hire_date_cutoff"] = "hire_date_cutoff"
     cutoff: date
-    plan_design_id: str = Field(min_length=1)
+    plan_design_id: ConfigIdentifier
 
 
 class PlanDesignAssignmentSettings(BaseModel):
     """Ordered assignment rules plus the fallback design."""
 
-    default_plan_design_id: str = Field(min_length=1)
+    default_plan_design_id: ConfigIdentifier
     rules: list[HireDateCutoffRule] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -243,6 +268,7 @@ class PlanDesignParametersMap(RootModel[dict[str, PlanDesignParameters]]):
                 raise ValueError(
                     "plan design parameter ids must be nonblank and trimmed"
                 )
+            check_identifier(design_id)
         return self
 
     def design_ids(self) -> list[str]:

@@ -16,6 +16,7 @@ from .models import (
     SeedPlan,
     Subsystem,
 )
+from .progress import emit_pool_event
 
 _METRIC_LABELS = {
     "active_headcount": "Active headcount",
@@ -83,6 +84,7 @@ class EnsembleProgressReporter:
 
     def __call__(self, event: PoolEvent) -> None:
         """Print one concise update for each start or terminal pool event."""
+        emit_pool_event(event)
         if event.kind is EventKind.JOB_STARTED:
             self.running.add(event.job_name)
             self.console.print(f"  ▶ {event.job_name} started")

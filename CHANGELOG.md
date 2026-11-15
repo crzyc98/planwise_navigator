@@ -12,10 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The API can now compare a scenario's census with its first simulated year (`GET /api/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out`). For active headcount, eligible count, participation, average deferral, total pay, employer match and employer core it gives both values under one definition, the difference, a tolerance that allows for the configured growth and raises, and whether the row ties, has a gap or isn't in the census, with a line on what to check. Total pay, employer match and employer core count everyone paid in the year, including people who left, so the census total is what the sponsor paid; headcount, eligible count and the rates count employees active at year end. It reads the census archived with the run, not the workspace's current file.
 - Overview has a Census Tie-out panel for the selected scenario. It shows each metric's census-year and first-simulated-year values, the difference and whether it ties, with a line on what to check for each gap, and names the census file and years it used. You can mark one scenario per workspace as the current plan from the panel, and the Scenarios list shows a Current plan badge on it. On other scenarios the panel says gaps are expected if the scenario changes the plan design and shows no gap count.
 - When the scenario marked as the current plan has census tie-out gaps, Run Health shows one line naming the rows that differ, linking to the Overview panel, and its scenario report includes the tie-out table. Other scenarios show neither. Neither ever fails or blocks a run.
+- Studio's API can now run a seed ensemble for a scenario: it estimates the run count, time and disk first, then queues the ensemble behind other simulations, reports progress per seed, and can cancel it. Each ensemble's results stay in the workspace, and a run where some seeds fail is reported as partial. `planalign simulate --seeds` also takes `--parallel` to cap how many seeds run at once.
+- Cost Comparison shows how much each employer cost moves across simulation seeds when the compared scenarios have seed ensembles: P10–P90 beside each annual and total cost, and the range of the difference from the anchor, taken seed by seed (for example, "saves $40K–$80K"). An ensemble run before the scenario's settings changed shows no range, ensembles on different seeds or years aren't paired, and the page says why in each case.
+- Studio's Ensembles page can now run an ensemble: pick a scenario and seed count, review the estimated time and disk, then follow its progress, cancel it, or open its results with one click. No terminal or file path needed; opening a database by path moved under Advanced.
 
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
+
+### Fixed
+
+- Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. The match template must be one of simple, tiered, stretch, safe harbor or QACA, the escalation effective date must be a real `MM-DD`, and age and tenure band labels can't contain a single quote. Existing scenarios use values that already pass, so their results don't change.
+
+### Security
+
+- The API now rejects HTTP and WebSocket requests whose `Host` header isn't allowlisted (`localhost`, `127.0.0.1`, `::1` and the bind host by default). Set `PLANALIGN_API_ALLOWED_HOSTS` to serve the API under other names. Studio needs no change.
 
 ## [3.2.0] - 2026-11-12
 
