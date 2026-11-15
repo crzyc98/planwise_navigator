@@ -6775,21 +6775,11 @@
           "n_seeds": {
             "title": "N Seeds",
             "type": "integer"
-          },
-          "p10": {
-            "title": "P10",
-            "type": "number"
-          },
-          "p90": {
-            "title": "P90",
-            "type": "number"
           }
         },
         "required": [
           "min",
           "max",
-          "p10",
-          "p90",
           "n_seeds"
         ],
         "title": "DifferenceRange",
@@ -19642,14 +19632,6 @@
             "title": "N Seeds",
             "type": "integer"
           },
-          "p10": {
-            "title": "P10",
-            "type": "number"
-          },
-          "p90": {
-            "title": "P90",
-            "type": "number"
-          },
           "year": {
             "title": "Year",
             "type": "integer"
@@ -19658,8 +19640,6 @@
         "required": [
           "min",
           "max",
-          "p10",
-          "p90",
           "n_seeds",
           "year"
         ],

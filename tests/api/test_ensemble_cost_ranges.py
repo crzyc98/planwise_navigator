@@ -31,14 +31,20 @@ from planalign_api.models.workspace import WorkspaceCreate
 from planalign_api.routers import ensembles
 from planalign_api.services.ensemble_jobs import EnsembleJobService
 from planalign_api.services.ensemble_jobs.cost_ranges import (
+    ANCHOR_REASONS,
     COST_METRIC,
     DIFFERENT_SEEDS,
+    MIXED_RESULTS,
     NO_ANCHOR_ENSEMBLE,
     NO_ENSEMBLE,
-    STALE_ANCHOR,
     STALE_ENSEMBLE,
+    UNREADABLE_ENSEMBLE,
+    UNRECORDED_RESULTS,
     EnsembleSeedCosts,
+    ResultsIdentity,
+    ScenarioEnsemble,
     build_cost_ranges,
+    choose_ensemble,
 )
 from planalign_api.services.ensemble_jobs.store import EnsembleJobStore
 from planalign_api.services.simulation.service import SimulationService
@@ -88,16 +94,56 @@ def _costs(
     )
 
 
-def _build(
-    proposed: Optional[EnsembleSeedCosts],
-    anchor: Optional[EnsembleSeedCosts],
-    results: Optional[Mapping[str, Optional[str]]] = None,
-):
-    fingerprints = results if results is not None else {"a": "fp", "p": "fp"}
+Chosen = Optional["EnsembleSeedCosts | ScenarioEnsemble"]
+
+
+def _chosen(value: Chosen) -> ScenarioEnsemble:
+    if value is None:
+        return ScenarioEnsemble()
+    if isinstance(value, ScenarioEnsemble):
+        return value
+    return ScenarioEnsemble(costs=value, job_id=value.job_id, reason=None)
+
+
+def _build(proposed: Chosen, anchor: Chosen):
     result = build_cost_ranges(
-        ["a", "p"], "a", {"a": anchor, "p": proposed}, fingerprints
+        ["a", "p"], "a", {"a": _chosen(anchor), "p": _chosen(proposed)}
     )
     return {item.scenario_id: item for item in result.scenarios}
+
+
+def _job(job_id: str, scenario_id: str = "p", status: str = "completed") -> EnsembleJob:
+    created = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    return EnsembleJob(
+        job_id=job_id,
+        workspace_id="w",
+        scenario_id=scenario_id,
+        scenario_name="S",
+        status=status,  # type: ignore[arg-type]
+        seed_count=len(SEEDS),
+        seeds=list(SEEDS),
+        start_year=YEARS[0],
+        end_year=YEARS[-1],
+        estimate=EnsembleEstimate(
+            seed_count=len(SEEDS),
+            seeds=list(SEEDS),
+            start_year=YEARS[0],
+            end_year=YEARS[-1],
+            run_count=len(SEEDS),
+            seconds_per_run=1.0,
+            estimated_seconds=1.0,
+            time_basis="default",
+            estimated_disk_mib=1.0,
+        ),
+        created_at=created,
+        completed_at=created,
+        progress=EnsembleProgress(seeds_total=len(SEEDS)),
+        output=EnsembleOutput(
+            database_path="unused.duckdb",
+            ensemble_id="e",
+            ensemble_scenario_id="s",
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +171,7 @@ def test_same_seeds_pair_and_differences_are_taken_seed_by_seed() -> None:
     band_high = proposed.total.p90 - anchor.total.p10
     assert band_high - band_low > 9000
     assert total.max - total.min == 10.0
-    assert total.p10 > band_low and total.p90 < band_high
+    assert total.min > band_low and total.max < band_high
 
 
 def test_bands_are_p10_p90_of_annual_and_total_cost() -> None:
@@ -137,6 +183,15 @@ def test_bands_are_p10_p90_of_annual_and_total_cost() -> None:
     ]
     assert anchor.total is not None
     assert (anchor.total.p10, anchor.total.p90) == (1250.0, 11250.0)
+
+
+def test_every_figure_in_a_row_uses_the_same_seeds() -> None:
+    # Seed 7 is missing its 2027 cost: it can't count toward any figure.
+    gappy = {**ANCHOR, 7: {2026: ANCHOR[7][2026]}}
+    anchor = _build(_costs(PROPOSED), _costs(gappy))["a"]
+
+    assert {band.n_seeds for band in anchor.years} == {5}
+    assert anchor.total is not None and anchor.total.n_seeds == 5
 
 
 def test_different_seed_lists_are_not_paired() -> None:
@@ -163,6 +218,7 @@ def test_different_years_are_not_paired() -> None:
 def test_missing_ensembles_explain_themselves() -> None:
     no_proposed = _build(None, _costs(ANCHOR))
     assert no_proposed["p"].reason == NO_ENSEMBLE
+    assert no_proposed["p"].job_id is None
     assert no_proposed["p"].total is None and no_proposed["p"].years == []
 
     no_anchor = _build(_costs(PROPOSED), None)
@@ -201,35 +257,72 @@ def test_too_few_common_seeds_is_not_paired() -> None:
     assert proposed.total is None  # fewer than five seeds: no band either
 
 
-def test_an_ensemble_on_other_settings_shows_no_range() -> None:
-    ranges = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp", "p": "fp-new"})
-    proposed = ranges["p"]
+def test_an_unusable_anchor_says_why_nothing_pairs() -> None:
+    for reason in (STALE_ENSEMBLE, UNREADABLE_ENSEMBLE, MIXED_RESULTS):
+        anchor = ScenarioEnsemble(job_id="ens_a", reason=reason)
+        ranges = _build(_costs(PROPOSED), anchor)
 
-    assert proposed.reason == STALE_ENSEMBLE
-    assert not proposed.current and not proposed.paired
-    assert proposed.years == [] and proposed.total is None
-    assert proposed.job_id is not None
-    assert ranges["a"].current and ranges["a"].total is not None
-
-
-def test_a_stale_anchor_pairs_with_nothing() -> None:
-    ranges = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp-new", "p": "fp"})
-
-    assert ranges["a"].reason == STALE_ENSEMBLE and ranges["a"].total is None
-    assert ranges["p"].reason == STALE_ANCHOR
-    assert ranges["p"].total is not None and not ranges["p"].paired
+        assert ranges["a"].reason == reason and ranges["a"].job_id == "ens_a"
+        assert not ranges["a"].current and ranges["a"].total is None
+        assert ranges["p"].reason == ANCHOR_REASONS[reason]
+        assert ranges["p"].total is not None and not ranges["p"].paired
 
 
-def test_an_unknown_fingerprint_on_either_side_counts_as_stale() -> None:
-    no_results = _build(_costs(PROPOSED), _costs(ANCHOR), {"a": "fp", "p": None})
-    assert no_results["p"].reason == STALE_ENSEMBLE
-
-    unstamped = _build(_costs(PROPOSED, fingerprint=None), _costs(ANCHOR))
-    assert unstamped["p"].reason == STALE_ENSEMBLE
+# ---------------------------------------------------------------------------
+# Choosing a scenario's ensemble (pure)
+# ---------------------------------------------------------------------------
 
 
-def test_no_anchor_ensemble_reason_differs_from_a_stale_one() -> None:
-    assert _build(_costs(PROPOSED), None)["p"].reason == NO_ANCHOR_ENSEMBLE
+def _loader(costs: Mapping[str, Optional[EnsembleSeedCosts]]):
+    return lambda job: costs.get(job.job_id)
+
+
+def test_the_newest_ensemble_on_current_settings_is_used() -> None:
+    jobs = [_job("ens_new"), _job("ens_old"), _job("ens_a", scenario_id="a")]
+    loads = {
+        "ens_new": _costs(PROPOSED, job_id="ens_new", fingerprint="fp-old"),
+        "ens_old": _costs(PROPOSED, job_id="ens_old", fingerprint="fp"),
+    }
+
+    chosen = choose_ensemble(jobs, "p", ResultsIdentity("fp"), _loader(loads))
+
+    assert chosen.costs is not None and chosen.job_id == "ens_old"
+    assert chosen.reason is None
+
+
+def test_with_none_current_the_newest_job_and_its_reason_are_reported() -> None:
+    jobs = [_job("ens_new"), _job("ens_old"), _job("ens_failed", status="failed")]
+    stale = {"ens_old": _costs(PROPOSED, job_id="ens_old", fingerprint="fp-old")}
+
+    unreadable = choose_ensemble(jobs, "p", ResultsIdentity("fp"), _loader(stale))
+    assert (unreadable.job_id, unreadable.reason) == ("ens_new", UNREADABLE_ENSEMBLE)
+    assert unreadable.costs is None
+
+    both_stale = {**stale, "ens_new": _costs(PROPOSED, fingerprint="fp-old")}
+    chosen = choose_ensemble(jobs, "p", ResultsIdentity("fp"), _loader(both_stale))
+    assert (chosen.job_id, chosen.reason) == ("ens_new", STALE_ENSEMBLE)
+
+    unstamped = {"ens_new": _costs(PROPOSED, fingerprint=None)}
+    chosen = choose_ensemble(jobs, "p", ResultsIdentity("fp"), _loader(unstamped))
+    assert chosen.reason == STALE_ENSEMBLE
+
+
+def test_untrusted_results_use_no_ensemble() -> None:
+    jobs = [_job("ens_new")]
+    loads = {"ens_new": _costs(PROPOSED, job_id="ens_new", fingerprint="fp")}
+
+    for reason in (MIXED_RESULTS, UNRECORDED_RESULTS):
+        chosen = choose_ensemble(
+            jobs, "p", ResultsIdentity(None, reason), _loader(loads)
+        )
+        assert (chosen.costs, chosen.job_id, chosen.reason) == (None, "ens_new", reason)
+
+
+def test_no_finished_job_is_no_ensemble() -> None:
+    chosen = choose_ensemble(
+        [_job("ens_failed", status="failed")], "p", ResultsIdentity("fp"), _loader({})
+    )
+    assert chosen == ScenarioEnsemble()
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +391,18 @@ def test_studio_run_and_ensemble_fingerprints_match_until_the_match_changes(
     assert rerun != ensemble
     assert _ensemble_fingerprint(storage, ws, scenario_id, tmp_path) == rerun
 
+    # The horizon is part of the fingerprint, so a match also means the
+    # ensemble covers the years the results show.
+    storage.update_scenario(
+        ws,
+        scenario_id,
+        config_overrides={
+            "dc_plan": {"match_cap_percent": 0.06},
+            "simulation": {"end_year": 2028},
+        },
+    )
+    assert _studio_run_fingerprint(storage, ws, scenario_id, tmp_path) != rerun
+
 
 # ---------------------------------------------------------------------------
 # Endpoint
@@ -363,43 +468,29 @@ class _Workspace:
             database, aggregate_ensemble(seed_values, min_seeds=5), seed_values
         )
         write_ensemble_provenance(plan)
-        estimate = EnsembleEstimate(
-            seed_count=len(SEEDS),
-            seeds=list(SEEDS),
-            start_year=YEARS[0],
-            end_year=YEARS[-1],
-            run_count=len(SEEDS),
-            seconds_per_run=1.0,
-            estimated_seconds=1.0,
-            time_basis="default",
-            estimated_disk_mib=1.0,
-        )
         self.store.save(
-            EnsembleJob(
-                job_id=job_id,
-                workspace_id=self.workspace_id,
-                scenario_id=scenario_id,
-                scenario_name="S",
-                status=status,  # type: ignore[arg-type]
-                seed_count=len(SEEDS),
-                seeds=list(SEEDS),
-                start_year=YEARS[0],
-                end_year=YEARS[-1],
-                estimate=estimate,
-                created_at=created_at,
-                completed_at=created_at,
-                progress=EnsembleProgress(seeds_total=len(SEEDS)),
-                output=EnsembleOutput(
-                    database_path=str(database.resolve()),
-                    ensemble_id=plan.ensemble_id,
-                    ensemble_scenario_id="scenario-in-db",
-                ),
+            _job(job_id, scenario_id, status).model_copy(
+                update={
+                    "workspace_id": self.workspace_id,
+                    "created_at": created_at,
+                    "completed_at": created_at,
+                    "output": EnsembleOutput(
+                        database_path=str(database.resolve()),
+                        ensemble_id=plan.ensemble_id,
+                        ensemble_scenario_id="scenario-in-db",
+                    ),
+                }
             )
         )
         return job_id
 
-    def results(self, scenario_id: str, fingerprint: str = "fp") -> None:
-        """A (legacy-located) result database stamped like a real run."""
+    def results(
+        self, scenario_id: str, fingerprint: str = "fp", *, earlier: str = ""
+    ) -> None:
+        """A (legacy-located) result database stamped like a real run.
+
+        ``earlier`` adds an older generation on other settings beneath it.
+        """
         path = (
             self.storage._scenario_path(self.workspace_id, scenario_id)
             / "simulation.duckdb"
@@ -412,6 +503,14 @@ class _Workspace:
                 "VALUES ('run-1', now(), 'simulate', ?, 7, 2026, 2027)",
                 [fingerprint],
             )
+            if earlier:
+                conn.execute(
+                    f"INSERT INTO {RUN_METADATA_TABLE} (run_id, run_timestamp, "
+                    "run_type, config_fingerprint, random_seed, start_year, end_year) "
+                    "VALUES ('run-0', now() - INTERVAL 1 DAY, 'simulate', ?, 7, "
+                    "2026, 2027)",
+                    [earlier],
+                )
 
 
 @pytest.fixture
@@ -479,6 +578,51 @@ def test_endpoint_hides_an_ensemble_from_before_a_settings_change(
     assert by_id[proposed]["current"] is False
     assert by_id[proposed]["total"] is None and by_id[proposed]["years"] == []
     assert by_id[anchor]["current"] is True and by_id[anchor]["total"] is not None
+
+
+def test_endpoint_falls_back_to_an_older_current_ensemble(client, workspace) -> None:
+    anchor, proposed = workspace.scenario("A"), workspace.scenario("P")
+    workspace.results(anchor)
+    workspace.results(proposed)
+    workspace.finished_job(anchor, ANCHOR)
+    older = workspace.finished_job(
+        proposed, PROPOSED, created_at=datetime(2026, 10, 1, tzinfo=timezone.utc)
+    )
+    workspace.finished_job(proposed, PROPOSED, fingerprint="fp-other-settings")
+
+    body = _get(client, workspace, [anchor, proposed], anchor).json()
+
+    chosen = next(i for i in body["scenarios"] if i["scenario_id"] == proposed)
+    assert chosen["job_id"] == older and chosen["current"] and chosen["paired"]
+
+
+def test_endpoint_reports_an_unreadable_ensemble(client, workspace) -> None:
+    anchor, proposed = workspace.scenario("A"), workspace.scenario("P")
+    workspace.results(anchor)
+    workspace.results(proposed)
+    workspace.finished_job(anchor, ANCHOR)
+    broken = workspace.finished_job(proposed, PROPOSED)
+    database = workspace.store.job_dir(workspace.workspace_id, broken)
+    (database / "ensemble.duckdb").write_bytes(b"not a database")
+
+    body = _get(client, workspace, [anchor, proposed], anchor).json()
+
+    chosen = next(i for i in body["scenarios"] if i["scenario_id"] == proposed)
+    assert (chosen["job_id"], chosen["reason"]) == (broken, UNREADABLE_ENSEMBLE)
+    assert chosen["current"] is False
+
+
+def test_endpoint_refuses_results_from_mixed_settings(client, workspace) -> None:
+    anchor, proposed = workspace.scenario("A"), workspace.scenario("P")
+    workspace.results(anchor)
+    workspace.results(proposed, earlier="fp-before")
+    workspace.finished_job(anchor, ANCHOR)
+    workspace.finished_job(proposed, PROPOSED)
+
+    body = _get(client, workspace, [anchor, proposed], anchor).json()
+
+    chosen = next(i for i in body["scenarios"] if i["scenario_id"] == proposed)
+    assert chosen["reason"] == MIXED_RESULTS and chosen["total"] is None
 
 
 def test_endpoint_validates_ids_and_anchor(client, workspace) -> None:

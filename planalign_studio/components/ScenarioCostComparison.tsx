@@ -492,14 +492,12 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   // Derived Data: Seed ranges beside gross employer cost
   // -------------------------------------------------------------------------
-  const ensembleRanges = useEnsembleCostRanges(
-    activeWorkspace?.id, selectedScenarioIds, anchorScenarioId, comparisonData !== null
+  const loadedScenarioIds = useMemo(
+    () => (comparisonData?.analytics ?? []).map(a => a.scenario_id),
+    [comparisonData]
   );
-  const seedRanges = useMemo(() => buildSeedRangeView(
-    ensembleRanges,
-    new Map((comparisonData?.analytics ?? []).map(a => [a.scenario_id, a.contribution_by_year.map(y => y.year)])),
-    anchorScenarioId,
-  ), [ensembleRanges, comparisonData, anchorScenarioId]);
+  const ensembleRanges = useEnsembleCostRanges(activeWorkspace?.id, loadedScenarioIds, anchorScenarioId);
+  const seedRanges = useMemo(() => buildSeedRangeView(ensembleRanges), [ensembleRanges]);
   const seedRangesHidden = seedRangeHiddenReason(cohort, grandfatherExisting);
   const seedRangeFor = (id: string) => (seedRangesHidden === null ? seedRanges.rows.get(id) : undefined);
 

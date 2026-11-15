@@ -39,58 +39,25 @@ export function seedRangeHiddenReason(
   return null;
 }
 
-function sameYears(range: ScenarioCostRange, years: number[]): boolean {
-  if (range.start_year === null || range.end_year === null || years.length === 0) return false;
-  const sorted = [...years].sort((a, b) => a - b);
-  return sorted[0] === range.start_year
-    && sorted[sorted.length - 1] === range.end_year
-    && sorted.length === range.end_year - range.start_year + 1;
-}
-
 /**
- * Shape the API response for the cost matrix. A scenario's ranges are used
- * only when its ensemble covers exactly the years its results show; its
- * difference also needs the anchor's ensemble to cover the anchor's years.
+ * Shape the API response for the cost matrix. The API decides whether an
+ * ensemble may be used (same settings, so the same years, as the results
+ * shown) and whether it pairs with the anchor; this only lays it out.
  */
-export function buildSeedRangeView(
-  ranges: ScenarioCostRange[],
-  resultYears: Map<string, number[]>,
-  anchorId: string,
-): SeedRangeView {
+export function buildSeedRangeView(ranges: ScenarioCostRange[]): SeedRangeView {
   const rows = new Map<string, SeedRangeRow>();
   const notes: SeedRangeView['notes'] = [];
-  const matches = (range: ScenarioCostRange) => sameYears(range, resultYears.get(range.scenario_id) ?? []);
-  const anchor = ranges.find(range => range.scenario_id === anchorId);
-  const anchorMatches = anchor !== undefined && matches(anchor);
-
   for (const range of ranges) {
     if (range.job_id === null) continue; // no ensemble: point figures stay as they are
-    if (!range.current) {
-      notes.push({ scenarioId: range.scenario_id, reason: range.reason ?? 'Its ensemble was run on other settings.' });
-      continue;
-    }
-    if (!matches(range)) {
-      notes.push({
-        scenarioId: range.scenario_id,
-        reason: `Its ensemble covers ${range.start_year}–${range.end_year}, not the years shown, so no range is shown.`,
-      });
-      continue;
-    }
-    const pairedNote = range.scenario_id === anchorId ? null : pairingNote(range, anchorMatches);
-    if (pairedNote) notes.push({ scenarioId: range.scenario_id, reason: pairedNote });
+    if (range.reason) notes.push({ scenarioId: range.scenario_id, reason: range.reason });
+    if (!range.current) continue;
     rows.set(range.scenario_id, {
       years: new Map(range.years.map(band => [band.year, band])),
       total: range.total,
-      difference: pairedNote === null ? range.difference_total : null,
+      difference: range.paired ? range.difference_total : null,
     });
   }
   return { rows, notes };
-}
-
-function pairingNote(range: ScenarioCostRange, anchorMatches: boolean): string | null {
-  if (!range.paired) return range.reason ?? 'Not paired with the anchor.';
-  if (!anchorMatches) return "The anchor's ensemble doesn't cover the years shown, so they aren't paired.";
-  return null;
 }
 
 /** Compact currency matching the page's formatCurrency, with a real minus sign. */
@@ -106,26 +73,35 @@ export function formatCostBand(band: CostBandView): string {
   return `${formatCompactCurrency(band.p10)}–${formatCompactCurrency(band.p90)}`;
 }
 
-/** Short cell text: "saves $40.0K–$80.0K", "adds …", or a signed span when it straddles zero. */
+/** Short cell text: "saves $40.0K–$80.0K", "adds …", a signed span across zero, or "same as anchor". */
 export function formatDifference(range: DifferenceView): string {
-  if (range.max < 0) {
+  if (range.min === 0 && range.max === 0) return 'same as anchor';
+  if (range.max <= 0) {
     return `saves ${formatCompactCurrency(-range.max)}–${formatCompactCurrency(-range.min)}`;
   }
-  if (range.min > 0) {
+  if (range.min >= 0) {
     return `adds ${formatCompactCurrency(range.min)}–${formatCompactCurrency(range.max)}`;
   }
   return `${formatCompactCurrency(range.min)} to +${formatCompactCurrency(range.max)}`;
 }
 
+function describePoint(delta: number): string {
+  if (delta === 0) return 'Costs the same as the anchor';
+  return `Costs ${formatCompactCurrency(Math.abs(delta))} ${delta < 0 ? 'less' : 'more'} than the anchor`;
+}
+
 /** Full sentence for the tooltip: "Costs $X less than the anchor; across 10 seeds the saving ranges from A to B." */
 export function describeDifference(delta: number, range: DifferenceView): string {
-  const point = `Costs ${formatCompactCurrency(Math.abs(delta))} ${delta < 0 ? 'less' : 'more'} than the anchor`;
   const seeds = `across ${range.n_seeds} seeds`;
-  if (range.max < 0) {
-    return `${point}; ${seeds} the saving ranges from ${formatCompactCurrency(-range.max)} to ${formatCompactCurrency(-range.min)}.`;
+  let spread: string;
+  if (range.min === 0 && range.max === 0) {
+    spread = `${seeds} it is the same on every seed`;
+  } else if (range.max <= 0) {
+    spread = `${seeds} the saving ranges from ${formatCompactCurrency(-range.max)} to ${formatCompactCurrency(-range.min)}`;
+  } else if (range.min >= 0) {
+    spread = `${seeds} the extra cost ranges from ${formatCompactCurrency(range.min)} to ${formatCompactCurrency(range.max)}`;
+  } else {
+    spread = `${seeds} the difference ranges from ${formatCompactCurrency(range.min)} to +${formatCompactCurrency(range.max)}, so its direction depends on the seed`;
   }
-  if (range.min > 0) {
-    return `${point}; ${seeds} the extra cost ranges from ${formatCompactCurrency(range.min)} to ${formatCompactCurrency(range.max)}.`;
-  }
-  return `${point}; ${seeds} the difference ranges from ${formatCompactCurrency(range.min)} to +${formatCompactCurrency(range.max)}, so its direction depends on the seed.`;
+  return `${describePoint(delta)}; ${spread}.`;
 }

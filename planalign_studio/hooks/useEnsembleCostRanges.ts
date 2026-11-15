@@ -2,29 +2,31 @@ import { useEffect, useState } from 'react';
 import { getEnsembleCostRanges, type ScenarioCostRange } from '../services/api';
 
 /**
- * Seed ranges for the compared scenarios. They are secondary to the point
- * figures, so a failed request leaves the page as it was (logged, not shown).
+ * Seed ranges for the scenarios of the comparison currently loaded, so they
+ * are requested once per loaded comparison (not again while a new selection
+ * loads) and never laid against another comparison's figures. They are
+ * secondary to the point figures, so a failed request leaves the page as it
+ * was (logged, not shown).
  */
 export function useEnsembleCostRanges(
   workspaceId: string | undefined,
-  scenarioIds: string[],
+  loadedScenarioIds: string[],
   anchorScenarioId: string,
-  enabled: boolean,
 ): ScenarioCostRange[] {
-  const [ranges, setRanges] = useState<ScenarioCostRange[]>([]);
-  const key = scenarioIds.join(',');
+  const ids = loadedScenarioIds.join(',');
+  const key = workspaceId && anchorScenarioId && loadedScenarioIds.includes(anchorScenarioId)
+    ? `${workspaceId}|${anchorScenarioId}|${ids}`
+    : null;
+  const [loaded, setLoaded] = useState<{ key: string; ranges: ScenarioCostRange[] } | null>(null);
 
   useEffect(() => {
-    setRanges([]);
-    if (!enabled || !workspaceId || !anchorScenarioId || !key.split(',').includes(anchorScenarioId)) {
-      return;
-    }
+    if (key === null || !workspaceId) return;
     let cancelled = false;
-    getEnsembleCostRanges(workspaceId, key.split(','), anchorScenarioId)
-      .then(response => { if (!cancelled) setRanges(response.scenarios); })
+    getEnsembleCostRanges(workspaceId, ids.split(','), anchorScenarioId)
+      .then(response => { if (!cancelled) setLoaded({ key, ranges: response.scenarios }); })
       .catch((err: unknown) => console.warn('Seed ranges unavailable:', err));
     return () => { cancelled = true; };
-  }, [workspaceId, key, anchorScenarioId, enabled]);
+  }, [key, workspaceId, ids, anchorScenarioId]);
 
-  return ranges;
+  return loaded !== null && loaded.key === key ? loaded.ranges : [];
 }

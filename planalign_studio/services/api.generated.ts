@@ -6160,10 +6160,6 @@ export interface components {
             min: number;
             /** N Seeds */
             n_seeds: number;
-            /** P10 */
-            p10: number;
-            /** P90 */
-            p90: number;
         };
         /**
          * DistributionStats
@@ -11870,10 +11866,6 @@ export interface components {
             min: number;
             /** N Seeds */
             n_seeds: number;
-            /** P10 */
-            p10: number;
-            /** P90 */
-            p90: number;
             /** Year */
             year: number;
         };

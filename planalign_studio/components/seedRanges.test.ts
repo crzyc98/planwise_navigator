@@ -32,13 +32,12 @@ function range(id: string, overrides: Partial<ScenarioCostRange> = {}): Scenario
 
 const paired = range('p', {
   paired: true,
-  difference_total: { min: -80_000, max: -40_000, p10: -75_000, p90: -45_000, n_seeds: 10 },
+  difference_total: { min: -80_000, max: -40_000, n_seeds: 10 },
 });
-const years = new Map([['a', [2026, 2027]], ['p', [2026, 2027]], ['b', [2026, 2027]]]);
 
 describe('buildSeedRangeView', () => {
-  it('keeps bands and the paired difference when years match', () => {
-    const view = buildSeedRangeView([range('a'), paired], years, 'a');
+  it('keeps bands and the paired difference', () => {
+    const view = buildSeedRangeView([range('a'), paired]);
 
     expect(view.notes).toEqual([]);
     expect(view.rows.get('a')?.difference).toBeNull();
@@ -47,8 +46,10 @@ describe('buildSeedRangeView', () => {
   });
 
   it('leaves scenarios without an ensemble untouched and silent', () => {
-    const bare = range('b', { job_id: null, years: [], total: null, reason: 'No finished ensemble for this scenario.' });
-    const view = buildSeedRangeView([range('a'), paired, bare], years, 'a');
+    const bare = range('b', {
+      job_id: null, current: false, years: [], total: null, reason: 'No finished ensemble for this scenario.',
+    });
+    const view = buildSeedRangeView([range('a'), paired, bare]);
 
     expect(view.rows.has('b')).toBe(false);
     expect(view.notes).toEqual([]);
@@ -56,33 +57,24 @@ describe('buildSeedRangeView', () => {
 
   it('says why an unpaired ensemble has no difference, but keeps its band', () => {
     const reason = "Its ensemble used different seeds from the anchor's, so they aren't paired.";
-    const view = buildSeedRangeView([range('a'), range('p', { reason })], years, 'a');
+    const view = buildSeedRangeView([range('a'), range('p', { reason })]);
 
     expect(view.notes).toEqual([{ scenarioId: 'p', reason }]);
     expect(view.rows.get('p')?.total).not.toBeNull();
     expect(view.rows.get('p')?.difference).toBeNull();
   });
 
-  it('shows only a note for an ensemble run on older settings', () => {
-    const reason = "Its ensemble was run before this scenario's settings changed; run a new ensemble to see a range.";
-    const stale = range('p', { current: false, years: [], total: null, reason });
-    const view = buildSeedRangeView([range('a'), stale], years, 'a');
+  it('shows only a note for an ensemble the API can not use', () => {
+    for (const reason of [
+      "Its ensemble was run before this scenario's settings changed; run a new ensemble to see a range.",
+      "Its ensemble couldn't be read, so no range is shown.",
+    ]) {
+      const unusable = range('p', { current: false, years: [], total: null, reason });
+      const view = buildSeedRangeView([range('a'), unusable]);
 
-    expect(view.rows.has('p')).toBe(false);
-    expect(view.notes).toEqual([{ scenarioId: 'p', reason }]);
-  });
-
-  it('drops ranges whose ensemble covers other years than the results shown', () => {
-    const view = buildSeedRangeView(
-      [range('a', { end_year: 2028 }), paired],
-      years,
-      'a',
-    );
-
-    expect(view.rows.has('a')).toBe(false);
-    expect(view.notes[0]).toMatchObject({ scenarioId: 'a' });
-    expect(view.rows.get('p')?.difference).toBeNull();
-    expect(view.notes[1].reason).toMatch(/anchor's ensemble doesn't cover/);
+      expect(view.rows.has('p')).toBe(false);
+      expect(view.notes).toEqual([{ scenarioId: 'p', reason }]);
+    }
   });
 });
 
@@ -92,6 +84,18 @@ describe('formatting', () => {
     expect(formatDifference({ min: -80_000, max: -40_000, n_seeds: 10 })).toBe('saves $40.0K–$80.0K');
     expect(formatDifference({ min: 1_000, max: 3_000, n_seeds: 10 })).toBe('adds $1.0K–$3.0K');
     expect(formatDifference({ min: -10_000, max: 30_000, n_seeds: 10 })).toBe('−$10.0K to +$30.0K');
+  });
+
+  it('never calls a difference that touches zero the wrong way', () => {
+    expect(formatDifference({ min: 0, max: 5_000, n_seeds: 10 })).toBe('adds $0–$5.0K');
+    expect(formatDifference({ min: -5_000, max: 0, n_seeds: 10 })).toBe('saves $0–$5.0K');
+    expect(formatDifference({ min: 0, max: 0, n_seeds: 10 })).toBe('same as anchor');
+    expect(describeDifference(0, { min: 0, max: 0, n_seeds: 10 }))
+      .toBe('Costs the same as the anchor; across 10 seeds it is the same on every seed.');
+    expect(describeDifference(2_000, { min: 0, max: 5_000, n_seeds: 10 }))
+      .toBe('Costs $2.0K more than the anchor; across 10 seeds the extra cost ranges from $0 to $5.0K.');
+    expect(describeDifference(-2_000, { min: -5_000, max: 0, n_seeds: 10 }))
+      .toBe('Costs $2.0K less than the anchor; across 10 seeds the saving ranges from $0 to $5.0K.');
   });
 
   it('describes the paired range in a sentence, never as a confidence interval', () => {

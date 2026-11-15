@@ -112,8 +112,6 @@ class DifferenceRange(APIModel):
 
     min: float
     max: float
-    p10: float
-    p90: float
     n_seeds: int
 
 

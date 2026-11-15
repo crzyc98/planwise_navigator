@@ -30,7 +30,10 @@ from ...models.ensemble_job import (
 )
 from ...models.scenario import Scenario
 from ...storage.workspace_storage import WorkspaceStorage
-from ..database_path_resolver import create_api_database_path_resolver
+from ..database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 from ..path_guard import PathGuardError, require_canonical_uuid
 from ..run_trust import read_run_trust
 from ..simulation.run_execution import (
@@ -50,9 +53,11 @@ from .runner import (
     default_registry,
 )
 from .cost_ranges import (
-    EnsembleSeedCosts,
+    MIXED_RESULTS,
+    UNRECORDED_RESULTS,
+    ResultsIdentity,
     build_cost_ranges,
-    latest_finished_job,
+    choose_ensemble,
     load_seed_costs,
 )
 from .processes import stop_job
@@ -157,26 +162,17 @@ class EnsembleJobService:
         for scenario_id in scenario_ids:
             self._require_scenario(workspace_id, scenario_id)
         jobs = self.store.list_jobs(workspace_id)
-        ensembles: dict[str, Optional[EnsembleSeedCosts]] = {}
-        for scenario_id in scenario_ids:
-            job = latest_finished_job(jobs, scenario_id)
-            ensembles[scenario_id] = load_seed_costs(job) if job else None
-        fingerprints = {
-            scenario_id: self._results_fingerprint(workspace_id, scenario_id)
+        resolver = create_api_database_path_resolver(self.storage)
+        ensembles = {
+            scenario_id: choose_ensemble(
+                jobs,
+                scenario_id,
+                _results_identity(resolver, workspace_id, scenario_id),
+                load_seed_costs,
+            )
             for scenario_id in scenario_ids
         }
-        return build_cost_ranges(scenario_ids, anchor_id, ensembles, fingerprints)
-
-    def _results_fingerprint(
-        self, workspace_id: str, scenario_id: str
-    ) -> Optional[str]:
-        """Config fingerprint stamped on the run Cost Comparison is showing."""
-        resolved = create_api_database_path_resolver(self.storage).resolve(
-            workspace_id, scenario_id
-        )
-        if not resolved.exists or resolved.path is None:
-            return None
-        return read_run_trust(resolved.path, resolved.run_id).config_fingerprint
+        return build_cost_ranges(scenario_ids, anchor_id, ensembles)
 
     def cancel(self, workspace_id: str, job_id: str) -> EnsembleJob:
         job = self.get(workspace_id, job_id)
@@ -302,6 +298,21 @@ class EnsembleJobService:
         if scenario is None:
             raise EnsembleJobError(404, f"scenario {scenario_id} not found")
         return scenario
+
+
+def _results_identity(
+    resolver: DatabasePathResolver, workspace_id: str, scenario_id: str
+) -> ResultsIdentity:
+    """Settings stamped on the run Cost Comparison is showing, if trustworthy."""
+    resolved = resolver.resolve(workspace_id, scenario_id)
+    if not resolved.exists or resolved.path is None:
+        return ResultsIdentity(fingerprint=None, reason=UNRECORDED_RESULTS)
+    trust = read_run_trust(resolved.path, resolved.run_id)
+    if "mixed_generation" in trust.reasons:
+        return ResultsIdentity(fingerprint=None, reason=MIXED_RESULTS)
+    if not trust.available or not trust.config_fingerprint:
+        return ResultsIdentity(fingerprint=None, reason=UNRECORDED_RESULTS)
+    return ResultsIdentity(fingerprint=trust.config_fingerprint)
 
 
 def fail_interrupted_ensembles(storage: WorkspaceStorage) -> int:
