@@ -412,7 +412,8 @@ def test_studio_run_and_ensemble_fingerprints_match_until_the_match_changes(
 class _Workspace:
     def __init__(self, tmp_path: Path):
         self.storage = WorkspaceStorage(tmp_path / "workspaces")
-        census = tmp_path / "census.parquet"
+        census = self.storage.workspaces_root / "census.parquet"
+        census.parent.mkdir(parents=True, exist_ok=True)
         census.write_bytes(b"stub census")
         base = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
         base["setup"]["census_parquet_path"] = str(census)

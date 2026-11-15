@@ -124,7 +124,8 @@ def short_kill_grace(monkeypatch) -> None:
 @pytest.fixture
 def harness(tmp_path) -> Harness:
     storage = WorkspaceStorage(tmp_path / "workspaces")
-    census = tmp_path / "census.parquet"
+    census = storage.workspaces_root / "census.parquet"
+    census.parent.mkdir(parents=True, exist_ok=True)
     census.write_bytes(b"stub census")
     base = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
     base["setup"]["census_parquet_path"] = str(census)
@@ -304,7 +305,7 @@ def test_a_cli_error_fails_without_leaking_server_paths(client, harness) -> None
 
 
 def test_missing_census_is_refused_before_queueing(client, harness, tmp_path) -> None:
-    (tmp_path / "census.parquet").unlink()
+    (harness.storage.workspaces_root / "census.parquet").unlink()
 
     response = client.post(harness.scenario_url(), json={"seed_count": 5})
 
