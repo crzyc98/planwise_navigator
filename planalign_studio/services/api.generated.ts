@@ -1919,6 +1919,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/ensembles/cost-ranges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ensemble Cost Ranges
+         * @description Seed ranges beside Cost Comparison's gross employer cost.
+         *
+         *     Each scenario's latest finished ensemble gives P10-P90 of annual and total
+         *     employer cost; a scenario whose ensemble ran on the anchor's seeds and
+         *     years also gets its difference from the anchor, taken seed by seed.
+         *     Registered before ``/ensembles/{job_id}`` so the path isn't read as a job id.
+         */
+        get: operations["get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/ensembles/{job_id}": {
         parameters: {
             query?: never;
@@ -5388,6 +5413,18 @@ export interface components {
             year: number;
         };
         /**
+         * CostBand
+         * @description P10-P90 of one scenario's employer cost across its ensemble's seeds.
+         */
+        CostBand: {
+            /** N Seeds */
+            n_seeds: number;
+            /** P10 */
+            p10: number;
+            /** P90 */
+            p90: number;
+        };
+        /**
          * CostEstimateRow
          * @description Pay and estimated employer cost for one year, before and after solving.
          *
@@ -6113,6 +6150,18 @@ export interface components {
             sample_values: string[];
         };
         /**
+         * DifferenceRange
+         * @description Spread of (scenario - anchor) employer cost, differenced seed by seed.
+         */
+        DifferenceRange: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+            /** N Seeds */
+            n_seeds: number;
+        };
+        /**
          * DistributionStats
          * @description Statistics from census distribution analysis.
          */
@@ -6409,6 +6458,20 @@ export interface components {
              * @description Why basis_available is false, for display
              */
             unavailable_reason: string | null;
+        };
+        /**
+         * EnsembleCostRanges
+         * @description Seed ranges beside Cost Comparison's gross employer cost.
+         *
+         *     The metric is ``total_employer_plan_cost``: the sum of employer match and
+         *     core over every snapshot row, the same quantity as the page's gross
+         *     employer cost for all employees.
+         */
+        EnsembleCostRanges: {
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["ScenarioCostRange"][];
         };
         /**
          * EnsembleDatabaseSummary
@@ -9445,6 +9508,49 @@ export interface components {
             success: boolean;
         };
         /**
+         * ScenarioCostRange
+         * @description Seed ranges for one compared scenario; empty when there are none.
+         */
+        ScenarioCostRange: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Current
+             * @description Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did
+             * @default false
+             */
+            current: boolean;
+            difference_total: components["schemas"]["DifferenceRange"] | null;
+            /** Difference Years */
+            difference_years: components["schemas"]["YearDifferenceRange"][];
+            /** End Year */
+            end_year: number | null;
+            /** Job Id */
+            job_id: string | null;
+            /**
+             * Paired
+             * @description Whether differences from the anchor were taken seed by seed
+             * @default false
+             */
+            paired: boolean;
+            /**
+             * Reason
+             * @description Why ranges or pairing are missing, in one line
+             */
+            reason: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Start Year */
+            start_year: number | null;
+            /** @description Employer cost summed over the ensemble's years */
+            total: components["schemas"]["CostBand"] | null;
+            /**
+             * Years
+             * @description Annual employer cost, P10-P90
+             */
+            years: components["schemas"]["YearCostBand"][];
+        };
+        /**
          * ScenarioCreate
          * @description Request model for creating a scenario.
          */
@@ -11740,6 +11846,28 @@ export interface components {
             lifecycle?: ("active" | "archived") | null;
             /** Name */
             name?: string | null;
+        };
+        /** YearCostBand */
+        YearCostBand: {
+            /** N Seeds */
+            n_seeds: number;
+            /** P10 */
+            p10: number;
+            /** P90 */
+            p90: number;
+            /** Year */
+            year: number;
+        };
+        /** YearDifferenceRange */
+        YearDifferenceRange: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+            /** N Seeds */
+            n_seeds: number;
+            /** Year */
+            year: number;
         };
         /** YearState */
         YearState: {
@@ -14972,6 +15100,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnsembleJob"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated compared scenario IDs */
+                scenarios: string;
+                /** @description Anchor scenario ID, one of `scenarios` */
+                anchor: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleCostRanges"];
                 };
             };
             /** @description Validation Error */

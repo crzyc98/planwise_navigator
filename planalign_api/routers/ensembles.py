@@ -37,7 +37,12 @@ from planalign_ensemble.studio_reader import (
 )
 
 from ..config import APISettings, get_settings
-from ..models.ensemble_job import EnsembleEstimate, EnsembleJob, EnsembleRequest
+from ..models.ensemble_job import (
+    EnsembleCostRanges,
+    EnsembleEstimate,
+    EnsembleJob,
+    EnsembleRequest,
+)
 from ..services.ensemble_jobs import EnsembleJobError, EnsembleJobService
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -147,6 +152,30 @@ def list_ensemble_jobs(
     """A workspace's ensemble jobs, newest first, optionally for one scenario."""
     with _job_errors():
         return service.list_jobs(workspace_id, scenario_id)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/ensembles/cost-ranges",
+    response_model=EnsembleCostRanges,
+)
+def get_ensemble_cost_ranges(
+    workspace_id: str,
+    scenarios: str = Query(..., description="Comma-separated compared scenario IDs"),
+    anchor: str = Query(..., description="Anchor scenario ID, one of `scenarios`"),
+    service: EnsembleJobService = Depends(get_ensemble_job_service),
+) -> EnsembleCostRanges:
+    """Seed ranges beside Cost Comparison's gross employer cost.
+
+    Each scenario's latest finished ensemble gives P10-P90 of annual and total
+    employer cost; a scenario whose ensemble ran on the anchor's seeds and
+    years also gets its difference from the anchor, taken seed by seed.
+    Registered before ``/ensembles/{job_id}`` so the path isn't read as a job id.
+    """
+    scenario_ids = list(
+        dict.fromkeys(item.strip() for item in scenarios.split(",") if item.strip())
+    )
+    with _job_errors():
+        return service.cost_ranges(workspace_id, scenario_ids, anchor.strip())
 
 
 @router.get("/workspaces/{workspace_id}/ensembles/{job_id}", response_model=EnsembleJob)

@@ -5437,6 +5437,30 @@
         "title": "ContributionYearSummary",
         "type": "object"
       },
+      "CostBand": {
+        "description": "P10-P90 of one scenario's employer cost across its ensemble's seeds.",
+        "properties": {
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "p10": {
+            "title": "P10",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p10",
+          "p90",
+          "n_seeds"
+        ],
+        "title": "CostBand",
+        "type": "object"
+      },
       "CostEstimateRow": {
         "description": "Pay and estimated employer cost for one year, before and after solving.\n\nCalibration skips the plan calculations, so employer cost is estimated: it\nstays the same share of pay as in the run calibration started from.",
         "properties": {
@@ -6737,6 +6761,30 @@
         "title": "DetectedColumn",
         "type": "object"
       },
+      "DifferenceRange": {
+        "description": "Spread of (scenario - anchor) employer cost, differenced seed by seed.",
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "n_seeds"
+        ],
+        "title": "DifferenceRange",
+        "type": "object"
+      },
       "DistributionStats": {
         "description": "Statistics from census distribution analysis.",
         "properties": {
@@ -7440,6 +7488,28 @@
           "unavailable_reason"
         ],
         "title": "EmployerCostOffsetRow",
+        "type": "object"
+      },
+      "EnsembleCostRanges": {
+        "description": "Seed ranges beside Cost Comparison's gross employer cost.\n\nThe metric is ``total_employer_plan_cost``: the sum of employer match and\ncore over every snapshot row, the same quantity as the page's gross\nemployer cost for all employees.",
+        "properties": {
+          "anchor_scenario_id": {
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioCostRange"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anchor_scenario_id",
+          "scenarios"
+        ],
+        "title": "EnsembleCostRanges",
         "type": "object"
       },
       "EnsembleDatabaseSummary": {
@@ -14566,6 +14636,136 @@
         "title": "ScenarioApplyOutcome",
         "type": "object"
       },
+      "ScenarioCostRange": {
+        "description": "Seed ranges for one compared scenario; empty when there are none.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "current": {
+            "default": false,
+            "description": "Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "difference_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DifferenceRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "difference_years": {
+            "items": {
+              "$ref": "#/components/schemas/YearDifferenceRange"
+            },
+            "title": "Difference Years",
+            "type": "array"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "paired": {
+            "default": false,
+            "description": "Whether differences from the anchor were taken seed by seed",
+            "title": "Paired",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why ranges or pairing are missing, in one line",
+            "title": "Reason"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost summed over the ensemble's years"
+          },
+          "years": {
+            "description": "Annual employer cost, P10-P90",
+            "items": {
+              "$ref": "#/components/schemas/YearCostBand"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "job_id",
+          "completed_at",
+          "start_year",
+          "end_year",
+          "current",
+          "years",
+          "total",
+          "paired",
+          "difference_years",
+          "difference_total",
+          "reason"
+        ],
+        "title": "ScenarioCostRange",
+        "type": "object"
+      },
       "ScenarioCreate": {
         "description": "Request model for creating a scenario.",
         "properties": {
@@ -19388,6 +19588,62 @@
           }
         },
         "title": "WorkspaceUpdate",
+        "type": "object"
+      },
+      "YearCostBand": {
+        "properties": {
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "p10": {
+            "title": "P10",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "p10",
+          "p90",
+          "n_seeds",
+          "year"
+        ],
+        "title": "YearCostBand",
+        "type": "object"
+      },
+      "YearDifferenceRange": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "n_seeds",
+          "year"
+        ],
+        "title": "YearDifferenceRange",
         "type": "object"
       },
       "YearState": {
@@ -25811,6 +26067,105 @@
           }
         },
         "summary": "List Ensemble Jobs",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/cost-ranges": {
+      "get": {
+        "description": "Seed ranges beside Cost Comparison's gross employer cost.\n\nEach scenario's latest finished ensemble gives P10-P90 of annual and total\nemployer cost; a scenario whose ensemble ran on the anchor's seeds and\nyears also gets its difference from the anchor, taken seed by seed.\nRegistered before ``/ensembles/{job_id}`` so the path isn't read as a job id.",
+        "operationId": "get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated compared scenario IDs",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated compared scenario IDs",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Anchor scenario ID, one of `scenarios`",
+            "in": "query",
+            "name": "anchor",
+            "required": true,
+            "schema": {
+              "description": "Anchor scenario ID, one of `scenarios`",
+              "title": "Anchor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleCostRanges"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Ensemble Cost Ranges",
         "tags": [
           "Ensembles"
         ]

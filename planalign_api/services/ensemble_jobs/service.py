@@ -18,8 +18,10 @@ from planalign_ensemble.models import EnsembleSpec
 from planalign_ensemble.planner import plan_ensemble
 from planalign_orchestrator.config.simulation import SimulationSettings
 
+from ...constants import MAX_SCENARIO_COMPARISON
 from ...models.ensemble_job import (
     TERMINAL_STATUSES,
+    EnsembleCostRanges,
     EnsembleError,
     EnsembleEstimate,
     EnsembleJob,
@@ -28,7 +30,12 @@ from ...models.ensemble_job import (
 )
 from ...models.scenario import Scenario
 from ...storage.workspace_storage import WorkspaceStorage
+from ..database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 from ..path_guard import PathGuardError, require_canonical_uuid
+from ..run_trust import read_run_trust
 from ..simulation.run_execution import (
     prepare_dbt_project,
     scenario_pack_seeds,
@@ -44,6 +51,14 @@ from .runner import (
     JobPaths,
     build_cli_command,
     default_registry,
+)
+from .cost_ranges import (
+    MIXED_RESULTS,
+    UNRECORDED_RESULTS,
+    ResultsIdentity,
+    build_cost_ranges,
+    choose_ensemble,
+    load_seed_costs,
 )
 from .processes import stop_job
 from .store import ENSEMBLE_DB_FILENAME, EnsembleJobStore, is_job_id
@@ -133,6 +148,31 @@ class EnsembleJobService:
         if scenario_id is None:
             return jobs
         return [job for job in jobs if job.scenario_id == scenario_id]
+
+    def cost_ranges(
+        self, workspace_id: str, scenario_ids: list[str], anchor_id: str
+    ) -> EnsembleCostRanges:
+        """Employer-cost seed ranges for compared scenarios, paired with the anchor."""
+        if not 1 <= len(scenario_ids) <= MAX_SCENARIO_COMPARISON:
+            raise EnsembleJobError(
+                422, f"compare 1 to {MAX_SCENARIO_COMPARISON} scenarios"
+            )
+        if anchor_id not in scenario_ids:
+            raise EnsembleJobError(422, "anchor must be one of the compared scenarios")
+        for scenario_id in scenario_ids:
+            self._require_scenario(workspace_id, scenario_id)
+        jobs = self.store.list_jobs(workspace_id)
+        resolver = create_api_database_path_resolver(self.storage)
+        ensembles = {
+            scenario_id: choose_ensemble(
+                jobs,
+                scenario_id,
+                _results_identity(resolver, workspace_id, scenario_id),
+                load_seed_costs,
+            )
+            for scenario_id in scenario_ids
+        }
+        return build_cost_ranges(scenario_ids, anchor_id, ensembles)
 
     def cancel(self, workspace_id: str, job_id: str) -> EnsembleJob:
         job = self.get(workspace_id, job_id)
@@ -258,6 +298,21 @@ class EnsembleJobService:
         if scenario is None:
             raise EnsembleJobError(404, f"scenario {scenario_id} not found")
         return scenario
+
+
+def _results_identity(
+    resolver: DatabasePathResolver, workspace_id: str, scenario_id: str
+) -> ResultsIdentity:
+    """Settings stamped on the run Cost Comparison is showing, if trustworthy."""
+    resolved = resolver.resolve(workspace_id, scenario_id)
+    if not resolved.exists or resolved.path is None:
+        return ResultsIdentity(fingerprint=None, reason=UNRECORDED_RESULTS)
+    trust = read_run_trust(resolved.path, resolved.run_id)
+    if "mixed_generation" in trust.reasons:
+        return ResultsIdentity(fingerprint=None, reason=MIXED_RESULTS)
+    if not trust.available or not trust.config_fingerprint:
+        return ResultsIdentity(fingerprint=None, reason=UNRECORDED_RESULTS)
+    return ResultsIdentity(fingerprint=trust.config_fingerprint)
 
 
 def fail_interrupted_ensembles(storage: WorkspaceStorage) -> int:

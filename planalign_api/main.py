@@ -142,6 +142,7 @@ SCENARIO_READ_ROUTES = {
     "get_cross_scenario_evidence_pack",
     "list_events",
     "list_ensemble_jobs",
+    "get_ensemble_cost_ranges",
 }
 
 
