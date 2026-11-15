@@ -3,14 +3,15 @@
 import logging
 
 from pathlib import Path
-from typing import List
+from typing import Annotated, List
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 logger = logging.getLogger(__name__)
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+_WILDCARD_BIND_HOSTS = {"0.0.0.0", "::", "[::]", ""}
 
 
 class APISettings(BaseSettings):
@@ -38,6 +39,11 @@ class APISettings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+    # Host header allowlist for HTTP and WebSocket requests. The bind host is
+    # added automatically when it is a specific address (see trusted_hosts).
+    # NoDecode lets the env var be a plain comma-separated list.
+    allowed_hosts: Annotated[List[str], NoDecode] = ["localhost", "127.0.0.1", "::1"]
 
     # WebSocket
     telemetry_interval_ms: int = 500
@@ -77,6 +83,7 @@ class APISettings(BaseSettings):
         env_file = ".env"
 
     @field_validator(
+        "allowed_hosts",
         "git_remote_allowed_schemes",
         "git_remote_allowed_hosts",
         mode="before",
@@ -87,6 +94,13 @@ class APISettings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @property
+    def trusted_hosts(self) -> List[str]:
+        """Allowed Host values, plus the bind host when it is a specific address."""
+        if self.host in _WILDCARD_BIND_HOSTS or self.host in self.allowed_hosts:
+            return list(self.allowed_hosts)
+        return [*self.allowed_hosts, self.host]
 
     @model_validator(mode="after")
     def validate_network_security(self) -> "APISettings":

@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute, iter_route_contexts
 
 from .config import get_settings
+from .trusted_hosts import TrustedHostMiddleware
 from .errors import (
     GENERIC_500_DETAIL,
     REQUEST_ID_HEADER,
@@ -499,6 +500,10 @@ def create_app() -> FastAPI:
         if not await require_websocket_api_token(websocket):
             return
         await batch_websocket(websocket, batch_id)
+
+    # Added last so it runs first: reject unknown Host headers before any
+    # other middleware or route sees the request.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 
     return app
 

@@ -1,0 +1,41 @@
+"""Reject HTTP and WebSocket requests whose Host header is not allowlisted.
+
+Starlette's ``TrustedHostMiddleware`` splits the Host header on the first
+colon, which turns a bracketed IPv6 host such as ``[::1]:8000`` into ``[``.
+This middleware parses IPv6 hosts correctly and otherwise behaves the same.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+from starlette.datastructures import Headers
+from starlette.responses import PlainTextResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+def normalize_host(host: str) -> str:
+    """Return a Host value without its port, IPv6 brackets or letter case."""
+    host = host.strip().lower()
+    if host.startswith("["):
+        return host[1 : host.find("]")] if "]" in host else ""
+    if host.count(":") > 1:  # bare IPv6 literal, e.g. from configuration
+        return host
+    return host.split(":", 1)[0]
+
+
+class TrustedHostMiddleware:
+    """Answer 400 to any request whose Host is not in ``allowed_hosts``."""
+
+    def __init__(self, app: ASGIApp, allowed_hosts: Iterable[str]) -> None:
+        self.app = app
+        self.allowed_hosts = frozenset(normalize_host(h) for h in allowed_hosts)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in ("http", "websocket"):
+            host = normalize_host(Headers(scope=scope).get("host", ""))
+            if host not in self.allowed_hosts:
+                response = PlainTextResponse("Invalid host header", status_code=400)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)

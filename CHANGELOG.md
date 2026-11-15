@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. The match template must be one of simple, tiered, stretch, safe harbor or QACA, the escalation effective date must be a real `MM-DD`, and age and tenure band labels can't contain a single quote. Existing scenarios use values that already pass, so their results don't change.
 
+### Security
+
+- The API now rejects HTTP and WebSocket requests whose `Host` header isn't allowlisted (`localhost`, `127.0.0.1`, `::1` and the bind host by default). Set `PLANALIGN_API_ALLOWED_HOSTS` to serve the API under other names; `planalign studio` sets it for you.
+
 ## [3.2.0] - 2026-11-12
 
 ### Changed
