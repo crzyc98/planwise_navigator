@@ -479,3 +479,23 @@ def test_enqueue_failure_removes_temp_files(
         calibration._enqueue(request(), target, str(database), config_file)
     assert not config_file.exists()
     assert not database.exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-only")
+def test_group_probe_treats_eperm_as_still_exiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """macOS can answer EPERM for a group whose last member is mid-exit."""
+    from planalign_api.services import calibration_process
+
+    answers = iter([PermissionError(), None, ProcessLookupError()])
+
+    def fake_killpg(pgid: int, sig: int) -> None:
+        answer = next(answers)
+        if answer is not None:
+            raise answer
+
+    monkeypatch.setattr(calibration_process.os, "killpg", fake_killpg)
+    assert calibration_process._group_alive(1)
+    assert calibration_process._group_alive(1)
+    assert not calibration_process._group_alive(1)

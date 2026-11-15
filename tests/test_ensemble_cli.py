@@ -9,6 +9,7 @@ import pytest
 
 from planalign_cli.commands.simulate import (
     _ensemble_exit_code,
+    _run_ensemble_simulation,
     _parse_seed_list,
     _parse_threshold,
     default,
@@ -62,6 +63,7 @@ def test_seed_options_exist_on_both_simulate_entry_points() -> None:
         "attribution",
         "attribution_seeds",
         "attribution_anchors",
+        "parallel",
     }
 
     assert required <= set(inspect.signature(run_simulation).parameters)
@@ -111,3 +113,41 @@ def test_ensemble_exit_codes_preserve_success_for_thin_samples() -> None:
     assert _ensemble_exit_code(_result(["completed"])) == 0
     assert _ensemble_exit_code(_result(["completed", "failed"])) == 2
     assert _ensemble_exit_code(_result(["failed", "failed"])) == 3
+
+
+class _StopBeforeRunning(Exception):
+    pass
+
+
+@pytest.mark.fast
+def test_parallel_caps_ensemble_seed_workers(tmp_path, monkeypatch) -> None:
+    """Studio passes --parallel so seeds never fan out past its slot limit."""
+    import planalign_ensemble.runner as ensemble_runner
+
+    captured: dict = {}
+
+    def fake_run_ensemble(plan, **kwargs):
+        captured.update(kwargs)
+        raise _StopBeforeRunning
+
+    monkeypatch.setattr(ensemble_runner, "run_ensemble", fake_run_ensemble)
+    with pytest.raises(_StopBeforeRunning):
+        _run_ensemble_simulation(
+            start_year=2025,
+            end_year=2025,
+            config_path=Path("config/simulation_config.yaml"),
+            database=str(tmp_path / "out"),
+            project_dir=None,
+            seeds=3,
+            seed_list=None,
+            attribution=False,
+            attribution_seeds=None,
+            attribution_anchors=None,
+            min_seeds=10,
+            discard_seed_dbs=False,
+            threshold=None,
+            dry_run=False,
+            parallel=1,
+        )
+
+    assert captured["parallel"] == 1

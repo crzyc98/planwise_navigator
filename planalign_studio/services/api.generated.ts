@@ -1899,6 +1899,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/ensembles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ensemble Jobs
+         * @description A workspace's ensemble jobs, newest first, optionally for one scenario.
+         */
+        get: operations["list_ensemble_jobs_api_workspaces__workspace_id__ensembles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/ensembles/cost-ranges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ensemble Cost Ranges
+         * @description Seed ranges beside Cost Comparison's gross employer cost.
+         *
+         *     Each scenario's latest finished ensemble gives P10-P90 of annual and total
+         *     employer cost; a scenario whose ensemble ran on the anchor's seeds and
+         *     years also gets its difference from the anchor, taken seed by seed.
+         *     Registered before ``/ensembles/{job_id}`` so the path isn't read as a job id.
+         */
+        get: operations["get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ensemble Job */
+        get: operations["get_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Ensemble Job
+         * @description Stop a queued or running ensemble and its whole process tree.
+         */
+        post: operations["cancel_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/evidence-pack/compare": {
         parameters: {
             query?: never;
@@ -2578,6 +2660,46 @@ export interface paths {
         get: operations["get_employee_timeline_api_workspaces__workspace_id__scenarios__scenario_id__employees__employee_id__timeline_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Ensemble
+         * @description Queue a seed ensemble; it waits for a simulation slot like any run.
+         */
+        post: operations["start_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Estimate Ensemble
+         * @description Seeds, run count, time and disk an ensemble would take; starts nothing.
+         */
+        post: operations["estimate_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_estimate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5291,6 +5413,18 @@ export interface components {
             year: number;
         };
         /**
+         * CostBand
+         * @description P10-P90 of one scenario's employer cost across its ensemble's seeds.
+         */
+        CostBand: {
+            /** N Seeds */
+            n_seeds: number;
+            /** P10 */
+            p10: number;
+            /** P90 */
+            p90: number;
+        };
+        /**
          * CostEstimateRow
          * @description Pay and estimated employer cost for one year, before and after solving.
          *
@@ -6016,6 +6150,18 @@ export interface components {
             sample_values: string[];
         };
         /**
+         * DifferenceRange
+         * @description Spread of (scenario - anchor) employer cost, differenced seed by seed.
+         */
+        DifferenceRange: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+            /** N Seeds */
+            n_seeds: number;
+        };
+        /**
          * DistributionStats
          * @description Statistics from census distribution analysis.
          */
@@ -6314,6 +6460,20 @@ export interface components {
             unavailable_reason: string | null;
         };
         /**
+         * EnsembleCostRanges
+         * @description Seed ranges beside Cost Comparison's gross employer cost.
+         *
+         *     The metric is ``total_employer_plan_cost``: the sum of employer match and
+         *     core over every snapshot row, the same quantity as the page's gross
+         *     employer cost for all employees.
+         */
+        EnsembleCostRanges: {
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["ScenarioCostRange"][];
+        };
+        /**
          * EnsembleDatabaseSummary
          * @description One discovered ensemble database, for a Studio picker.
          */
@@ -6334,6 +6494,128 @@ export interface components {
             scenario_ids: string[];
             /** Size Bytes */
             size_bytes: number;
+        };
+        /** EnsembleError */
+        EnsembleError: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "seeds_failed" | "no_seeds" | "interrupted" | "unexpected";
+            /** Message */
+            message: string;
+        };
+        /**
+         * EnsembleEstimate
+         * @description What an ensemble will cost, known before any seed starts.
+         */
+        EnsembleEstimate: {
+            /** End Year */
+            end_year: number;
+            /**
+             * Estimated Disk Mib
+             * @description Peak disk while seeds run; only the aggregate is kept after
+             */
+            estimated_disk_mib: number;
+            /** Estimated Seconds */
+            estimated_seconds: number;
+            /**
+             * Run Count
+             * @description Seed runs, one at a time
+             */
+            run_count: number;
+            /** Seconds Per Run */
+            seconds_per_run: number;
+            /** Seed Count */
+            seed_count: number;
+            /** Seeds */
+            seeds: number[];
+            /** Start Year */
+            start_year: number;
+            /**
+             * Time Basis
+             * @description 'measured' scales the scenario's last completed run; 'default' uses a fixed per-run-year rate because no run was found
+             * @enum {string}
+             */
+            time_basis: "measured" | "default";
+        };
+        /** EnsembleJob */
+        EnsembleJob: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** End Year */
+            end_year: number;
+            error: components["schemas"]["EnsembleError"] | null;
+            estimate: components["schemas"]["EnsembleEstimate"];
+            /** Failed Seeds */
+            failed_seeds: number[];
+            /** Job Id */
+            job_id: string;
+            output: components["schemas"]["EnsembleOutput"] | null;
+            progress: components["schemas"]["EnsembleProgress"];
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /** Seed Count */
+            seed_count: number;
+            /** Seeds */
+            seeds: number[];
+            /** Start Year */
+            start_year: number;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "partial" | "failed" | "cancelled";
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /**
+         * EnsembleOutput
+         * @description Where a finished ensemble's aggregate lives, for the reader endpoints.
+         */
+        EnsembleOutput: {
+            /** Database Path */
+            database_path: string;
+            /** Ensemble Id */
+            ensemble_id: string;
+            /** Ensemble Scenario Id */
+            ensemble_scenario_id: string;
+        };
+        /** EnsembleProgress */
+        EnsembleProgress: {
+            /** Current Seed */
+            current_seed: number | null;
+            /**
+             * Seeds Completed
+             * @default 0
+             */
+            seeds_completed: number;
+            /**
+             * Seeds Failed
+             * @default 0
+             */
+            seeds_failed: number;
+            /** Seeds Total */
+            seeds_total: number;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** EnsembleRequest */
+        EnsembleRequest: {
+            /**
+             * Seed Count
+             * @default 10
+             */
+            seed_count?: number;
         };
         /**
          * EscalationMetrics
@@ -9226,6 +9508,49 @@ export interface components {
             success: boolean;
         };
         /**
+         * ScenarioCostRange
+         * @description Seed ranges for one compared scenario; empty when there are none.
+         */
+        ScenarioCostRange: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Current
+             * @description Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did
+             * @default false
+             */
+            current: boolean;
+            difference_total: components["schemas"]["DifferenceRange"] | null;
+            /** Difference Years */
+            difference_years: components["schemas"]["YearDifferenceRange"][];
+            /** End Year */
+            end_year: number | null;
+            /** Job Id */
+            job_id: string | null;
+            /**
+             * Paired
+             * @description Whether differences from the anchor were taken seed by seed
+             * @default false
+             */
+            paired: boolean;
+            /**
+             * Reason
+             * @description Why ranges or pairing are missing, in one line
+             */
+            reason: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Start Year */
+            start_year: number | null;
+            /** @description Employer cost summed over the ensemble's years */
+            total: components["schemas"]["CostBand"] | null;
+            /**
+             * Years
+             * @description Annual employer cost, P10-P90
+             */
+            years: components["schemas"]["YearCostBand"][];
+        };
+        /**
          * ScenarioCreate
          * @description Request model for creating a scenario.
          */
@@ -11521,6 +11846,28 @@ export interface components {
             lifecycle?: ("active" | "archived") | null;
             /** Name */
             name?: string | null;
+        };
+        /** YearCostBand */
+        YearCostBand: {
+            /** N Seeds */
+            n_seeds: number;
+            /** P10 */
+            p10: number;
+            /** P90 */
+            p90: number;
+            /** Year */
+            year: number;
+        };
+        /** YearDifferenceRange */
+        YearDifferenceRange: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+            /** N Seeds */
+            n_seeds: number;
+            /** Year */
+            year: number;
         };
         /** YearState */
         YearState: {
@@ -14730,6 +15077,151 @@ export interface operations {
             };
         };
     };
+    list_ensemble_jobs_api_workspaces__workspace_id__ensembles_get: {
+        parameters: {
+            query?: {
+                scenario_id?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleJob"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated compared scenario IDs */
+                scenarios: string;
+                /** @description Anchor scenario ID, one of `scenarios` */
+                anchor: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleCostRanges"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_cross_scenario_evidence_pack_api_workspaces__workspace_id__evidence_pack_compare_get: {
         parameters: {
             query: {
@@ -16167,6 +16659,78 @@ export interface operations {
                     "X-PlanAlign-Active-Run-Id"?: string;
                     "X-PlanAlign-Result-Run-Id"?: string;
                     "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnsembleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    estimate_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_estimate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnsembleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnsembleEstimate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
