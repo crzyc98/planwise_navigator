@@ -256,3 +256,177 @@ def test_audit_log_written_on_delete(service, workspace_id, tmp_workspaces):
     lines = audit_path.read_text().strip().split("\n")
     actions = [json.loads(ln)["action"] for ln in lines if ln.strip()]
     assert "file_delete" in actions
+
+
+# ---------------------------------------------------------------------------
+# Parquet records resolve only inside their workspace
+# ---------------------------------------------------------------------------
+
+# Path from another machine, as carried by a workspace export archive.
+STALE_EXPORT_PATH = "/old/machine/workspaces/old-ws-id/data/imports/inside.parquet"
+
+
+def _record(service, workspace_id: str, storage_path: str):
+    from planalign_api.models.imports import ParquetFile
+
+    pf = ParquetFile(
+        workspace_id=workspace_id,
+        import_id="imp-001",
+        filename=Path(storage_path).name,
+        storage_path=storage_path,
+        original_filename="test.csv",
+    )
+    service.save_parquet_record(workspace_id, pf)
+    return pf
+
+
+def _workspace_file(tmp_workspaces: Path, workspace_id: str) -> Path:
+    path = tmp_workspaces / workspace_id / "data" / "imports" / "inside.parquet"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"PAR1")
+    return path
+
+
+@pytest.fixture()
+def outside_file(tmp_path: Path) -> Path:
+    path = tmp_path / "elsewhere" / "outside.parquet"
+    path.parent.mkdir()
+    path.write_bytes(b"keep me")
+    return path
+
+
+@pytest.fixture()
+def api_client(service):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from planalign_api.routers.imports import get_import_service, router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api/workspaces")
+    app.dependency_overrides[get_import_service] = lambda: service
+    return TestClient(app)
+
+
+def test_resolve_accepts_record_inside_workspace(service, workspace_id, tmp_workspaces):
+    inside = _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(service, workspace_id, str(inside.resolve()))
+    assert service.resolve_parquet_path(workspace_id, pf) == inside.resolve()
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "../../../elsewhere/outside.parquet",
+        "imports/../../../../elsewhere/outside.parquet",
+        "/other/data/../../../elsewhere/outside.parquet",
+    ],
+)
+def test_resolve_rejects_dotdot_paths(service, workspace_id, outside_file, stored):
+    pf = _record(service, workspace_id, stored)
+    assert service.resolve_parquet_path(workspace_id, pf) is None
+
+
+def test_resolve_rejects_absolute_path_outside_workspace(
+    service, workspace_id, outside_file
+):
+    pf = _record(service, workspace_id, str(outside_file))
+    assert service.resolve_parquet_path(workspace_id, pf) is None
+
+
+def test_resolve_rejects_symlink_escaping_workspace(
+    service, workspace_id, tmp_workspaces, outside_file
+):
+    link = tmp_workspaces / workspace_id / "data" / "imports" / "link.parquet"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(outside_file)
+    pf = _record(service, workspace_id, str(link))
+    assert service.resolve_parquet_path(workspace_id, pf) is None
+
+
+def test_resolve_reroots_path_from_exported_workspace(
+    service, workspace_id, tmp_workspaces
+):
+    inside = _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(service, workspace_id, STALE_EXPORT_PATH)
+    assert service.resolve_parquet_path(workspace_id, pf) == inside.resolve()
+
+
+def test_download_outside_workspace_returns_404(
+    api_client, service, workspace_id, outside_file
+):
+    pf = _record(service, workspace_id, str(outside_file))
+    resp = api_client.get(
+        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}/download"
+    )
+    assert resp.status_code == 404
+
+
+def test_delete_outside_workspace_keeps_outside_file(
+    api_client, service, workspace_id, outside_file
+):
+    pf = _record(service, workspace_id, str(outside_file))
+    resp = api_client.delete(
+        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    )
+    assert resp.status_code == 204
+    assert outside_file.read_bytes() == b"keep me"
+    assert service.list_parquet_files(workspace_id) == []
+
+
+def test_download_and_delete_record_inside_workspace(
+    api_client, service, workspace_id, tmp_workspaces
+):
+    inside = _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(service, workspace_id, str(inside.resolve()))
+    url = f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    download = api_client.get(f"{url}/download")
+    assert download.status_code == 200
+    assert download.content == b"PAR1"
+    assert api_client.delete(url).status_code == 204
+    assert not inside.exists()
+
+
+def test_download_reroots_record_from_exported_workspace(
+    api_client, service, workspace_id, tmp_workspaces
+):
+    _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(service, workspace_id, STALE_EXPORT_PATH)
+    resp = api_client.get(
+        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}/download"
+    )
+    assert resp.status_code == 200
+    assert resp.content == b"PAR1"
+
+
+def test_resolve_reroots_windows_export_path(service, workspace_id, tmp_workspaces):
+    inside = _workspace_file(tmp_workspaces, workspace_id)
+    pf = _record(
+        service, workspace_id, r"C:\Users\x\old-ws\data\imports\inside.parquet"
+    )
+    assert service.resolve_parquet_path(workspace_id, pf) == inside.resolve()
+
+
+def test_resolve_rejects_non_parquet_files_inside_workspace(
+    service, workspace_id, tmp_workspaces
+):
+    log = tmp_workspaces / workspace_id / "data" / "imports" / "audit.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("audit")
+    pf = _record(service, workspace_id, "/old/root/ws/data/imports/audit.log")
+    assert service.resolve_parquet_path(workspace_id, pf) is None
+
+
+def test_delete_stale_record_keeps_file_with_same_name(
+    api_client, service, workspace_id, tmp_workspaces
+):
+    # A stale exported record must not delete the live file it re-roots to.
+    census = tmp_workspaces / workspace_id / "data" / "census.parquet"
+    census.parent.mkdir(parents=True, exist_ok=True)
+    census.write_bytes(b"PAR1 live")
+    pf = _record(service, workspace_id, "/old/root/old-ws/data/census.parquet")
+    resp = api_client.delete(
+        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    )
+    assert resp.status_code == 204
+    assert census.read_bytes() == b"PAR1 live"
