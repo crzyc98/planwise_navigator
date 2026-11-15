@@ -278,18 +278,6 @@ def _url_host(bind_host: str) -> str:
     return bind_host
 
 
-def _studio_allowed_hosts(display_host: str) -> str:
-    """Host header allowlist shared by the Vite server and the API.
-
-    The Vite proxy forwards the browser's Host header unchanged, so the API
-    must accept every host the Studio frontend accepts.
-    """
-    return os.environ.get(
-        "PLANALIGN_STUDIO_ALLOWED_HOSTS",
-        f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
-    )
-
-
 def _warn_for_unsafe_bind(bind_host: str) -> None:
     """Display a prominent warning for unauthenticated network exposure."""
     if bind_host in _LOOPBACK_HOSTS or os.environ.get("PLANALIGN_API_TOKEN"):
@@ -386,9 +374,6 @@ def launch_studio(
             api_env = os.environ.copy()
             api_env["PLANALIGN_API_HOST"] = bind_host
             api_env["PLANALIGN_API_PORT"] = str(api_port)
-            api_env.setdefault(
-                "PLANALIGN_API_ALLOWED_HOSTS", _studio_allowed_hosts(display_host)
-            )
 
             # On Windows, use planalign_api.run which sets ProactorEventLoop
             # before uvicorn creates its event loop (required for subprocess support)
@@ -496,8 +481,9 @@ def launch_studio(
             frontend_env.pop("VITE_WS_URL", None)
             frontend_env["PLANALIGN_API_HOST"] = bind_host
             frontend_env["PLANALIGN_API_PORT"] = str(api_port)
-            frontend_env["PLANALIGN_STUDIO_ALLOWED_HOSTS"] = _studio_allowed_hosts(
-                display_host
+            frontend_env.setdefault(
+                "PLANALIGN_STUDIO_ALLOWED_HOSTS",
+                f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
             )
             api_token = os.environ.get("PLANALIGN_API_TOKEN")
             if api_token:

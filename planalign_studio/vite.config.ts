@@ -24,8 +24,10 @@ export default defineConfig(({ mode }) => {
         host: bindHost,
         allowedHosts,
         proxy: {
-          '/api': `http://${proxyHost}:${apiPort}`,
-          '/ws': { target: `ws://${proxyHost}:${apiPort}`, ws: true },
+          // changeOrigin sends the API its own address as Host, so the API's
+          // Host allowlist never has to mirror allowedHosts above.
+          '/api': { target: `http://${proxyHost}:${apiPort}`, changeOrigin: true },
+          '/ws': { target: `ws://${proxyHost}:${apiPort}`, ws: true, changeOrigin: true },
         },
       },
       plugins: [tailwindcss(), react()],

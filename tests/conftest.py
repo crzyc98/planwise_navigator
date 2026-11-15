@@ -64,9 +64,7 @@ def pytest_configure(config):
     """Configure pytest with custom markers."""
     # Markers are defined in pyproject.toml
     # Starlette's TestClient sends Host "testserver"; allow it for tests only.
-    os.environ.setdefault(
-        "PLANALIGN_API_ALLOWED_HOSTS", "localhost,127.0.0.1,::1,testserver"
-    )
+    os.environ["PLANALIGN_API_ALLOWED_HOSTS"] = "localhost,127.0.0.1,::1,testserver"
     if os.environ.get("PYTEST_XDIST_WORKER"):
         _default_duckdb_to_one_thread()
 

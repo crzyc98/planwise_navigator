@@ -37,16 +37,26 @@ def test_unlisted_hosts_are_rejected(default_hosts_client, host: str) -> None:
     assert response.status_code == 400
 
 
-def test_allowed_hosts_env_extends_the_list(client_factory, monkeypatch) -> None:
+def test_allowed_hosts_env_replaces_the_defaults(client_factory, monkeypatch) -> None:
     monkeypatch.setenv("PLANALIGN_API_ALLOWED_HOSTS", "localhost, studio.example")
+    monkeypatch.delenv("PLANALIGN_API_HOST", raising=False)
     client = client_factory(None)
 
-    assert (
-        client.get("/api/health", headers={"Host": "studio.example"}).status_code == 200
-    )
-    assert (
-        client.get("/api/health", headers={"Host": "evil.example"}).status_code == 400
-    )
+    def status(host: str) -> int:
+        return client.get("/api/health", headers={"Host": host}).status_code
+
+    assert status("studio.example") == 200
+    assert status("localhost") == 200
+    assert status("[::1]:8000") == 400
+    assert status("evil.example") == 400
+
+
+@pytest.mark.parametrize("value", ["", " , ", "*", "*.corp.example"])
+def test_empty_or_wildcard_allowed_hosts_are_rejected(monkeypatch, value: str) -> None:
+    monkeypatch.setenv("PLANALIGN_API_ALLOWED_HOSTS", value)
+
+    with pytest.raises(ValueError, match="PLANALIGN_API_ALLOWED_HOSTS"):
+        api_config.APISettings()
 
 
 def test_specific_bind_host_is_trusted_but_wildcard_is_not(monkeypatch) -> None:
@@ -87,6 +97,8 @@ def test_websocket_with_loopback_host_connects(default_hosts_client) -> None:
         ("[::1]", "::1"),
         ("::1", "::1"),
         ("[::1", ""),
+        ("[::1]evil.example", ""),
+        ("[::1]:80:80", ""),
         ("", ""),
     ],
 )

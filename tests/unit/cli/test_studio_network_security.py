@@ -70,12 +70,10 @@ def test_studio_reload_watches_evidence_pack_sources() -> None:
     assert '"planalign_ensemble"' in source
 
 
-def test_api_and_frontend_share_host_allowlist(monkeypatch) -> None:
-    # The Vite proxy forwards the browser's Host, so the API must accept it too.
-    monkeypatch.delenv("PLANALIGN_STUDIO_ALLOWED_HOSTS", raising=False)
-    assert studio._studio_allowed_hosts("192.0.2.10") == (
-        "localhost,127.0.0.1,::1,192.0.2.10"
-    )
+def test_vite_proxy_sends_the_api_its_own_host() -> None:
+    # The API's Host allowlist relies on the proxy rewriting Host to its target.
+    source = (
+        Path(__file__).parents[3] / "planalign_studio" / "vite.config.ts"
+    ).read_text()
 
-    monkeypatch.setenv("PLANALIGN_STUDIO_ALLOWED_HOSTS", "studio.example")
-    assert studio._studio_allowed_hosts("192.0.2.10") == "studio.example"
+    assert source.count("changeOrigin: true") == 2

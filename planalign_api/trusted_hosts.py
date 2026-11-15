@@ -7,18 +7,25 @@ This middleware parses IPv6 hosts correctly and otherwise behaves the same.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from starlette.datastructures import Headers
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+_BRACKETED_IPV6 = re.compile(r"\[([0-9a-f:.]+)\](?::\d+)?")
+
 
 def normalize_host(host: str) -> str:
-    """Return a Host value without its port, IPv6 brackets or letter case."""
+    """Return a Host value without its port, IPv6 brackets or letter case.
+
+    A malformed bracketed value returns ``""``, which is never allowed.
+    """
     host = host.strip().lower()
     if host.startswith("["):
-        return host[1 : host.find("]")] if "]" in host else ""
+        match = _BRACKETED_IPV6.fullmatch(host)
+        return match.group(1) if match else ""
     if host.count(":") > 1:  # bare IPv6 literal, e.g. from configuration
         return host
     return host.split(":", 1)[0]

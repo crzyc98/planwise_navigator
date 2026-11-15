@@ -95,6 +95,19 @@ class APISettings(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("allowed_hosts")
+    @classmethod
+    def validate_allowed_hosts(cls, value: List[str]) -> List[str]:
+        """Require explicit host names; wildcards are not supported."""
+        if not value:
+            raise ValueError("PLANALIGN_API_ALLOWED_HOSTS must list at least one host")
+        if any("*" in host for host in value):
+            raise ValueError(
+                "PLANALIGN_API_ALLOWED_HOSTS does not support wildcards; "
+                "list each host name explicitly"
+            )
+        return value
+
     @property
     def trusted_hosts(self) -> List[str]:
         """Allowed Host values, plus the bind host when it is a specific address."""
