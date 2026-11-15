@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import date
 from typing import Any, Mapping, TypedDict
 
@@ -129,6 +130,7 @@ INTEGER_VARS = frozenset(
 ENUM_VARS = {
     "census_pay_basis": {"annual_rate", "earnings"},
     "reenrollment_sweep_method": {"enroll_at_default", "into_aip"},
+    "match_template": frozenset({"simple", "tiered", "stretch", "safe_harbor", "qaca"}),
     "deferral_escalation_mode": frozenset({"automatic", "participant_elected"}),
     "auto_enrollment_scope": frozenset({"all_eligible_employees", "new_hires_only"}),
     "promotion_distribution_type": frozenset({"uniform", "normal"}),
@@ -243,6 +245,17 @@ def new_hire_age_problem(value: Any) -> str | None:
     return None
 
 
+def _month_day_problem(value: Any) -> str | None:
+    message = "must be a month and day (MM-DD)"
+    if not isinstance(value, str) or not re.fullmatch(r"\d{2}-\d{2}", value):
+        return message
+    try:
+        date.fromisoformat(f"2000-{value}")
+    except ValueError:
+        return message
+    return None
+
+
 def _validate_scalar(field: str, value: Any) -> str | None:
     if field == "new_hire_age_distribution":
         return new_hire_age_problem(value)
@@ -266,6 +279,8 @@ def _validate_scalar(field: str, value: Any) -> str | None:
             return "must be a valid ISO date (YYYY-MM-DD)"
         if parsed.isoformat() != value:
             return "must be an ISO date (YYYY-MM-DD)"
+    if field == "deferral_escalation_effective_mmdd":
+        return _month_day_problem(value)
     if field in BOOLEAN_VARS and not isinstance(value, bool):
         return "must be a boolean"
     if field in RATE_VARS or field.startswith(RATE_PREFIXES):

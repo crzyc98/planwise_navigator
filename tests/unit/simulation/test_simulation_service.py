@@ -259,6 +259,7 @@ class TestRunLocalLifecycle:
         census = tmp_path / "census.parquet"
         census.touch()
         storage = MagicMock()
+        storage.workspaces_root = tmp_path
         storage._scenario_path.return_value = scenario
         service = SimulationService(storage)
         config = {
@@ -426,6 +427,7 @@ class TestPackSeedLayering:
         census = tmp_path / "census.parquet"
         census.touch()
         storage = MagicMock()
+        storage.workspaces_root = tmp_path
         storage._scenario_path.return_value = scenario
         service = SimulationService(storage)
         config = {

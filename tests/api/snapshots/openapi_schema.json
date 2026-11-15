@@ -1766,6 +1766,7 @@
           "band_label": {
             "description": "Human-readable label (e.g., '25-34', '< 25')",
             "maxLength": 50,
+            "pattern": "^[^']*$",
             "title": "Band Label",
             "type": "string"
           },
@@ -15767,6 +15768,7 @@
           "band_label": {
             "description": "Human-readable label (e.g., '25-34', '< 25')",
             "maxLength": 50,
+            "pattern": "^[^']*$",
             "title": "Band Label",
             "type": "string"
           },
@@ -16441,6 +16443,13 @@
           "match_template": {
             "anyOf": [
               {
+                "enum": [
+                  "simple",
+                  "tiered",
+                  "stretch",
+                  "safe_harbor",
+                  "qaca"
+                ],
                 "type": "string"
               },
               {

@@ -105,7 +105,9 @@ class StudioDCPlanConfig(PartialConfig):
         default=None, ge=0, le=1
     )
 
-    match_template: str | None = None
+    match_template: (
+        Literal["simple", "tiered", "stretch", "safe_harbor", "qaca"] | None
+    ) = None
     match_status: str | None = None
     match_tiers: list[StudioMatchTier] | None = None
     tenure_match_tiers: list[StudioTenureMatchTier] | None = None
