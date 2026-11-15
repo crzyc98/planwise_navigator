@@ -399,6 +399,31 @@ class ImportService:
                 return pf
         return None
 
+    def resolve_parquet_path(
+        self, workspace_id: str, pf: ParquetFile
+    ) -> Optional[Path]:
+        """Return the record's file if it exists inside the workspace ``data/`` dir.
+
+        Records written by older versions or carried in a workspace export hold
+        an absolute path, possibly from another machine. An absolute path is
+        used as-is only when it already lies inside this workspace; otherwise
+        the part after its last ``data`` component is re-rooted here, which is
+        where an exported archive puts the file. Every candidate is resolved
+        (following symlinks) before the containment check. Returns ``None``
+        when no candidate is an existing file inside the workspace.
+        """
+        data_dir = (self._ws_path(workspace_id) / "data").resolve()
+        stored = Path(pf.storage_path)
+        candidates = [stored] if stored.is_absolute() else [data_dir / stored]
+        if "data" in stored.parts:
+            last_data = len(stored.parts) - 1 - stored.parts[::-1].index("data")
+            candidates.append(data_dir.joinpath(*stored.parts[last_data + 1 :]))
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved.is_relative_to(data_dir) and resolved.is_file():
+                return resolved
+        return None
+
     def delete_parquet_file(
         self, workspace_id: str, file_id: str, user: str = "system"
     ) -> bool:
@@ -406,8 +431,8 @@ class ImportService:
         target = next((f for f in files if f.file_id == file_id), None)
         if target is None:
             return False
-        storage = Path(target.storage_path)
-        if storage.exists():
+        storage = self.resolve_parquet_path(workspace_id, target)
+        if storage is not None:
             storage.unlink()
         remaining = [
             json.loads(f.model_dump_json()) for f in files if f.file_id != file_id
