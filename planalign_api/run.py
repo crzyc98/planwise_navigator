@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import asyncio
+import os
 import platform
 
 # Windows requires ProactorEventLoop for asyncio subprocess support
@@ -35,6 +36,9 @@ def main():
         help="Directory to watch for reload (can be repeated)",
     )
     args = parser.parse_args()
+    # Settings read the bind host from the environment; the Host allowlist
+    # trusts a specific bind address, so pass --host through.
+    os.environ["PLANALIGN_API_HOST"] = args.host
 
     uvicorn.run(
         "planalign_api.main:app",
