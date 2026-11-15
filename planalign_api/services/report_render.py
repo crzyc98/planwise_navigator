@@ -77,11 +77,26 @@ def _signed_pct(value: float | None) -> str:
     return f"{sign}{abs(value):.1f}%"
 
 
-def _period(report: ScenarioReport) -> str:
-    years = report.years
+def _span(years: list[int]) -> str:
     if not years:
         return DASH
     return str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
+
+
+def _period(report: ScenarioReport) -> str:
+    return _span(report.years)
+
+
+def _scenario_period(scenario: ReportScenario) -> str:
+    return _span(sorted(y.year for y in scenario.years))
+
+
+def _periods_differ(report: ScenarioReport) -> bool:
+    """Whether the scenarios with results cover different years."""
+    spans = {
+        tuple(sorted(y.year for y in s.years)) for s in report.scenarios if s.available
+    }
+    return len(spans) > 1
 
 
 def scenario_label(report: ScenarioReport, scenario: ReportScenario) -> str:
@@ -99,9 +114,14 @@ def lead_lines(report: ScenarioReport) -> list[str]:
     if not report.is_comparison:
         lines = [f"Employer cost of one plan design over {_period(report)}."]
     else:
+        coverage = (
+            ", though not every scenario covers every year"
+            if _periods_differ(report)
+            else ""
+        )
         lines = [
-            f"{len(report.scenarios)} plan designs compared over {_period(report)}. "
-            f"Differences are measured against {report.anchor.name}."
+            f"{len(report.scenarios)} plan designs compared over {_period(report)}"
+            f"{coverage}. Differences are measured against {report.anchor.name}."
         ]
     for scenario in available:
         lines.append(_glance(report, scenario))
@@ -110,11 +130,23 @@ def lead_lines(report: ScenarioReport) -> list[str]:
 
 def _glance(report: ScenarioReport, scenario: ReportScenario) -> str:
     total = f"{scenario.name}: {_money(scenario.total_employer_cost)} employer cost"
+    if _periods_differ(report):
+        total += f" over {_scenario_period(scenario)}"
     if not report.is_comparison or scenario.is_anchor:
         return (
             f"{total} ({_pct(scenario.total_cost_pct_of_capped_pay, 2)} of capped pay)."
         )
     difference = scenario.total_difference_from_anchor
+    anchor = report.anchor
+    if (
+        difference is None
+        and anchor.available
+        and _scenario_period(scenario) != _scenario_period(anchor)
+    ):
+        return (
+            f"{total}; it covers different years from {report.anchor.name}, "
+            "so the totals are not compared."
+        )
     if difference is None:
         return f"{total}; difference from {report.anchor.name} unavailable."
     if difference == 0:
@@ -200,7 +232,15 @@ def _design_table(report: ScenarioReport) -> ReportTable:
 def _summary_table(
     report: ScenarioReport, available: list[ReportScenario]
 ) -> ReportTable:
-    last = report.years[-1] if report.years else None
+    """Totals per scenario over its own years.
+
+    When scenarios cover different years each row names its period and the
+    year columns say "final year", so no total reads as covering years it
+    does not; differences from the anchor are blank for a mismatched period.
+    """
+    differ = _periods_differ(report)
+    finals = {s.years[-1].year for s in available if s.years}
+    last = next(iter(finals)) if len(finals) == 1 else "final year" if finals else None
     header = ["Scenario", "Total employer cost"]
     if report.is_comparison:
         header += [f"Difference from {report.anchor.name}", "Difference (%)"]
@@ -212,7 +252,10 @@ def _summary_table(
     rows = []
     for scenario in available:
         final = scenario.years[-1] if scenario.years else ReportYear(year=0)
-        row = [scenario_label(report, scenario), _money(scenario.total_employer_cost)]
+        label = scenario_label(report, scenario)
+        if differ:
+            label += f" ({_scenario_period(scenario)})"
+        row = [label, _money(scenario.total_employer_cost)]
         if report.is_comparison:
             row += _summary_difference(scenario)
         row += [
@@ -221,7 +264,7 @@ def _summary_table(
             _pct(final.average_deferral_rate),
         ]
         rows.append(row)
-    title = f"Employer cost, {_period(report)}"
+    title = "Employer cost" if differ else f"Employer cost, {_period(report)}"
     return ReportTable("summary", title, header, rows, report.note("employer_cost"))
 
 
@@ -424,12 +467,34 @@ def _html_appendix(report: ScenarioReport) -> str:
     )
 
 
+class ReportTemplateError(ValueError):
+    """A custom report template is missing or lacks the ``{{ body }}`` slot."""
+
+
+_PLACEHOLDERS = "{{ title }}, {{ body }} and {{ trace }}"
+
+
+def _template(template_dir: Path | None) -> str:
+    if template_dir is None:
+        return _DEFAULT_TEMPLATE
+    path = template_dir / "report.html"
+    try:
+        template = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ReportTemplateError(f"Cannot read report template {path}: {exc}") from exc
+    if "{{ body }}" not in template:
+        raise ReportTemplateError(
+            f"Report template {path} has no {{{{ body }}}} placeholder, so it would "
+            f"render without any figures. Supported placeholders: {_PLACEHOLDERS}. "
+            "Templates written for {{ rows }}, {{ charts }}, {{ provenance }} or "
+            "{{ warnings }} must be updated to use {{ body }}."
+        )
+    return template
+
+
 def render_html(report: ScenarioReport, template_dir: Path | None = None) -> str:
-    template = (
-        (template_dir / "report.html").read_text(encoding="utf-8")
-        if template_dir
-        else _DEFAULT_TEMPLATE
-    )
+    """Fill the template's {{ title }}, {{ body }} and {{ trace }} placeholders."""
+    template = _template(template_dir)
     return (
         template.replace("{{ title }}", escape(report.title))
         .replace("{{ body }}", _html_body(report))

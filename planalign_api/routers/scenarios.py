@@ -21,7 +21,10 @@ from ..models.scenario import (
     WorkforceParamsApplyResult,
 )
 from ..services.scenario_service import ScenarioService
-from ..services.database_path_resolver import create_api_database_path_resolver
+from ..services.database_path_resolver import (
+    create_api_database_path_resolver,
+    is_selected_result,
+)
 from ..services.current_result import CurrentResultIntegrityError
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
@@ -43,9 +46,7 @@ def _with_result_selection(storage: WorkspaceStorage, scenario: Scenario) -> Sce
         raise HTTPException(
             status_code=500, detail="Current result integrity failure"
         ) from exc
-    available = resolved.exists and (
-        resolved.source == "run" or scenario.status == "completed"
-    )
+    available = is_selected_result(resolved, scenario.status)
     return scenario.model_copy(
         update={
             "has_selected_result": available,

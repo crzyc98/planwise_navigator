@@ -585,6 +585,7 @@ def report(
     from planalign_api.services.report_service import (
         ReportNotFoundError,
         ReportRequestError,
+        ReportTemplateError,
         build_scenario_report,
         render_report,
     )
@@ -614,9 +615,12 @@ def report(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
     target = Path(output or f"{scenario}-report.{format}")
-    render_report(
-        report_model, target, format, Path(template_dir) if template_dir else None
-    )
+    try:
+        render_report(
+            report_model, target, format, Path(template_dir) if template_dir else None
+        )
+    except ReportTemplateError as exc:
+        raise typer.BadParameter(str(exc), param_hint="'--template-dir'") from exc
     console.print(f"Report written to {target}")
 
 
