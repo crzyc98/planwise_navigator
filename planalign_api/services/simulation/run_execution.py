@@ -10,7 +10,7 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import psutil
 import yaml
@@ -19,10 +19,14 @@ from planalign_core.constants import DATABASE_FILENAME
 
 from ...storage.workspace_storage import WorkspaceStorage
 from ..provenance.capture import ProvenanceRecorder
+from ..sql_security import SQLSecurityError, validate_file_path_for_sql
 from ..telemetry_service import get_telemetry_service
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .subprocess_utils import create_subprocess, wait_subprocess
+
+if TYPE_CHECKING:
+    from planalign_orchestrator.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 CANCEL_GRACE_SECONDS = 5.0
@@ -162,45 +166,58 @@ def resolve_census_with_fallback(
     )
 
 
-def validate_census(
-    storage: WorkspaceStorage,
-    config: Dict[str, Any],
-    scenario_id: str,
-    workspace_id: str,
-) -> None:
+def _census_error(
+    message: str, scenario_id: str, metadata: Dict[str, Any]
+) -> ConfigurationError:
     from planalign_orchestrator.exceptions import (
         ConfigurationError,
         ErrorSeverity,
         ExecutionContext,
     )
 
+    return ConfigurationError(
+        message,
+        context=ExecutionContext(scenario_id=scenario_id, metadata=metadata),
+        severity=ErrorSeverity.ERROR,
+    )
+
+
+def validate_census(
+    storage: WorkspaceStorage,
+    config: Dict[str, Any],
+    scenario_id: str,
+    workspace_id: str,
+) -> None:
     configured = config.get("setup", {}).get("census_parquet_path")
     if not configured or not str(configured).strip():
-        raise ConfigurationError(
+        raise _census_error(
             "census_parquet_path is required but was not found in the scenario config.",
-            context=ExecutionContext(
-                scenario_id=scenario_id,
-                metadata={
-                    "missing_field": "setup.census_parquet_path",
-                    "workspace_id": workspace_id,
-                },
-            ),
-            severity=ErrorSeverity.ERROR,
+            scenario_id,
+            {
+                "missing_field": "setup.census_parquet_path",
+                "workspace_id": workspace_id,
+            },
         )
+    metadata = {"expected_path": str(configured), "workspace_id": workspace_id}
     resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
     if resolved is None or not resolved.exists():
-        raise ConfigurationError(
+        raise _census_error(
             f"Census file not found at '{configured}'. Upload a valid census parquet file and retry.",
-            context=ExecutionContext(
-                scenario_id=scenario_id,
-                metadata={
-                    "expected_path": str(configured),
-                    "workspace_id": workspace_id,
-                },
-            ),
-            severity=ErrorSeverity.ERROR,
+            scenario_id,
+            metadata,
         )
-    config.setdefault("setup", {})["census_parquet_path"] = str(resolved.resolve())
+    try:
+        # dbt reads the census through a quoted SQL string literal.
+        safe_path = validate_file_path_for_sql(
+            resolved, [storage.workspaces_root], context="census"
+        )
+    except SQLSecurityError as exc:
+        raise _census_error(
+            f"{exc}. Upload the census to this workspace and retry.",
+            scenario_id,
+            metadata,
+        ) from exc
+    config.setdefault("setup", {})["census_parquet_path"] = safe_path
 
 
 def write_config(config: Dict[str, Any], config_path: Path) -> None:

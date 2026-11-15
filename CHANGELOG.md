@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
 
+### Fixed
+
+- Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. The match template must be one of simple, tiered, stretch, safe harbor or QACA, the escalation effective date must be a real `MM-DD`, and age and tenure band labels can't contain a single quote. Existing scenarios use values that already pass, so their results don't change.
+
 ## [3.2.0] - 2026-11-12
 
 ### Changed

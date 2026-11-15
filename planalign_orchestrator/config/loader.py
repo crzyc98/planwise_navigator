@@ -47,7 +47,11 @@ from .performance import (
 )
 from .ensemble import EnsembleSettings
 from .contribution_sources import ContributionSourceSettings
-from .plan_design import PlanDesignAssignmentSettings, PlanDesignParametersMap
+from .plan_design import (
+    PlanDesignAssignmentSettings,
+    PlanDesignParametersMap,
+    check_identifier,
+)
 
 
 def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]]:
@@ -170,6 +174,12 @@ class SimulationConfig(BaseModel):
         if settings["hire_pay_ratio"] is None:
             del settings["hire_pay_ratio"]
         return settings
+
+    @field_validator("scenario_id", "plan_design_id")
+    @classmethod
+    def validate_identifier(cls, value: Optional[str]) -> Optional[str]:
+        """Reject ids that dbt could not quote safely; empty still means default."""
+        return check_identifier(value) if value else value
 
     @field_validator(
         "deferral_auto_escalation",

@@ -10521,7 +10521,7 @@ export interface components {
             /** Match Status */
             match_status?: string | null;
             /** Match Template */
-            match_template?: string | null;
+            match_template?: ("simple" | "tiered" | "stretch" | "safe_harbor" | "qaca") | null;
             /** Match Tiers */
             match_tiers?: components["schemas"]["StudioMatchTier"][] | null;
             /** Opt Out Multipliers Age */
