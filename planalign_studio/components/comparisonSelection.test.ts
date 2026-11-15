@@ -10,7 +10,7 @@ vi.mock('../services/api', () => ({ listScenarios: vi.fn() }));
 function scenario(id: string, status: Scenario['status'], available = true): Scenario {
   return {
     id, status, name: id, workspace_id: 'workspace', config_overrides: {},
-    description: null, last_run_at: null, provenance: null, results_summary: null,
+    description: null, last_run_at: null, provenance: null, results_summary: null, models_current_plan: false,
     created_at: '2026-09-29', has_selected_result: available,
     last_run_id: 'latest-attempt', selected_result_run_id: available ? `success-${id}` : null,
   };

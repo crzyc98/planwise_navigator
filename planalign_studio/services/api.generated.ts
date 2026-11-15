@@ -2393,7 +2393,8 @@ export interface paths {
          * Update Scenario
          * @description Update a scenario.
          *
-         *     Allows updating name, description, and config_overrides.
+         *     Allows updating name, description, config_overrides and the
+         *     current-plan mark (marking one scenario unmarks the workspace's others).
          *     Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
          *     atomically — if any section is invalid, the entire update is rejected.
          */
@@ -9316,6 +9317,12 @@ export interface components {
              */
             last_run_id: string | null;
             /**
+             * Models Current Plan
+             * @description Whether this is the workspace's one scenario marked as modeling the current plan; Run Health and reports show its census tie-out
+             * @default false
+             */
+            models_current_plan: boolean;
+            /**
              * Name
              * @description Scenario name
              */
@@ -9481,6 +9488,11 @@ export interface components {
             config_overrides?: components["schemas"]["StudioConfig"] | null;
             /** Description */
             description?: string | null;
+            /**
+             * Models Current Plan
+             * @description Mark (true) or unmark (false) this scenario as modeling the current plan. Marking it unmarks the workspace's other scenarios.
+             */
+            models_current_plan?: boolean | null;
             /** Name */
             name?: string | null;
         };

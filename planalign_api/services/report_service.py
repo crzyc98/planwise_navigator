@@ -88,7 +88,7 @@ def build_scenario_report(
         )
         if index > 0 and metrics:
             report.comparison_years[selected_scenario.id] = metrics
-        if index == 0 and metrics:
+        if index == 0 and metrics and selected_scenario.models_current_plan:
             report.census_tie_out = _census_tie_out(
                 report, storage, workspace_id, selected_scenario
             )

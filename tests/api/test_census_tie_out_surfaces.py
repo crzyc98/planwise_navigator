@@ -122,9 +122,15 @@ def test_tie_out_failure_is_logged_and_run_health_still_returns(
 
 
 @pytest.fixture()
-def health_client(client_factory, monkeypatch):
+def health_client(client_factory, monkeypatch, request):
+    """Run Health client for scenario-a, marked as the current plan unless the
+    test is parametrized indirectly with ``False``."""
     workspace = SimpleNamespace(id="workspace", name="Workspace")
-    scenario = SimpleNamespace(id="scenario-a", name="Scenario A")
+    scenario = SimpleNamespace(
+        id="scenario-a",
+        name="Scenario A",
+        models_current_plan=getattr(request, "param", True),
+    )
     monkeypatch.setattr(
         simulations,
         "_find_scenario_and_workspace",
@@ -169,9 +175,67 @@ def test_non_selected_run_is_not_tied_out(health_client, tmp_path, monkeypatch) 
     assert calls == []
 
 
+@pytest.mark.parametrize("health_client", [False], indirect=True)
+def test_unmarked_scenario_gets_no_line_and_its_db_is_not_opened(
+    health_client, tmp_path, monkeypatch
+) -> None:
+    _build_tied_run(tmp_path / "workspaces", OVER_MATCH)
+    calls: list[object] = []
+    monkeypatch.setattr(
+        CensusTieOutService, "get_tie_out", lambda *args: calls.append(args)
+    )
+    for path in ("run-health", f"runs/{RUN_ID}/health"):
+        body = health_client.get(f"/api/scenarios/scenario-a/{path}").json()
+        assert body["census_tie_out"] is None
+    assert calls == []
+
+
 # ---------------------------------------------------------------------------
 # Scenario report
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("marked", [True, False])
+def test_report_tie_out_only_for_the_current_plan(
+    tmp_path: Path, monkeypatch, marked: bool
+) -> None:
+    _build_tied_run(tmp_path, OVER_MATCH)
+    scenario = SimpleNamespace(
+        id="scenario-a",
+        name="Scenario A",
+        status="completed",
+        models_current_plan=marked,
+    )
+    resolved = SimpleNamespace(exists=True, path=tmp_path / "db.duckdb")
+    monkeypatch.setattr(report_service, "_resolve_scenario", lambda *a: scenario)
+    monkeypatch.setattr(
+        report_service,
+        "create_api_database_path_resolver",
+        lambda storage: SimpleNamespace(resolve=lambda *a, **k: resolved),
+    )
+
+    def append_scenario(report: ScenarioReport, *args: object) -> list[object]:
+        report.provenance.append(
+            SimpleNamespace()
+        )  # stands in for the run's provenance
+        return [object()]
+
+    monkeypatch.setattr(report_service, "_append_scenario", append_scenario)
+    computed = _tie_out(tmp_path)
+    calls: list[object] = []
+
+    def tie_out(service: object, *args: object) -> CensusTieOut:
+        calls.append(args)
+        return computed
+
+    monkeypatch.setattr(CensusTieOutService, "get_tie_out", tie_out)
+
+    report = report_service.build_scenario_report(
+        WorkspaceStorage(tmp_path), "workspace", "scenario-a"
+    )
+
+    assert (report.census_tie_out is not None) == marked
+    assert len(calls) == int(marked)
 
 
 def test_report_table_matches_the_service_rows(tmp_path: Path) -> None:

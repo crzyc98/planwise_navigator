@@ -807,7 +807,8 @@ def _tie_out_loader(
     scenario_path: Path,
     run_id: str,
 ) -> TieOutLoader:
-    """Tie out only the scenario's selected result run.
+    """Tie out only the selected result run of the scenario marked as the
+    current plan; any other scenario gets no line and its DB is not opened.
 
     That run is complete and its database is never written again (a new run
     gets its own directory), so the read-only open can't meet a writer's lock.
@@ -815,6 +816,8 @@ def _tie_out_loader(
     """
 
     def load() -> Optional[CensusTieOut]:
+        if not scenario.models_current_plan:
+            return None
         context = resolve_scenario_read_context(scenario_path, verify_database=False)
         if str(context.result_run_id) != run_id:
             return None

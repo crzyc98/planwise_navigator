@@ -14443,6 +14443,12 @@
             "description": "Last run ID",
             "title": "Last Run Id"
           },
+          "models_current_plan": {
+            "default": false,
+            "description": "Whether this is the workspace's one scenario marked as modeling the current plan; Run Health and reports show its census tie-out",
+            "title": "Models Current Plan",
+            "type": "boolean"
+          },
           "name": {
             "description": "Scenario name",
             "title": "Name",
@@ -14511,6 +14517,7 @@
           "description",
           "config_overrides",
           "provenance",
+          "models_current_plan",
           "status",
           "created_at",
           "last_run_at",
@@ -14803,6 +14810,18 @@
               }
             ],
             "title": "Description"
+          },
+          "models_current_plan": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mark (true) or unmark (false) this scenario as modeling the current plan. Marking it unmarks the workspace's other scenarios.",
+            "title": "Models Current Plan"
           },
           "name": {
             "anyOf": [
@@ -27568,7 +27587,7 @@
         ]
       },
       "put": {
-        "description": "Update a scenario.\n\nAllows updating name, description, and config_overrides.\nValidates seed config sections (promotion_hazard, age_bands, tenure_bands)\natomically \u2014 if any section is invalid, the entire update is rejected.",
+        "description": "Update a scenario.\n\nAllows updating name, description, config_overrides and the\ncurrent-plan mark (marking one scenario unmarks the workspace's others).\nValidates seed config sections (promotion_hazard, age_bands, tenure_bands)\natomically \u2014 if any section is invalid, the entire update is rejected.",
         "operationId": "update_scenario_api_workspaces__workspace_id__scenarios__scenario_id__put",
         "parameters": [
           {
