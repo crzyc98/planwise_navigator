@@ -143,7 +143,8 @@ function ExperimentalAttribution({ rows }: Readonly<{ rows: EnsembleAttributionR
   );
 }
 
-export default function EnsembleAnalysisPanel({ data }: Readonly<{ data: EnsembleAnalysisData }>) {
+/** `opened` tells "nothing opened yet" apart from "the opened ensemble has no distributions". */
+export default function EnsembleAnalysisPanel({ data, opened = false }: Readonly<{ data: EnsembleAnalysisData; opened?: boolean }>) {
   const grouped = useMemo(() => {
     const groups = new Map<string, EnsembleDistributionRow[]>();
     for (const row of data.distributions) groups.set(row.metric, [...(groups.get(row.metric) ?? []), row]);
@@ -156,7 +157,7 @@ export default function EnsembleAnalysisPanel({ data }: Readonly<{ data: Ensembl
         <h1 className="text-2xl font-bold text-ink">Ensemble analysis</h1>
         <p className="mt-1 text-sm text-ink-muted">P10, P50 and P90 across the opened ensemble's seeds. The shaded range is the spread of simulated outcomes across seeds.</p>
       </div>
-      {grouped.length === 0 ? <div className="rounded-xl border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted">Open an ensemble to see its ranges.</div> : grouped.map(([metric, rows]) => (
+      {grouped.length === 0 ? <div className="rounded-xl border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted">{opened ? 'This ensemble has no distributions to show.' : 'Open an ensemble to see its ranges.'}</div> : grouped.map(([metric, rows]) => (
         <section key={metric} className="rounded-xl border border-border bg-surface-raised p-5 shadow-sm">
           <h2 className="text-base font-semibold text-ink">{metricLabel(metric)}</h2>
           <p className="mt-1 text-xs text-ink-muted">Percentile bands show seed variation by simulation year.</p>

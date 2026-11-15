@@ -8,8 +8,10 @@ import {
   formatDuration,
   parseSeedCount,
   progressLabel,
+  startMismatch,
   statusCopy,
   timeBasisLabel,
+  yearRange,
 } from './ensembleJobHelpers';
 
 const estimate: EnsembleEstimate = {
@@ -80,6 +82,37 @@ describe('estimate formatting', () => {
 
   it('summarizes runs, years, time and disk', () => {
     expect(estimateSummary(estimate)).toBe('10 runs of 2026–2030, about 25 min, up to 2.0 GB of disk while it runs.');
+  });
+});
+
+describe('year range', () => {
+  it('collapses a one-year ensemble to a single year', () => {
+    expect(yearRange(2026, 2030)).toBe('2026–2030');
+    expect(yearRange(2026, 2026)).toBe('2026');
+  });
+
+  it('formats one-year estimates the same way', () => {
+    expect(estimateSummary({ ...estimate, end_year: 2026, run_count: 1 })).toBe(
+      '1 run of 2026, about 25 min, up to 2.0 GB of disk while it runs.'
+    );
+  });
+});
+
+describe('start mismatch', () => {
+  it('says nothing when the job matches what was reviewed', () => {
+    expect(startMismatch(estimate, job({}))).toBeNull();
+  });
+
+  it('names the new years when the scenario changed', () => {
+    expect(startMismatch(estimate, job({ end_year: 2031 }))).toBe(
+      'Started with 2026–2031 instead of the reviewed 2026–2030 because the scenario changed.'
+    );
+  });
+
+  it('flags different seeds when the years match', () => {
+    expect(startMismatch(estimate, job({ seeds: estimate.seeds.map((seed) => seed + 100) }))).toBe(
+      'Started with different seeds than the reviewed estimate because the scenario changed.'
+    );
   });
 });
 

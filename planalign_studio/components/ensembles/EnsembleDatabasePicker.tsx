@@ -27,11 +27,12 @@ export function EnsembleDatabasePicker({ source, onChange, onLoad, loading }: En
   const [scanned, setScanned] = useState(false);
 
   const runDiscovery = async () => {
-    setScanned(true);
     setDiscoverLoading(true);
     setDiscoverError(null);
     try {
       setDatabases(await discoverEnsembleDatabases());
+      // Only a successful scan counts, so a failed first scan retries on the next open.
+      setScanned(true);
     } catch (err) {
       setDiscoverError(errorMessage(err));
     } finally {
@@ -59,7 +60,7 @@ export function EnsembleDatabasePicker({ source, onChange, onLoad, loading }: En
     <details
       className="bg-surface-raised rounded-lg shadow p-6"
       onToggle={(e) => {
-        if (e.currentTarget.open && !scanned) void runDiscovery();
+        if (e.currentTarget.open && !scanned && !discoverLoading) void runDiscovery();
       }}
     >
       <summary className="cursor-pointer text-base font-semibold text-ink">Advanced: open an ensemble database</summary>

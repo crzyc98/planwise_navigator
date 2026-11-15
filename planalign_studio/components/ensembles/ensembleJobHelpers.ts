@@ -38,6 +38,26 @@ export function parseSeedCount(raw: string): number | null {
   return value >= MIN_SEEDS && value <= MAX_SEEDS ? value : null;
 }
 
+/** "2026–2030", or "2026" for a one-year ensemble. */
+export function yearRange(start: number, end: number): string {
+  return start === end ? `${start}` : `${start}–${end}`;
+}
+
+/**
+ * Start sends only the seed count, so the API re-reads the scenario. If its years or base seed
+ * changed since the estimate, say so rather than let the started job differ silently.
+ */
+export function startMismatch(reviewed: EnsembleEstimate, started: Pick<EnsembleJob, 'seeds' | 'start_year' | 'end_year'>): string | null {
+  const reviewedYears = yearRange(reviewed.start_year, reviewed.end_year);
+  const startedYears = yearRange(started.start_year, started.end_year);
+  if (reviewedYears !== startedYears) {
+    return `Started with ${startedYears} instead of the reviewed ${reviewedYears} because the scenario changed.`;
+  }
+  const sameSeeds =
+    reviewed.seeds.length === started.seeds.length && reviewed.seeds.every((seed, i) => seed === started.seeds[i]);
+  return sameSeeds ? null : 'Started with different seeds than the reviewed estimate because the scenario changed.';
+}
+
 /** "about 25 min", "about 2 h 10 min", "under 1 min". */
 export function formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);
@@ -61,8 +81,7 @@ export function timeBasisLabel(basis: EnsembleEstimate['time_basis']): string {
 }
 
 export function estimateSummary(estimate: EnsembleEstimate): string {
-  const years =
-    estimate.start_year === estimate.end_year ? `${estimate.start_year}` : `${estimate.start_year}–${estimate.end_year}`;
+  const years = yearRange(estimate.start_year, estimate.end_year);
   const runs = estimate.run_count === 1 ? '1 run' : `${estimate.run_count} runs`;
   return `${runs} of ${years}, ${formatDuration(estimate.estimated_seconds)}, up to ${formatDisk(estimate.estimated_disk_mib)} of disk while it runs.`;
 }

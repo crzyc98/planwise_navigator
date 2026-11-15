@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Loader2, Plus, X } from 'lucide-react';
 import {
@@ -11,14 +11,14 @@ import {
   getEnsembleAttribution,
   getEnsembleDistributions,
   getEnsembleRisk,
-  listScenarios,
 } from '../services/api';
 import EnsembleAnalysisPanel, { EnsembleAnalysisData } from './EnsembleAnalysisPanel';
 import { EnsembleDatabasePicker, EnsembleSource } from './ensembles/EnsembleDatabasePicker';
 import { EnsembleJobList } from './ensembles/EnsembleJobList';
 import { RunEnsembleForm } from './ensembles/RunEnsembleForm';
-import { RANGE_DISCLAIMER, errorMessage } from './ensembles/ensembleJobHelpers';
+import { RANGE_DISCLAIMER, errorMessage, yearRange } from './ensembles/ensembleJobHelpers';
 import { useEnsembleJobs } from './ensembles/useEnsembleJobs';
+import { ScenariosState, useWorkspaceScenarios } from './ensembles/useWorkspaceScenarios';
 
 interface EnsemblesOutletContext {
   activeWorkspace: Workspace | null;
@@ -44,10 +44,17 @@ const EMPTY_SOURCE: EnsembleSource = { database: '', scenarioId: '', ensembleId:
 
 export default function EnsemblesPage() {
   const { activeWorkspace } = useOutletContext<EnsemblesOutletContext>();
+  // Remount per workspace: nothing opened, loading or polled in one workspace carries into another,
+  // and responses still in flight for the old one land on an unmounted view.
+  return <EnsemblesView key={activeWorkspace?.id ?? ''} activeWorkspace={activeWorkspace} />;
+}
+
+function EnsemblesView({ activeWorkspace }: Readonly<EnsemblesOutletContext>) {
   const workspaceId = activeWorkspace?.id ?? '';
 
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const { state: scenarios, retry: retryScenarios } = useWorkspaceScenarios(workspaceId);
   const { jobs, error: jobsError, upsert } = useEnsembleJobs(workspaceId);
+  const [jobNotices, setJobNotices] = useState<Record<string, string>>({});
 
   const [manualSource, setManualSource] = useState<EnsembleSource>(EMPTY_SOURCE);
   const [loaded, setLoaded] = useState<LoadedEnsemble | null>(null);
@@ -55,33 +62,29 @@ export default function EnsemblesPage() {
   const [attribution, setAttribution] = useState<EnsembleAttributionRow[]>([]);
   const [loadLoading, setLoadLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Only the latest open request may fill the panel.
+  // Only the latest open request may fill the panel, and only risk for what is open now may show.
   const loadRequestRef = useRef(0);
+  const riskRequestRef = useRef(0);
 
   const [thresholdRows, setThresholdRows] = useState<ThresholdRow[]>([newThresholdRow()]);
   const [riskStatements, setRiskStatements] = useState<EnsembleRiskStatement[]>([]);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setScenarios([]);
-    if (!workspaceId) return;
-    let alive = true;
-    listScenarios(workspaceId)
-      .then((items) => alive && setScenarios(items))
-      .catch(() => alive && setScenarios([]));
-    return () => {
-      alive = false;
-    };
-  }, [workspaceId]);
+  const onStarted = (job: EnsembleJob, notice: string | null) => {
+    upsert(job);
+    if (notice) setJobNotices((current) => ({ ...current, [job.job_id]: notice }));
+  };
 
   const openEnsemble = async (target: LoadedEnsemble) => {
     const request = ++loadRequestRef.current;
+    riskRequestRef.current += 1;
     const { database, scenarioId, ensembleId } = target.source;
     setLoadLoading(true);
     setLoadError(null);
     setRiskStatements([]);
     setRiskError(null);
+    setRiskLoading(false);
     try {
       const [distributionRows, attributionRows] = await Promise.all([
         getEnsembleDistributions(database, scenarioId, ensembleId),
@@ -110,7 +113,7 @@ export default function EnsemblesPage() {
         scenarioId: job.output.ensemble_scenario_id,
         ensembleId: job.output.ensemble_id,
       },
-      label: `${job.scenario_name}, ${job.seed_count} seeds, ${job.start_year}–${job.end_year}`,
+      label: `${job.scenario_name}, ${job.seed_count} seeds, ${yearRange(job.start_year, job.end_year)}`,
       jobId: job.job_id,
     });
   };
@@ -124,20 +127,23 @@ export default function EnsemblesPage() {
   const updateThresholdRow = (id: number, patch: Partial<ThresholdRow>) =>
     setThresholdRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
 
+  const thresholds = thresholdRows
+    .filter((row) => row.metric.trim() !== '' && row.value.trim() !== '')
+    .map((row) => ({ metric: row.metric.trim(), value: Number(row.value) }));
+
   const evaluateRisk = async () => {
-    const thresholds = thresholdRows
-      .filter((row) => row.metric.trim() !== '' && row.value.trim() !== '')
-      .map((row) => ({ metric: row.metric.trim(), value: Number(row.value) }));
     if (thresholds.length === 0 || !loaded) return;
+    const request = ++riskRequestRef.current;
     const { database, scenarioId, ensembleId } = loaded.source;
     setRiskLoading(true);
     setRiskError(null);
     try {
-      setRiskStatements(await getEnsembleRisk(database, scenarioId, ensembleId, thresholds));
+      const statements = await getEnsembleRisk(database, scenarioId, ensembleId, thresholds);
+      if (request === riskRequestRef.current) setRiskStatements(statements);
     } catch (err) {
-      setRiskError(errorMessage(err));
+      if (request === riskRequestRef.current) setRiskError(errorMessage(err));
     } finally {
-      setRiskLoading(false);
+      if (request === riskRequestRef.current) setRiskLoading(false);
     }
   };
 
@@ -158,7 +164,9 @@ export default function EnsemblesPage() {
       <section className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
         <h2 className="text-base font-semibold text-ink">Run an ensemble</h2>
         {activeWorkspace ? (
-          <RunEnsembleForm key={workspaceId} workspaceId={workspaceId} scenarios={scenarios} onStarted={upsert} />
+          <ScenarioGate state={scenarios} onRetry={retryScenarios}>
+            {(items) => <RunEnsembleForm workspaceId={workspaceId} scenarios={items} onStarted={onStarted} />}
+          </ScenarioGate>
         ) : (
           <p className="text-sm text-ink-muted">Select a workspace to run an ensemble.</p>
         )}
@@ -172,6 +180,7 @@ export default function EnsemblesPage() {
             workspaceId={workspaceId}
             jobs={jobs}
             openedJobId={loaded?.jobId ?? null}
+            notices={jobNotices}
             onOpen={openJob}
             onChanged={upsert}
           />
@@ -237,7 +246,7 @@ export default function EnsemblesPage() {
             <button
               type="button"
               onClick={() => void evaluateRisk()}
-              disabled={riskLoading}
+              disabled={riskLoading || thresholds.length === 0}
               className="flex items-center gap-2 rounded-md border border-border-strong px-3 py-1.5 text-sm disabled:opacity-50"
             >
               {riskLoading && <Loader2 size={14} className="animate-spin" />}
@@ -249,7 +258,38 @@ export default function EnsemblesPage() {
       )}
 
       {loaded && <p className="text-sm text-ink-muted">Showing {loaded.label}</p>}
-      <EnsembleAnalysisPanel data={analysisData} />
+      <EnsembleAnalysisPanel data={analysisData} opened={loaded !== null} />
     </div>
   );
+}
+
+interface ScenarioGateProps {
+  readonly state: ScenariosState;
+  readonly onRetry: () => void;
+  readonly children: (scenarios: Scenario[]) => React.ReactNode;
+}
+
+/** Loading, couldn't-load (with retry) and truly-empty states before the launch form. */
+function ScenarioGate({ state, onRetry, children }: ScenarioGateProps) {
+  if (state.status === 'loading') {
+    return (
+      <p className="flex items-center gap-2 text-sm text-ink-muted">
+        <Loader2 size={14} className="animate-spin" /> Loading scenarios…
+      </p>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <p className="text-sm text-danger-ink">
+        Couldn&apos;t load this workspace&apos;s scenarios: {state.error}{' '}
+        <button type="button" onClick={onRetry} className="underline">
+          Try again
+        </button>
+      </p>
+    );
+  }
+  if (state.scenarios.length === 0) {
+    return <p className="text-sm text-ink-muted">This workspace has no scenarios yet. Create one first.</p>;
+  }
+  return <>{children(state.scenarios)}</>;
 }

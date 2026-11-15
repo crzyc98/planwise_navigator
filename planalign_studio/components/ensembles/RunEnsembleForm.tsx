@@ -8,13 +8,15 @@ import {
   errorMessage,
   estimateSummary,
   parseSeedCount,
+  startMismatch,
   timeBasisLabel,
 } from './ensembleJobHelpers';
 
 interface RunEnsembleFormProps {
   readonly workspaceId: string;
   readonly scenarios: Scenario[];
-  readonly onStarted: (job: EnsembleJob) => void;
+  /** `notice` is set when the started job differs from the reviewed estimate. */
+  readonly onStarted: (job: EnsembleJob, notice: string | null) => void;
 }
 
 interface Review {
@@ -30,7 +32,7 @@ const INPUT_CLASS =
 export function RunEnsembleForm({ workspaceId, scenarios, onStarted }: RunEnsembleFormProps) {
   const [pickedId, setPickedId] = useState('');
   const [seedsRaw, setSeedsRaw] = useState(String(DEFAULT_SEEDS));
-  // The estimate is tied to what it was made for, so Start runs exactly what was reviewed.
+  // The estimate is tied to what it was made for; Start runs that scenario and seed count.
   const [review, setReview] = useState<Review | null>(null);
   const [busy, setBusy] = useState<'estimate' | 'start' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,17 +68,14 @@ export function RunEnsembleForm({ workspaceId, scenarios, onStarted }: RunEnsemb
     setBusy('start');
     setError(null);
     try {
-      onStarted(await startEnsemble(workspaceId, review.scenarioId, review.estimate.seed_count));
+      const job = await startEnsemble(workspaceId, review.scenarioId, review.estimate.seed_count);
+      onStarted(job, startMismatch(review.estimate, job));
       setReview(null);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(null);
     }
-  }
-
-  if (scenarios.length === 0) {
-    return <p className="text-sm text-ink-muted">This workspace has no scenarios yet. Create one first.</p>;
   }
 
   return (
