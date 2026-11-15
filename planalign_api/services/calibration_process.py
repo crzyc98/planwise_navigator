@@ -103,15 +103,33 @@ def _terminate(process: subprocess.Popen[str]) -> None:
         deadline = time.monotonic() + CANCEL_GRACE_SECONDS
         while time.monotonic() < deadline:
             process.poll()  # Reap the leader before checking its process group.
-            os.killpg(process.pid, 0)
+            if not _group_alive(process.pid):
+                break
             time.sleep(0.05)
-        os.killpg(process.pid, signal.SIGKILL)
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
         process.wait()
     except ProcessLookupError:
         process.wait()
     except PermissionError:
         logger.exception("Could not terminate calibration process %s", process.pid)
         raise
+
+
+def _group_alive(pgid: int) -> bool:
+    """Whether any process is left in the group.
+
+    macOS answers EPERM rather than ESRCH while a member is still exiting if
+    another process is reading the process table at that moment, so EPERM
+    means "not gone yet": poll again.
+    """
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 WORKER_MODULE = "planalign_orchestrator.calibration_worker"
@@ -127,8 +145,7 @@ def wait_for_group_exit(pgid: int) -> None:
         return
     deadline = time.monotonic() + CANCEL_GRACE_SECONDS
     try:
-        while True:
-            os.killpg(pgid, 0)
+        while _group_alive(pgid):
             if time.monotonic() >= deadline:
                 os.killpg(pgid, signal.SIGKILL)
             time.sleep(0.05)

@@ -128,6 +128,102 @@ def test_match_tiers_must_be_ordered_and_non_overlapping():
         PlanDesignParametersMap.model_validate(raw)
 
 
+# Identifier shapes used by shipped configs, batch scenarios, and test fixtures.
+REAL_IDENTIFIERS = [
+    "baseline",
+    "default",
+    "SCENARIO_001",
+    "standard_401k",
+    "ae_all_eligible",
+    "plan-a",
+    "test-scenario-456",
+    "two_band_cross_tested",
+    "Plan A 2026",
+    "v1.2:draft",
+]
+UNSAFE_IDENTIFIERS = ["o'brien", "plan\\a", "plan\na", "tab\tid", "x" * 129]
+
+
+@pytest.mark.parametrize("value", REAL_IDENTIFIERS)
+def test_identifiers_accept_real_values(minimal_config, value):
+    raw = minimal_config.model_dump()
+    raw.update(scenario_id=value, plan_design_id=value)
+    config = SimulationConfig.model_validate(raw)
+    assert to_dbt_vars(config)["scenario_id"] == value
+    assignment = PlanDesignAssignmentSettings.model_validate(
+        {
+            "default_plan_design_id": value,
+            "rules": [{"cutoff": "2025-01-01", "plan_design_id": value}],
+        }
+    )
+    assert assignment.design_set() == [value]
+
+
+@pytest.mark.parametrize("field", ["scenario_id", "plan_design_id"])
+def test_empty_top_level_identifier_still_means_default(minimal_config, field):
+    raw = minimal_config.model_dump()
+    raw[field] = ""
+    assert to_dbt_vars(SimulationConfig.model_validate(raw))[field] == "default"
+
+
+@pytest.mark.parametrize("value", UNSAFE_IDENTIFIERS)
+@pytest.mark.parametrize("field", ["scenario_id", "plan_design_id"])
+def test_top_level_identifiers_reject_unsafe_values(minimal_config, field, value):
+    raw = minimal_config.model_dump()
+    raw[field] = value
+    with pytest.raises(ValueError, match="invalid identifier"):
+        SimulationConfig.model_validate(raw)
+
+
+@pytest.mark.parametrize("value", UNSAFE_IDENTIFIERS)
+def test_plan_design_ids_reject_unsafe_values(value):
+    with pytest.raises(ValueError, match="invalid identifier"):
+        PlanDesignAssignmentSettings.model_validate({"default_plan_design_id": value})
+    with pytest.raises(ValueError, match="invalid identifier"):
+        PlanDesignAssignmentSettings.model_validate(
+            {
+                "default_plan_design_id": "legacy",
+                "rules": [{"cutoff": "2025-01-01", "plan_design_id": value}],
+            }
+        )
+    raw = _two_design_parameters()
+    with pytest.raises(ValueError, match="invalid identifier"):
+        PlanDesignParametersMap.model_validate({value: raw["legacy"]})
+
+
+@pytest.mark.parametrize("scope", ["all_eligible_employees", "new_hires_only", None])
+def test_auto_enrollment_scope_accepts_dbt_values(minimal_config, scope):
+    raw = minimal_config.model_dump()
+    raw["enrollment"]["auto_enrollment"]["scope"] = scope
+    config = SimulationConfig.model_validate(raw)
+    assert config.enrollment.auto_enrollment.scope == scope
+
+
+@pytest.mark.parametrize("scope", ["all_eligible", "everyone", ""])
+def test_auto_enrollment_scope_rejects_other_values(minimal_config, scope):
+    raw = minimal_config.model_dump()
+    raw["enrollment"]["auto_enrollment"]["scope"] = scope
+    with pytest.raises(ValueError, match="auto_enrollment.scope"):
+        SimulationConfig.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "path", ["/srv/o'brien/census.parquet", "data/o'brien.parquet"]
+)
+def test_census_path_with_quote_is_rejected(minimal_config, path):
+    raw = minimal_config.model_dump()
+    raw["setup"] = {"census_parquet_path": path}
+    with pytest.raises(ValueError, match="single quote"):
+        to_dbt_vars(SimulationConfig.model_validate(raw))
+
+
+def test_census_path_export_is_unchanged_for_safe_paths(minimal_config):
+    raw = minimal_config.model_dump()
+    raw["setup"] = {"census_parquet_path": "/srv/data/census.parquet"}
+    exported = to_dbt_vars(SimulationConfig.model_validate(raw))
+    assert exported["census_parquet_path"] == "/srv/data/census.parquet"
+
+
 def test_load_simulation_config_valid_yaml(tmp_path: Path):
     yaml_text = """
 simulation:

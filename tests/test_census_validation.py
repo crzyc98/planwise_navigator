@@ -6,6 +6,7 @@ Covers:
 - US3: Non-existent file at configured path → ConfigurationError
 - US4: Relative paths resolve against the workspace directory
 - US5: Stale scenario path falls back to the workspace base-config census
+- US6: The census must sit inside the workspaces root with a SQL-safe path
 """
 
 from pathlib import Path
@@ -218,6 +219,71 @@ def test_validate_census_stale_path_falls_back_to_workspace_census(tmp_path):
 
     # Stale placeholder persisted by older studio builds
     config = {"setup": {"census_parquet_path": "data/census_preprocessed.parquet"}}
+    make_service(tmp_path)._validate_census(
+        config, scenario_id="test_scenario", workspace_id="ws1"
+    )
+    assert config["setup"]["census_parquet_path"] == str(census_file.resolve())
+
+
+# ---------------------------------------------------------------------------
+# US6: The census must sit inside the workspaces root with a SQL-safe path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.fast
+def test_validate_census_rejects_absolute_path_outside_root(tmp_path):
+    """An existing census outside the workspaces root is rejected."""
+    outside = tmp_path / "outside.parquet"
+    outside.write_bytes(b"PAR1dummy")
+    root = tmp_path / "workspaces"
+    root.mkdir()
+
+    config = {"setup": {"census_parquet_path": str(outside)}}
+    with pytest.raises(ConfigurationError, match="outside allowed directories"):
+        make_service(root)._validate_census(
+            config, scenario_id="test_scenario", workspace_id="ws1"
+        )
+    assert config["setup"]["census_parquet_path"] == str(outside)
+
+
+@pytest.mark.fast
+def test_validate_census_rejects_relative_path_escaping_root(tmp_path):
+    """A workspace-relative path cannot climb out of the workspaces root."""
+    (tmp_path / "outside.parquet").write_bytes(b"PAR1dummy")
+    root = tmp_path / "workspaces"
+    (root / "ws1").mkdir(parents=True)
+
+    config = {"setup": {"census_parquet_path": "../../outside.parquet"}}
+    with pytest.raises(ConfigurationError, match="outside allowed directories"):
+        make_service(root)._validate_census(
+            config, scenario_id="test_scenario", workspace_id="ws1"
+        )
+
+
+@pytest.mark.fast
+def test_validate_census_rejects_quote_in_path(tmp_path):
+    """A census path dbt could not quote safely is rejected, even inside the root."""
+    data_dir = tmp_path / "ws1" / "o'brien"
+    data_dir.mkdir(parents=True)
+    census_file = data_dir / "census.parquet"
+    census_file.write_bytes(b"PAR1dummy")
+
+    config = {"setup": {"census_parquet_path": str(census_file)}}
+    with pytest.raises(ConfigurationError, match="dangerous character"):
+        make_service(tmp_path)._validate_census(
+            config, scenario_id="test_scenario", workspace_id="ws1"
+        )
+
+
+@pytest.mark.fast
+def test_validate_census_accepts_absolute_path_inside_root(tmp_path):
+    """The absolute path Studio stores after an upload stays valid."""
+    data_dir = tmp_path / "ws1" / "data"
+    data_dir.mkdir(parents=True)
+    census_file = data_dir / "census.parquet"
+    census_file.write_bytes(b"PAR1dummy")
+
+    config = {"setup": {"census_parquet_path": str(census_file)}}
     make_service(tmp_path)._validate_census(
         config, scenario_id="test_scenario", workspace_id="ws1"
     )

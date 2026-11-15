@@ -347,6 +347,12 @@ class TestValidateBands:
         errors = validate_bands(_valid_tenure_bands(), "tenure")
         assert errors == []
 
+    def test_band_label_with_quote_rejected(self):
+        bands = _valid_age_bands()
+        bands[0]["band_label"] = "x' END --"
+        errors = validate_bands(bands, "age")
+        assert [e.field for e in errors] == ["band[0].band_label"]
+
     # --- empty / wrong type ---
 
     def test_empty_band_list(self):
