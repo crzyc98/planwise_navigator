@@ -9,7 +9,7 @@ const PREVIOUS_AT = '2026-11-13T09:00:00-05:00';
 const DATE = new Date(PREVIOUS_AT).toLocaleDateString();
 
 function change(overrides: Partial<RunChange>): RunChange {
-  return { code: 'config_differs', path: null, group: null, previous_value: null, current_value: null, ...overrides };
+  return { code: 'config_differs', path: null, group: null, files: [], previous_value: null, current_value: null, ...overrides };
 }
 
 function response(overrides: Partial<RunChangesResponse>): RunChangesResponse {
@@ -55,6 +55,23 @@ describe('summarizeRunChanges', () => {
     const summary = summarizeRunChanges(response({ changes }));
     expect(summary.changes).toHaveLength(9);
     expect(summary.changes.at(-1)).toBe('and 2 more settings');
+  });
+});
+
+describe('summarizeRunChanges mirrored settings', () => {
+  it('lists a setting recorded under two paths once, before capping', () => {
+    const changes = [
+      change({ path: 'compensation.cola_rate', previous_value: 0.02, current_value: 0.025 }),
+      change({ path: 'compensation.cola_rate_percent', previous_value: 2, current_value: 2.5 }),
+      change({ path: 'dc_plan.deferral_match_response.upward_participation_rate', previous_value: 0.4, current_value: 0.5 }),
+      change({ path: 'deferral_match_response.upward_participation_rate', previous_value: 0.4, current_value: 0.5 }),
+      change({ code: 'seed_files_differ', files: ['config_job_levels.csv'] }),
+    ];
+    expect(summarizeRunChanges(response({ changes })).changes).toEqual([
+      'Cost-of-living raise: 2% → 2.5%',
+      'Upward participation rate: 40% → 50%',
+      'Model seed tables differ: config_job_levels.csv',
+    ]);
   });
 });
 

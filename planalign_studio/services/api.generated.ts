@@ -7733,13 +7733,18 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs" | "edited_since_run" | "mixed_generation" | "changed_since_previous_run";
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "engine_build_differs" | "seed_files_differ" | "config_differs" | "edited_since_run" | "mixed_generation" | "changed_since_previous_run";
             /**
              * Effect
              * @description breaks: not like-for-like; note: reported, verdict unchanged
              * @enum {string}
              */
             effect: "breaks" | "note";
+            /**
+             * Files
+             * @description Seed table file names that differ (seed_files_differ only)
+             */
+            files: string[];
             /**
              * Group
              * @description Config group
@@ -9170,12 +9175,17 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "config_differs";
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "engine_build_differs" | "seed_files_differ" | "config_differs";
             /**
              * Current Value
              * @description Selected result's value
              */
             current_value: unknown;
+            /**
+             * Files
+             * @description Seed table file names that differ (seed_files_differ only)
+             */
+            files: string[];
             /**
              * Group
              * @description Config group
@@ -9199,7 +9209,7 @@ export interface components {
         RunChangesResponse: {
             /**
              * Changes
-             * @description Census, seed, years, engine version and non-plan settings first, then plan design settings
+             * @description Census, seed, years, engine, seed tables and non-plan settings first, then plan design settings
              */
             changes: components["schemas"]["RunChange"][];
             /** Has Previous Run */
@@ -9219,7 +9229,7 @@ export interface components {
              * Unevaluated
              * @description Checks one of the two runs did not record
              */
-            unevaluated: ("census" | "seed" | "years" | "engine_version" | "config")[];
+            unevaluated: ("census" | "seed" | "years" | "engine_version" | "seed_files" | "config")[];
         };
         /**
          * RunDetails
@@ -11481,7 +11491,7 @@ export interface components {
              * Check
              * @enum {string}
              */
-            check: "census" | "seed" | "years" | "engine_version" | "config";
+            check: "census" | "seed" | "years" | "engine_version" | "seed_files" | "config";
             /**
              * Scenario Id
              * @description Scenario whose record is missing

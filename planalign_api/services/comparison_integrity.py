@@ -4,7 +4,8 @@ A comparison shows the difference between two results as the cost of a plan
 change. That only holds when the results differ in plan design alone. For each
 compared scenario this service checks the anchor's and the scenario's selected
 results: census (provenance SHA-256), random seed, simulated years, engine
-version, and the archived run configs grouped by what each setting controls.
+version and build, dbt seed tables (provenance SHA-256 per file), and the
+archived run configs grouped by what each setting controls.
 The same comparison, run between a scenario's previous run and its selected
 result, says what changed since the previous run (#1186).
 
@@ -17,9 +18,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional, cast, get_args
 
 import yaml
 from pydantic import ValidationError
@@ -144,15 +145,29 @@ _CHECKED_SEPARATELY = frozenset(
         "data_sources.census_parquet_path",
     }
 )
-# Labels and runtime knobs that cannot change results.
-_IGNORED_PATHS = frozenset(
-    {
-        "simulation.name",
-        "advanced.log_level",
-        "advanced.memory_limit_gb",
-        "advanced.checkpoint_frequency",
-    }
+# Labels, runtime knobs and housekeeping that cannot change results. Matched
+# like CONFIG_GROUP_PREFIXES ("setup.clear" covers "setup.clear_tables").
+# Anything that might change results (e.g. "advanced.engine") stays out.
+_IGNORED_PREFIXES = (
+    "simulation.name",
+    "advanced.log_level",
+    "advanced.memory_limit_gb",
+    "advanced.checkpoint_frequency",
+    "advanced.enable_multithreading",
+    "advanced.strict_validation",
+    # Threading, memory and the single supported execution engine.
+    "optimization",
+    "orchestrator.threading",
+    # Archive retention and garbage collection.
+    "storage",
+    # Which intermediate tables are cleared between runs.
+    "setup.clear",
+    # Backup, log and database location settings.
+    "production_safety",
 )
+# Engine-only changes; a rerun after an upgrade is not "inputs changed".
+_ENGINE_CODES = frozenset({"engine_version_differs", "engine_build_differs"})
+_RUN_CHANGE_CODES = frozenset(get_args(RunChangeCode))
 
 
 def config_group(path: str) -> ConfigGroup:
@@ -165,6 +180,52 @@ def config_group(path: str) -> ConfigGroup:
 
 def _matches(path: str, prefix: str) -> bool:
     return path == prefix or path.startswith((f"{prefix}.", f"{prefix}_"))
+
+
+def _ignored(path: str) -> bool:
+    return path in _CHECKED_SEPARATELY or any(
+        _matches(path, prefix) for prefix in _IGNORED_PREFIXES
+    )
+
+
+def _ignored_delta(delta: ConfigDelta) -> bool:
+    """Ignored path, or a section only one run has whose settings are all ignored."""
+    section = delta.a if isinstance(delta.a, Mapping) else delta.b
+    if not isinstance(section, Mapping):
+        return _ignored(delta.path)
+    return all(_ignored(path) for path in _leaf_paths(delta.path, section))
+
+
+def _leaf_paths(path: str, value: Any) -> list[str]:
+    if not isinstance(value, Mapping) or not value:
+        return [path]
+    return [
+        leaf
+        for key, child in value.items()
+        for leaf in _leaf_paths(f"{path}.{key}", child)
+    ]
+
+
+@dataclass(frozen=True)
+class EngineBuild:
+    """The code a run executed, from provenance (commit plus local changes)."""
+
+    commit: str
+    dirty: bool
+    tree_fingerprint: Optional[str] = None
+
+    def same_as(self, other: "EngineBuild") -> bool:
+        if self.commit != other.commit or self.dirty != other.dirty:
+            return False
+        # Two dirty trees are the same build only when their content matches.
+        return not self.dirty or (
+            self.tree_fingerprint is not None
+            and self.tree_fingerprint == other.tree_fingerprint
+        )
+
+    def label(self) -> str:
+        short = self.commit[:7]
+        return f"{short} with local changes" if self.dirty else short
 
 
 @dataclass(frozen=True)
@@ -180,6 +241,9 @@ class RunRecord:
     seed: Optional[int] = None
     years: Optional[tuple[int, int]] = None
     engine_version: Optional[str] = None
+    # Logical seed file name -> SHA-256; None when provenance did not record it.
+    seed_files: Optional[dict[str, str]] = None
+    build: Optional[EngineBuild] = None
     notes: list[IntegrityReason] = field(default_factory=list)
 
 
@@ -259,7 +323,7 @@ class ComparisonIntegrityService:
             self.storage.get_merged_config_for(workspace, scenario_id),
         )
         config = _read_run_config(resolved.config_path)
-        return RunRecord(
+        record = RunRecord(
             scenario_id=scenario_id,
             name=name,
             has_run_record=manifest is not None or trust.available,
@@ -270,9 +334,13 @@ class ComparisonIntegrityService:
             years=_years(resolved, manifest),
             engine_version=trust.planalign_version
             or (manifest.software.planalign_version if manifest else None),
-            notes=_notes(scenario_id, trust)
-            + _previous_run_notes(_selected_run_dir(resolved), scenario_id),
+            seed_files=_seed_files(manifest),
+            build=_build(manifest),
         )
+        notes = _notes(scenario_id, trust) + _previous_run_notes(
+            record, _selected_run_dir(resolved)
+        )
+        return replace(record, notes=notes)
 
     def run_changes(
         self, workspace_id: str, scenario_id: str, name: str
@@ -302,24 +370,18 @@ class ComparisonIntegrityService:
 
 def compare_records(anchor: RunRecord, scenario: RunRecord) -> ScenarioIntegrity:
     """Like-for-like verdict for ``scenario`` against ``anchor``."""
-    reasons: list[IntegrityReason] = []
-    unevaluated: list[UnevaluatedCheck] = []
-    for fact in _FACT_CHECKS:
-        anchor_value, scenario_value = fact.value(anchor), fact.value(scenario)
-        missing = _missing(
-            fact.check, (anchor, anchor_value), (scenario, scenario_value)
-        )
-        unevaluated.extend(missing)
-        if not missing and anchor_value != scenario_value:
-            display = fact.display or fact.value
-            reasons.append(
-                IntegrityReason(
-                    code=fact.code,
-                    effect="breaks",
-                    anchor_value=_display(display(anchor)),
-                    scenario_value=_display(display(scenario)),
-                )
+    reasons, unevaluated = _fact_reasons(anchor, scenario)
+    reasons.extend(_build_reasons(anchor, scenario))
+    if anchor.seed_files is None or scenario.seed_files is None:
+        unevaluated.extend(
+            _missing(
+                "seed_files",
+                (anchor, anchor.seed_files),
+                (scenario, scenario.seed_files),
             )
+        )
+    else:
+        reasons.extend(_seed_file_reasons(anchor.seed_files, scenario.seed_files))
     plan_differences: list[ConfigDelta] = []
     if anchor.config is None or scenario.config is None:
         unevaluated.extend(
@@ -342,6 +404,71 @@ def compare_records(anchor: RunRecord, scenario: RunRecord) -> ScenarioIntegrity
     )
 
 
+def _fact_reasons(
+    anchor: RunRecord, scenario: RunRecord
+) -> tuple[list[IntegrityReason], list[UnevaluatedCheck]]:
+    reasons: list[IntegrityReason] = []
+    unevaluated: list[UnevaluatedCheck] = []
+    for fact in _FACT_CHECKS:
+        anchor_value, scenario_value = fact.value(anchor), fact.value(scenario)
+        missing = _missing(
+            fact.check, (anchor, anchor_value), (scenario, scenario_value)
+        )
+        unevaluated.extend(missing)
+        if not missing and anchor_value != scenario_value:
+            display = fact.display or fact.value
+            reasons.append(
+                IntegrityReason(
+                    code=fact.code,
+                    effect="breaks",
+                    anchor_value=_display(display(anchor)),
+                    scenario_value=_display(display(scenario)),
+                )
+            )
+    return reasons, unevaluated
+
+
+def _build_reasons(anchor: RunRecord, scenario: RunRecord) -> list[IntegrityReason]:
+    """Same engine version but different code. Skipped when a run has no commit
+    (e.g. a non-git install), so that never makes a comparison ``unknown``."""
+    if anchor.engine_version is None or anchor.engine_version != (
+        scenario.engine_version
+    ):
+        return []
+    if anchor.build is None or scenario.build is None:
+        return []
+    if anchor.build.same_as(scenario.build):
+        return []
+    return [
+        IntegrityReason(
+            code="engine_build_differs",
+            effect="breaks",
+            anchor_value=anchor.build.label(),
+            scenario_value=scenario.build.label(),
+        )
+    ]
+
+
+def _seed_file_reasons(
+    anchor_files: Mapping[str, str], scenario_files: Mapping[str, str]
+) -> list[IntegrityReason]:
+    """One reason naming the differing seed tables (file names, never paths)."""
+    names = sorted(
+        name
+        for name in anchor_files.keys() | scenario_files.keys()
+        if anchor_files.get(name) != scenario_files.get(name)
+    )
+    if not names:
+        return []
+    return [
+        IntegrityReason(
+            code="seed_files_differ",
+            effect="breaks",
+            files=list(dict.fromkeys(Path(name).name for name in names)),
+        )
+    ]
+
+
 def read_run_files(run_dir: Path, scenario_id: str, name: str) -> RunRecord:
     """What one run ran with, from its JSON/YAML files only (no database)."""
     manifest = read_run_manifest(run_dir)
@@ -359,6 +486,8 @@ def read_run_files(run_dir: Path, scenario_id: str, name: str) -> RunRecord:
         seed=seed if seed is not None else _int_or_none(metadata.get("seed")),
         years=_file_years(metadata, manifest),
         engine_version=manifest.software.planalign_version if manifest else None,
+        seed_files=_seed_files(manifest),
+        build=_build(manifest),
     )
 
 
@@ -369,31 +498,37 @@ def _selected_run_dir(resolved: ResolvedDatabasePath) -> Optional[Path]:
 
 
 def _since_previous_run(
-    run_dir: Optional[Path], scenario_id: str
+    run_dir: Optional[Path], scenario_id: str, selected: Optional[RunRecord] = None
 ) -> Optional[tuple[PreviousRun, ScenarioIntegrity]]:
-    """Compare the previous run (as anchor) with the selected result, files only."""
+    """Compare the previous run (as anchor) with the selected result.
+
+    ``selected`` is the already-read selected result, if any; otherwise it is
+    read from its run files. The previous run is always read from files only.
+    """
     previous = find_previous_run(run_dir) if run_dir is not None else None
     if run_dir is None or previous is None:
         return None
-    integrity = compare_records(
-        read_run_files(previous.path, scenario_id, ""),
-        read_run_files(run_dir, scenario_id, ""),
-    )
+    current = selected or read_run_files(run_dir, scenario_id, "")
+    integrity = compare_records(read_run_files(previous.path, scenario_id, ""), current)
     return previous, integrity
 
 
 def _previous_run_notes(
-    run_dir: Optional[Path], scenario_id: str
+    record: RunRecord, run_dir: Optional[Path]
 ) -> list[IntegrityReason]:
-    """A note when anything other than plan design changed since the previous run."""
-    compared = _since_previous_run(run_dir, scenario_id)
+    """A note when inputs or assumptions (not plan design, not only the engine)
+    changed since the previous run. ``record`` must not carry notes yet."""
+    compared = _since_previous_run(run_dir, record.scenario_id, record)
     if compared is None or not any(
-        reason.effect == "breaks" for reason in compared[1].reasons
+        reason.effect == "breaks" and reason.code not in _ENGINE_CODES
+        for reason in compared[1].reasons
     ):
         return []
     return [
         IntegrityReason(
-            code="changed_since_previous_run", effect="note", scenario_id=scenario_id
+            code="changed_since_previous_run",
+            effect="note",
+            scenario_id=record.scenario_id,
         )
     ]
 
@@ -402,15 +537,15 @@ def _run_changes(integrity: ScenarioIntegrity) -> list[RunChange]:
     """Non-plan differences first, then plan design (previous=anchor side)."""
     changes = [
         RunChange(
-            # Only fact and config checks break; notes are filtered out here.
             code=cast(RunChangeCode, reason.code),
             path=reason.path,
             group=reason.group,
+            files=reason.files,
             previous_value=reason.anchor_value,
             current_value=reason.scenario_value,
         )
         for reason in integrity.reasons
-        if reason.effect == "breaks"
+        if reason.effect == "breaks" and reason.code in _RUN_CHANGE_CODES
     ]
     changes.extend(
         RunChange(
@@ -456,7 +591,7 @@ def _config_reasons(
     reasons: list[IntegrityReason] = []
     plan_differences: list[ConfigDelta] = []
     for delta in differences:
-        if delta.path in _CHECKED_SEPARATELY or delta.path in _IGNORED_PATHS:
+        if _ignored_delta(delta):
             continue
         group = config_group(delta.path)
         if group == "plan_design":
@@ -483,10 +618,12 @@ def _notes(scenario_id: str, trust: RunTrustResult) -> list[IntegrityReason]:
                 code="edited_since_run", effect="note", scenario_id=scenario_id
             )
         )
+    # Rows from runs with different settings: the result itself is not one
+    # run, so it can never be like-for-like with anything.
     if "mixed_generation" in trust.reasons:
         notes.append(
             IntegrityReason(
-                code="mixed_generation", effect="note", scenario_id=scenario_id
+                code="mixed_generation", effect="breaks", scenario_id=scenario_id
             )
         )
     return notes
@@ -531,6 +668,26 @@ def _manifest_years(
 
 def _int_or_none(value: Any) -> Optional[int]:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _seed_files(
+    manifest: Optional[RunProvenanceManifest],
+) -> Optional[dict[str, str]]:
+    # An empty list means capture failed (the seed directory is never empty).
+    if manifest is None or not manifest.seed_files:
+        return None
+    return {seed.logical_name: seed.sha256 for seed in manifest.seed_files}
+
+
+def _build(manifest: Optional[RunProvenanceManifest]) -> Optional[EngineBuild]:
+    software = manifest.software if manifest is not None else None
+    if software is None or software.git_commit_sha is None:
+        return None
+    return EngineBuild(
+        commit=software.git_commit_sha,
+        dirty=software.working_tree_state == "dirty",
+        tree_fingerprint=software.working_tree_fingerprint,
+    )
 
 
 def _census_sha256(manifest: Optional[RunProvenanceManifest]) -> Optional[str]:

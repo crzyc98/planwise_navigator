@@ -52,8 +52,53 @@ const CHECK_WORDS: Record<UnevaluatedCheck['check'], string> = {
   seed: 'random seed',
   years: 'simulated years',
   engine_version: 'engine version',
+  seed_files: 'model seed tables',
   config: 'settings',
 };
+
+/**
+ * Settings recorded twice under different paths (#1178). Each maps to one
+ * canonical path so both copies render identical text and collapse into one
+ * line. `scale` converts the value to the canonical path's units.
+ */
+const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number }> = [
+  // The engine reads compensation.<name>; Studio writes <name>_percent.
+  {
+    pattern: /^compensation\.(cola_rate|merit_budget|raise_budget|raise_coverage|promotion_increase|promotion_budget|promotion_distribution_range)$/,
+    replace: 'compensation.$1_percent',
+    scale: 100,
+  },
+  // Studio's DC plan form copy of the engine section.
+  { pattern: /^dc_plan\.deferral_match_response\./, replace: 'deferral_match_response.' },
+];
+
+/** Last path segments too vague to label a setting on their own. */
+const GENERIC_KEYS = new Set(['enabled', 'rate', 'mode', 'value', 'status', 'type', 'amount', 'scope']);
+
+const MAX_SEED_FILES = 3;
+
+interface CanonicalSetting { path: string; value: unknown }
+
+/** One path (and units) for settings recorded under two paths. */
+export function canonicalSetting(path: string, value: unknown): CanonicalSetting {
+  const mirror = MIRRORS.find(({ pattern }) => pattern.test(path));
+  if (!mirror) return { path, value };
+  const scaled = mirror.scale && typeof value === 'number' ? value * mirror.scale : value;
+  return { path: path.replace(mirror.pattern, mirror.replace), value: scaled };
+}
+
+function words(segment: string): string {
+  return segment.replaceAll('_', ' ');
+}
+
+function unique(items: string[]): string[] {
+  return [...new Set(items)];
+}
+
+function withMore(shown: string[], total: number, noun: string): string[] {
+  const hidden = total - shown.length;
+  return hidden > 0 ? [...shown, `and ${hidden} more ${hidden === 1 ? noun : `${noun}s`}`] : shown;
+}
 
 const FALLBACK_AREA = 'other plan settings';
 const PLAN_AREAS: ReadonlyArray<readonly [RegExp, string]> = [
@@ -65,10 +110,14 @@ const PLAN_AREAS: ReadonlyArray<readonly [RegExp, string]> = [
   [/(eligibility|plan_year)/, 'eligibility'],
 ];
 
-export function settingLabel(path: string): string {
+export function settingLabel(rawPath: string): string {
+  const { path } = canonicalSetting(rawPath, null);
   if (SETTING_LABELS[path]) return SETTING_LABELS[path];
-  const key = path.split('.').at(-1) ?? path;
-  return key.replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
+  const segments = path.split('.');
+  const key = segments.at(-1) ?? path;
+  const parent = segments.at(-2);
+  const label = GENERIC_KEYS.has(key) && parent ? `${words(parent)} ${words(key)}` : words(key);
+  return label.replace(/^./, letter => letter.toUpperCase());
 }
 
 function trimNumber(value: number): string {
@@ -98,9 +147,11 @@ export function describeReason(reason: IntegrityReason, joiner = ' vs '): string
   const pair = `${plain(reason.anchor_value)}${joiner}${plain(reason.scenario_value)}`;
   switch (reason.code) {
     case 'census_differs':
-      return reason.anchor_value && reason.scenario_value && reason.anchor_value !== reason.scenario_value
-        ? `Census: ${pair}`
-        : 'Census: same file name, different data';
+      return describeCensus(reason, pair);
+    case 'seed_files_differ':
+      return describeSeedFiles(reason.files);
+    case 'engine_build_differs':
+      return reason.anchor_value && reason.scenario_value ? `Engine build differs: ${pair}` : 'Engine build differs';
     case 'seed_differs':
       return `Random seed: ${pair}`;
     case 'years_differ':
@@ -112,11 +163,25 @@ export function describeReason(reason: IntegrityReason, joiner = ' vs '): string
   }
 }
 
+function describeCensus(reason: IntegrityReason, pair: string): string {
+  if (!reason.anchor_value || !reason.scenario_value) return 'Census data differs';
+  return reason.anchor_value === reason.scenario_value ? 'Census: same file name, different data' : `Census: ${pair}`;
+}
+
+function describeSeedFiles(files: string[]): string {
+  if (files.length === 0) return 'Model seed tables differ';
+  const shown = files.slice(0, MAX_SEED_FILES);
+  const hidden = files.length - shown.length;
+  return `Model seed tables differ: ${shown.join(', ')}${hidden > 0 ? ` and ${hidden} more` : ''}`;
+}
+
 function describeSetting(reason: IntegrityReason, joiner: string): string {
-  const path = reason.path ?? '';
+  const anchor = canonicalSetting(reason.path ?? '', reason.anchor_value);
+  const scenario = canonicalSetting(reason.path ?? '', reason.scenario_value);
+  const path = anchor.path;
   const label = settingLabel(path);
-  const a = formatSetting(path, reason.anchor_value);
-  const b = formatSetting(path, reason.scenario_value);
+  const a = formatSetting(path, anchor.value);
+  const b = formatSetting(path, scenario.value);
   if (a === null || b === null) return joiner === ' vs ' ? `${label} differs` : `${label} changed`;
   return `${label}: ${a}${joiner}${b}`;
 }
@@ -170,13 +235,15 @@ function headline(item: ScenarioIntegrity, anchorName: string, names: Record<str
   return `Can't tell whether ${item.scenario_name} is like-for-like with ${anchorName}: ${unknownCause(item.unevaluated, names)}.`;
 }
 
-function breakingDetails(reasons: IntegrityReason[]): string[] {
+function breakingDetails(reasons: IntegrityReason[], names: Record<string, string>): string[] {
   const breaking = reasons.filter(reason => reason.effect === 'breaks');
-  const facts = breaking.filter(reason => reason.code !== 'config_differs').map(reason => describeReason(reason));
-  const settings = breaking.filter(reason => reason.code === 'config_differs').map(reason => describeReason(reason));
+  const facts = breaking
+    .filter(reason => reason.code !== 'config_differs')
+    .map(reason => (reason.code === 'mixed_generation' ? describeNote(reason, names) : describeReason(reason)));
+  // Mirrored settings describe identically; count each line once.
+  const settings = unique(breaking.filter(reason => reason.code === 'config_differs').map(reason => describeReason(reason)));
   const shown = settings.slice(0, MAX_SETTING_DETAILS);
-  const hidden = settings.length - shown.length;
-  return [...facts, ...shown, ...(hidden > 0 ? [`and ${hidden} more ${hidden === 1 ? 'setting' : 'settings'}`] : [])];
+  return unique([...facts, ...withMore(shown, settings.length, 'setting')]);
 }
 
 const TONES: Record<ScenarioIntegrity['verdict'], IntegrityTone> = {
@@ -196,9 +263,9 @@ export function sharedVersionNote(result: ComparisonIntegrityResponse): string |
 export function summarizeIntegrity(result: ComparisonIntegrityResponse): IntegritySummary {
   const names: Record<string, string> = { [result.anchor_scenario_id]: result.anchor_scenario_name };
   result.scenarios.forEach(item => { names[item.scenario_id] = item.scenario_name; });
-  const notesAbout = (scenarioId: string) => (item: ScenarioIntegrity) => item.reasons
+  const notesAbout = (scenarioId: string) => (item: ScenarioIntegrity) => unique(item.reasons
     .filter(reason => reason.effect === 'note' && reason.scenario_id === scenarioId)
-    .map(reason => describeNote(reason, names));
+    .map(reason => describeNote(reason, names)));
   const anchorNotes = result.scenarios.length > 0 ? notesAbout(result.anchor_scenario_id)(result.scenarios[0]) : [];
   return {
     anchorNotes,
@@ -207,7 +274,7 @@ export function summarizeIntegrity(result: ComparisonIntegrityResponse): Integri
       scenarioId: item.scenario_id,
       tone: TONES[item.verdict],
       headline: headline(item, result.anchor_scenario_name, names),
-      details: breakingDetails(item.reasons),
+      details: breakingDetails(item.reasons, names),
       notes: notesAbout(item.scenario_id)(item),
     })),
   };
@@ -222,13 +289,13 @@ export interface IntegrityRequest {
   key: string;
 }
 
-/** The check a page asks for, or null when there is nothing to compare. */
+/** The check a page asks for, or null when there is nothing to compare or the anchor is not selected. */
 export function integrityRequest(
   workspaceId: string | undefined,
   scenarioIds: string[],
   anchorId: string | undefined,
 ): IntegrityRequest | null {
-  if (!workspaceId || !anchorId) return null;
+  if (!workspaceId || !anchorId || !scenarioIds.includes(anchorId)) return null;
   const ids = [...new Set([anchorId, ...scenarioIds.filter(Boolean)])];
   if (ids.length < 2) return null;
   return { workspaceId, anchorId, scenarioIds: ids, key: `${workspaceId}|${anchorId}|${ids.join(',')}` };
@@ -253,6 +320,7 @@ export function describeRunChange(change: RunChange): string {
     scenario_value: change.current_value,
     path: change.path,
     group: change.group,
+    files: change.files,
     scenario_id: null,
   }, ' → ');
 }
@@ -268,12 +336,11 @@ export function summarizeRunChanges(result: RunChangesResponse): RunChangesSumma
     const headline = missing ? 'No recorded settings changed since the previous run' : 'Same settings as the previous run';
     return { headline: when ? `${headline} (${when}).` : `${headline}.`, changes: [], missing };
   }
-  const described = result.changes.map(describeRunChange);
-  const shown = described.slice(0, MAX_RUN_CHANGES);
-  const hidden = described.length - shown.length;
+  // Mirrored settings describe identically; count each line once.
+  const described = unique(result.changes.map(describeRunChange));
   return {
     headline: when ? `Since the previous run (${when}):` : 'Since the previous run:',
-    changes: [...shown, ...(hidden > 0 ? [`and ${hidden} more ${hidden === 1 ? 'setting' : 'settings'}`] : [])],
+    changes: withMore(described.slice(0, MAX_RUN_CHANGES), described.length, 'setting'),
     missing,
   };
 }

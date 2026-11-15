@@ -10198,6 +10198,8 @@
               "seed_differs",
               "years_differ",
               "engine_version_differs",
+              "engine_build_differs",
+              "seed_files_differ",
               "config_differs",
               "edited_since_run",
               "mixed_generation",
@@ -10214,6 +10216,14 @@
             ],
             "title": "Effect",
             "type": "string"
+          },
+          "files": {
+            "description": "Seed table file names that differ (seed_files_differ only)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
           },
           "group": {
             "anyOf": [
@@ -10269,6 +10279,7 @@
           "scenario_value",
           "path",
           "group",
+          "files",
           "scenario_id"
         ],
         "title": "IntegrityReason",
@@ -13780,6 +13791,8 @@
               "seed_differs",
               "years_differ",
               "engine_version_differs",
+              "engine_build_differs",
+              "seed_files_differ",
               "config_differs"
             ],
             "title": "Code",
@@ -13788,6 +13801,14 @@
           "current_value": {
             "description": "Selected result's value",
             "title": "Current Value"
+          },
+          "files": {
+            "description": "Seed table file names that differ (seed_files_differ only)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
           },
           "group": {
             "anyOf": [
@@ -13828,6 +13849,7 @@
           "code",
           "path",
           "group",
+          "files",
           "previous_value",
           "current_value"
         ],
@@ -13838,7 +13860,7 @@
         "description": "What changed between a scenario's previous run and its selected result.",
         "properties": {
           "changes": {
-            "description": "Census, seed, years, engine version and non-plan settings first, then plan design settings",
+            "description": "Census, seed, years, engine, seed tables and non-plan settings first, then plan design settings",
             "items": {
               "$ref": "#/components/schemas/RunChange"
             },
@@ -13889,6 +13911,7 @@
                 "seed",
                 "years",
                 "engine_version",
+                "seed_files",
                 "config"
               ],
               "type": "string"
@@ -18981,6 +19004,7 @@
               "seed",
               "years",
               "engine_version",
+              "seed_files",
               "config"
             ],
             "title": "Check",

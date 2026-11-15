@@ -14,7 +14,7 @@ import { formatSetting, integrityRequest, planDesignSummary, summarizeIntegrity 
 function reason(overrides: Partial<IntegrityReason>): IntegrityReason {
   return {
     code: 'config_differs', effect: 'breaks', anchor_value: null, scenario_value: null,
-    path: null, group: null, scenario_id: null, ...overrides,
+    path: null, group: null, files: [], scenario_id: null, ...overrides,
   };
 }
 
@@ -72,12 +72,74 @@ describe('like-for-like copy', () => {
     const summary = summarizeIntegrity(response([scenario({
       reasons: [
         reason({ code: 'edited_since_run', effect: 'note', scenario_id: 'a' }),
-        reason({ code: 'mixed_generation', effect: 'note', scenario_id: 'b' }),
+        reason({ code: 'edited_since_run', effect: 'note', scenario_id: 'b' }),
       ],
     })]));
     expect(summary.anchorNotes).toEqual(['Baseline was edited after its result ran. This compares the settings it ran with.']);
-    expect(summary.lines[0].notes).toEqual(["Richer match's result mixes rows from runs with different settings or seeds."]);
+    expect(summary.lines[0].notes).toEqual(['Richer match was edited after its result ran. This compares the settings it ran with.']);
     expect(summary.lines[0].tone).toBe('ok');
+  });
+
+  it('lists a mixed-generation result as a reason, not a note', () => {
+    const [line] = summarizeIntegrity(response([scenario({
+      verdict: 'not_like_for_like',
+      reasons: [reason({ code: 'mixed_generation', scenario_id: 'b' })],
+    })])).lines;
+    expect(line.tone).toBe('warning');
+    expect(line.details).toEqual(["Richer match's result mixes rows from runs with different settings or seeds."]);
+    expect(line.notes).toEqual([]);
+  });
+
+  it('names differing seed tables and engine builds', () => {
+    const files = ['a.csv', 'b.csv', 'c.csv', 'd.csv', 'e.csv'];
+    const [line] = summarizeIntegrity(response([scenario({
+      verdict: 'not_like_for_like',
+      reasons: [
+        reason({ code: 'engine_build_differs', anchor_value: '1111111', scenario_value: '1111111 with local changes' }),
+        reason({ code: 'seed_files_differ', files }),
+        reason({ code: 'seed_files_differ', files: ['x.csv'] }),
+        reason({ code: 'seed_files_differ' }),
+      ],
+    })])).lines;
+    expect(line.details).toEqual([
+      'Engine build differs: 1111111 vs 1111111 with local changes',
+      'Model seed tables differ: a.csv, b.csv, c.csv and 2 more',
+      'Model seed tables differ: x.csv',
+      'Model seed tables differ',
+    ]);
+  });
+
+  it('only says "same file name" when both census names are known and equal', () => {
+    const census = (anchor_value: string | null, scenario_value: string | null) => summarizeIntegrity(response([scenario({
+      verdict: 'not_like_for_like',
+      reasons: [reason({ code: 'census_differs', anchor_value, scenario_value })],
+    })])).lines[0].details;
+    expect(census('census.parquet', 'census.parquet')).toEqual(['Census: same file name, different data']);
+    expect(census('census.parquet', null)).toEqual(['Census data differs']);
+    expect(census(null, null)).toEqual(['Census data differs']);
+  });
+
+  it('shows a mirrored setting once, before capping, with the same text', () => {
+    const reasons = [
+      reason({ path: 'compensation.cola_rate', anchor_value: 0.02, scenario_value: 0.03 }),
+      reason({ path: 'compensation.cola_rate_percent', anchor_value: 2, scenario_value: 3 }),
+      reason({ path: 'compensation.merit_budget', anchor_value: 0.035, scenario_value: 0.04 }),
+      reason({ path: 'compensation.merit_budget_percent', anchor_value: 3.5, scenario_value: 4 }),
+      reason({ path: 'dc_plan.deferral_match_response.enabled', anchor_value: false, scenario_value: true }),
+      reason({ path: 'deferral_match_response.enabled', anchor_value: false, scenario_value: true }),
+      reason({ path: 'workforce.total_termination_rate', anchor_value: 0.12, scenario_value: 0.15 }),
+      reason({ path: 'workforce.new_hire_termination_rate', anchor_value: 0.25, scenario_value: 0.3 }),
+      reason({ path: 'workforce.knob', anchor_value: 1, scenario_value: 2 }),
+    ];
+    const [line] = summarizeIntegrity(response([scenario({ verdict: 'not_like_for_like', reasons })])).lines;
+    expect(line.details).toEqual([
+      'Cost-of-living raise: 2% vs 3%',
+      'Merit budget: 3.5% vs 4%',
+      'Deferral match response enabled: off vs on',
+      'Turnover: 12% vs 15%',
+      'and 2 more settings',
+    ]);
+    expect(new Set(line.details).size).toBe(line.details.length);
   });
 
   it('notes a scenario whose assumptions changed since its previous run', () => {
@@ -155,6 +217,10 @@ describe('integrityRequest', () => {
     expect(integrityRequest('ws', ['a'], 'a')).toBeNull();
     expect(integrityRequest(undefined, ['a', 'b'], 'a')).toBeNull();
     expect(integrityRequest('ws', ['a', 'b'], '')).toBeNull();
+  });
+
+  it('asks nothing when the anchor is not among the compared scenarios', () => {
+    expect(integrityRequest('ws', ['a', 'b'], 'z')).toBeNull();
   });
 });
 

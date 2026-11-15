@@ -21,6 +21,7 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.run_history import find_previous_run
 from tests.test_comparison_integrity import (
     BASE_CONFIG,
+    SEEDS,
     _client,
     _evaluate,
     _run,
@@ -157,7 +158,7 @@ def test_previous_run_without_provenance_is_not_claimed_unchanged(
     result = _changes(_rerun(tmp_path, "a", {"manifest": False}))
 
     assert result.has_previous_run
-    assert set(result.unevaluated) == {"census", "engine_version"}
+    assert set(result.unevaluated) == {"census", "engine_version", "seed_files"}
 
 
 def test_assumption_change_adds_a_note_and_keeps_the_verdict(tmp_path: Path) -> None:
@@ -239,3 +240,59 @@ def test_legacy_result_has_no_previous_run(tmp_path: Path) -> None:
     )
 
     assert not result.has_previous_run
+
+
+def test_engine_upgrade_alone_adds_no_note_but_is_listed(tmp_path: Path) -> None:
+    runs = {
+        "a": _rerun(tmp_path, "a", {"version": "3.1.0"}),
+        "b": _run(tmp_path, "b"),
+    }
+
+    result = _evaluate(runs)
+
+    assert result.scenarios[0].verdict == "like_for_like"
+    assert result.scenarios[0].reasons == []
+    assert [c.code for c in _changes(runs["a"]).changes] == ["engine_version_differs"]
+
+
+def test_seed_table_change_is_listed_with_file_names(tmp_path: Path) -> None:
+    changed = {**SEEDS, "config_job_levels.csv": "e" * 64}
+    selected = _rerun(tmp_path, "a", {}, seeds=changed)
+
+    [change] = _changes(selected).changes
+
+    assert (change.code, change.files) == (
+        "seed_files_differ",
+        ["config_job_levels.csv"],
+    )
+
+
+def test_selected_run_files_are_read_once_per_request(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from planalign_api.services import comparison_integrity as service_module
+
+    runs = {
+        "a": _rerun(tmp_path, "a", {"seed": 7}),
+        "b": _rerun(tmp_path, "b", {}),
+    }
+    manifests: list[str] = []
+    configs: list[str] = []
+    real_manifest = service_module.read_run_manifest
+    real_config = service_module._read_run_config
+
+    def counting_manifest(run_dir: Path) -> Any:
+        manifests.append(run_dir.name)
+        return real_manifest(run_dir)
+
+    def counting_config(path: Path | None) -> Any:
+        configs.append(path.parent.name if path else "")
+        return real_config(path)
+
+    monkeypatch.setattr(service_module, "read_run_manifest", counting_manifest)
+    monkeypatch.setattr(service_module, "_read_run_config", counting_config)
+    _evaluate(runs)
+
+    # Each run directory (two selected, two previous) is read exactly once.
+    assert len(manifests) == len(set(manifests)) == 4
+    assert len(configs) == len(set(configs)) == 4

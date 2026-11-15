@@ -25,6 +25,7 @@ from planalign_api.models.provenance import (
     InputFingerprint,
     RunIdentityEvidence,
     RunProvenanceManifest,
+    SeedFingerprint,
     SoftwareEvidence,
 )
 from planalign_api.models.scenario import Scenario
@@ -32,6 +33,8 @@ from planalign_api.routers import analytics as analytics_router
 from planalign_api.services import run_trust as run_trust_module
 from planalign_api.services.comparison_integrity import (
     ComparisonIntegrityService,
+    RunRecord,
+    compare_records,
     config_group,
 )
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
@@ -41,6 +44,9 @@ pytestmark = [pytest.mark.fast]
 
 CENSUS_A = "a" * 64
 CENSUS_B = "b" * 64
+COMMIT_A = "1" * 40
+COMMIT_B = "2" * 40
+SEEDS = {"config_job_levels.csv": "c" * 64, "nested/comp_levers.csv": "d" * 64}
 BASE_CONFIG: dict[str, Any] = {
     "simulation": {
         "name": "Baseline",
@@ -65,6 +71,8 @@ def _run(
     version: str = __version__,
     years: tuple[int, int] = (2026, 2028),
     manifest: bool = True,
+    seeds: dict[str, str] | None = SEEDS,
+    software: SoftwareEvidence | None = None,
 ) -> ResolvedDatabasePath:
     """Write one synthetic managed run and return how the resolver sees it."""
     run_id = str(uuid.uuid4())
@@ -87,7 +95,14 @@ def _run(
         ],
     )
     if manifest:
-        _write_manifest(run_dir, run_id, seed=seed, census=census, version=version)
+        _write_manifest(
+            run_dir,
+            run_id,
+            seed=seed,
+            census=census,
+            seeds=seeds or {},
+            software=software or SoftwareEvidence(planalign_version=version),
+        )
     return ResolvedDatabasePath(
         path=database,
         source="run",
@@ -99,14 +114,20 @@ def _run(
 
 
 def _write_manifest(
-    run_dir: Path, run_id: str, *, seed: int, census: str | None, version: str
+    run_dir: Path,
+    run_id: str,
+    *,
+    seed: int,
+    census: str | None,
+    seeds: dict[str, str],
+    software: SoftwareEvidence,
 ) -> None:
     manifest = RunProvenanceManifest(
         run_id=run_id,
         capture_state="completed",
         run_identity=RunIdentityEvidence(run_id=run_id, status="completed"),
         execution_timing=ExecutionTimingEvidence(),
-        software=SoftwareEvidence(planalign_version=version),
+        software=software,
         configuration=ConfigurationEvidence(),
         random_seed=seed,
         census_input=(
@@ -114,6 +135,10 @@ def _write_manifest(
             if census
             else None
         ),
+        seed_files=[
+            SeedFingerprint(logical_name=name, sha256=digest, size_bytes=1)
+            for name, digest in seeds.items()
+        ],
         started_at=datetime.now(timezone.utc),
         finalized_at=datetime.now(timezone.utc),
     )
@@ -305,7 +330,8 @@ def test_missing_provenance_is_unknown_never_like_for_like(tmp_path: Path) -> No
     verdict = result.scenarios[0]
     assert verdict.verdict == "unknown"
     assert [(item.check, item.scenario_id) for item in verdict.unevaluated] == [
-        ("census", "b")
+        ("census", "b"),
+        ("seed_files", "b"),
     ]
 
 
@@ -334,6 +360,7 @@ def test_no_result_database_is_unknown(tmp_path: Path) -> None:
         "seed",
         "years",
         "engine_version",
+        "seed_files",
         "config",
     }
 
@@ -374,6 +401,194 @@ def test_databases_open_read_only_once_per_scenario(
     _evaluate(runs)
 
     assert sorted(calls) == [("a", True), ("b", True)]
+
+
+def test_seed_table_difference_breaks_and_names_files_only(tmp_path: Path) -> None:
+    changed = {**SEEDS, "nested/comp_levers.csv": "e" * 64, "new_table.csv": "f" * 64}
+    result = _evaluate(
+        {"a": _run(tmp_path, "a"), "b": _run(tmp_path, "b", seeds=changed)}
+    )
+
+    verdict = result.scenarios[0]
+    assert verdict.verdict == "not_like_for_like"
+    [reason] = verdict.reasons
+    assert (reason.code, reason.effect) == ("seed_files_differ", "breaks")
+    # File names only: no directories, no hashes.
+    assert reason.files == ["comp_levers.csv", "new_table.csv"]
+    assert (reason.anchor_value, reason.scenario_value) == (None, None)
+
+
+def test_unrecorded_seed_tables_are_unknown(tmp_path: Path) -> None:
+    result = _evaluate({"a": _run(tmp_path, "a", seeds=None), "b": _run(tmp_path, "b")})
+
+    verdict = result.scenarios[0]
+    assert verdict.verdict == "unknown"
+    assert [
+        (item.check, item.scenario_id, item.cause) for item in verdict.unevaluated
+    ] == [("seed_files", "a", "not_recorded")]
+
+
+def _software(
+    commit: str | None, state: str = "clean", tree: str | None = None
+) -> SoftwareEvidence:
+    return SoftwareEvidence(
+        planalign_version=__version__,
+        git_commit_sha=commit,
+        working_tree_state=state,
+        working_tree_fingerprint=tree,
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "scenario", "expected"),
+    [
+        (_software(COMMIT_A), _software(COMMIT_B), ("1111111", "2222222")),
+        (
+            _software(COMMIT_A),
+            _software(COMMIT_A, "dirty", "e" * 64),
+            ("1111111", "1111111 with local changes"),
+        ),
+        (
+            _software(COMMIT_A, "dirty", "e" * 64),
+            _software(COMMIT_A, "dirty", "f" * 64),
+            ("1111111 with local changes", "1111111 with local changes"),
+        ),
+        (_software(COMMIT_A), _software(COMMIT_A), None),
+        (
+            _software(COMMIT_A, "dirty", "e" * 64),
+            _software(COMMIT_A, "dirty", "e" * 64),
+            None,
+        ),
+        # No commit on one side (e.g. a non-git install): skipped, not unknown.
+        (_software(COMMIT_A), _software(None), None),
+    ],
+)
+def test_engine_build_check_for_the_same_version(
+    tmp_path: Path,
+    anchor: SoftwareEvidence,
+    scenario: SoftwareEvidence,
+    expected: tuple[str, str] | None,
+) -> None:
+    result = _evaluate(
+        {
+            "a": _run(tmp_path, "a", software=anchor),
+            "b": _run(tmp_path, "b", software=scenario),
+        }
+    )
+
+    verdict = result.scenarios[0]
+    if expected is None:
+        assert verdict.verdict == "like_for_like"
+        assert verdict.reasons == []
+        return
+    assert verdict.verdict == "not_like_for_like"
+    [reason] = verdict.reasons
+    assert reason.code == "engine_build_differs"
+    assert (reason.anchor_value, reason.scenario_value) == expected
+
+
+def test_different_engine_versions_skip_the_build_check(tmp_path: Path) -> None:
+    older = SoftwareEvidence(planalign_version="3.1.0", git_commit_sha=COMMIT_B)
+    result = _evaluate(
+        {
+            "a": _run(tmp_path, "a", software=_software(COMMIT_A)),
+            "b": _run(tmp_path, "b", version="3.1.0", software=older),
+        }
+    )
+
+    assert _codes(result) == ["engine_version_differs"]
+
+
+def test_mixed_generation_result_is_never_like_for_like(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from planalign_api.models.comparison import RunTrustResult
+    from planalign_api.services import comparison_integrity as service_module
+
+    runs = {"a": _run(tmp_path, "a"), "b": _run(tmp_path, "b")}
+    monkeypatch.setattr(
+        service_module,
+        "read_run_trust",
+        lambda path, run_id: RunTrustResult(
+            available=True,
+            run_id=run_id,
+            random_seed=42,
+            planalign_version=__version__,
+            reasons=["mixed_generation"] if "/b/" in str(path) else [],
+        ),
+    )
+
+    verdict = _evaluate(runs).scenarios[0]
+
+    assert verdict.verdict == "not_like_for_like"
+    [reason] = verdict.reasons
+    assert (reason.code, reason.effect, reason.scenario_id) == (
+        "mixed_generation",
+        "breaks",
+        "b",
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        ("advanced.enable_multithreading", True),
+        ("advanced.strict_validation", False),
+        ("advanced.log_level", "DEBUG"),
+        ("optimization.e068c_threading", {"dbt_threads": 4}),
+        ("optimization.adaptive_memory", {"enabled": False}),
+        ("orchestrator.threading", {"enabled": True, "thread_count": 4}),
+        ("storage.max_runs_per_scenario", 10),
+        ("setup.clear_tables", False),
+        ("setup.clear_mode", "all"),
+        ("setup.clear_table_patterns", ["fct_"]),
+        ("production_safety.backup_dir", "var/elsewhere"),
+    ],
+)
+def test_runtime_and_housekeeping_settings_do_not_break(
+    tmp_path: Path, path: str, value: Any
+) -> None:
+    result = _evaluate(
+        {"a": _run(tmp_path, "a"), "b": _run(tmp_path, "b", config=_with(path, value))}
+    )
+
+    assert result.scenarios[0].verdict == "like_for_like"
+    assert result.scenarios[0].reasons == []
+
+
+def test_engine_choice_still_breaks(tmp_path: Path) -> None:
+    both = {"enable_multithreading": False, "engine": "dbt"}
+    anchor = {**BASE_CONFIG, "advanced": both}
+    changed = {**BASE_CONFIG, "advanced": {"enable_multithreading": True}}
+    changed["advanced"]["engine"] = "polars"
+    result = _evaluate(
+        {
+            "a": _run(tmp_path, "a", config=anchor),
+            "b": _run(tmp_path, "b", config=changed),
+        }
+    )
+
+    assert result.scenarios[0].verdict == "not_like_for_like"
+    assert [reason.path for reason in result.scenarios[0].reasons] == [
+        "advanced.engine"
+    ]
+
+
+def test_new_section_with_any_result_setting_breaks(tmp_path: Path) -> None:
+    config = _with("advanced.log_level", "DEBUG")
+    config["advanced"]["engine"] = "polars"
+    result = _evaluate(
+        {"a": _run(tmp_path, "a"), "b": _run(tmp_path, "b", config=config)}
+    )
+
+    assert result.scenarios[0].verdict == "not_like_for_like"
+    assert result.scenarios[0].reasons[0].path == "advanced"
+
+
+def test_compare_records_ignores_build_without_engine_version() -> None:
+    build_only = RunRecord(scenario_id="x", name="X", has_run_record=True)
+
+    assert compare_records(build_only, build_only).reasons == []
 
 
 @pytest.mark.parametrize(

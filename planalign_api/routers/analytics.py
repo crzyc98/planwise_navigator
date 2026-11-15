@@ -1,5 +1,6 @@
 """Analytics endpoints: DC Plan and Winners & Losers."""
 
+import logging
 import shutil
 import tempfile
 from datetime import datetime
@@ -22,8 +23,10 @@ from ..models.comparison import ComparisonIntegrityResponse, RunChangesResponse
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
+from ..models.workspace import Workspace
 from ..services.analytics_service import AnalyticsService
 from ..services.comparison_integrity import ComparisonIntegrityService
+from ..services.current_result import CurrentResultIntegrityError
 from ..services.comparison_export_service import (
     ComparisonExportError,
     ComparisonExportService,
@@ -41,6 +44,7 @@ from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -184,6 +188,15 @@ def get_dc_plan_analytics(
     return analytics
 
 
+def _integrity_failure(exc: CurrentResultIntegrityError) -> HTTPException:
+    """Same fail-closed answer as other scenario reads; never echo pointer text."""
+    logger.error("Current result integrity failure: %s", type(exc).__name__)
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Current result integrity failure",
+    )
+
+
 def _integrity_selection(
     scenarios: str, anchor: Optional[str]
 ) -> tuple[List[str], str]:
@@ -229,8 +242,11 @@ def compare_scenario_integrity(
             detail=f"Workspace {workspace_id} not found",
         )
     scenario_ids, anchor_id = _integrity_selection(scenarios, anchor)
-    names = _completed_scenario_names(storage, workspace_id, scenario_ids)
-    return service.evaluate(workspace, names, anchor_id)
+    try:
+        names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+        return service.evaluate(workspace, names, anchor_id)
+    except CurrentResultIntegrityError as exc:
+        raise _integrity_failure(exc) from exc
 
 
 @router.get(
@@ -255,7 +271,10 @@ def get_scenario_run_changes(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Scenario {scenario_id} not found",
         )
-    return service.run_changes(workspace_id, scenario_id, scenario.name)
+    try:
+        return service.run_changes(workspace_id, scenario_id, scenario.name)
+    except CurrentResultIntegrityError as exc:
+        raise _integrity_failure(exc) from exc
 
 
 @router.get(
@@ -364,6 +383,29 @@ def compare_dc_plan_analytics(
     )
 
 
+def _with_export_verdicts(
+    selected: List[ExportScenario],
+    integrity_service: ComparisonIntegrityService,
+    workspace: Workspace,
+    names: Dict[str, str],
+    anchor: Optional[str],
+) -> List[ExportScenario]:
+    """Add like-for-like verdicts; never fail the export over them.
+
+    An anchor outside the selection falls back to the first scenario. When the
+    check itself fails the export is still written, with blank verdicts.
+    """
+    if len(names) < 2:
+        return selected
+    anchor_id = anchor if anchor in names else next(iter(names))
+    try:
+        integrity = integrity_service.evaluate(workspace, names, anchor_id)
+    except (CurrentResultIntegrityError, OSError, ValueError) as exc:
+        logger.warning("Like-for-like check failed for comparison export", exc_info=exc)
+        return selected
+    return ComparisonExportService.with_verdicts(selected, integrity)
+
+
 def _resolve_export(
     export_service: ComparisonExportService,
     workspace_id: str,
@@ -449,17 +491,13 @@ def export_scenario_comparison(
             detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios to export",
         )
     names = _completed_scenario_names(storage, workspace_id, scenario_ids)
-    anchor_id = (
-        _integrity_selection(scenarios, anchor)[1] if len(scenario_ids) >= 2 else None
-    )
 
     output_dir = Path(tempfile.mkdtemp(prefix="planalign-compare-export-"))
     try:
         selected = _resolve_export(export_service, workspace_id, scenario_ids, names)
-        if anchor_id is not None:
-            selected = export_service.with_verdicts(
-                selected, integrity_service.evaluate(workspace, names, anchor_id)
-            )
+        selected = _with_export_verdicts(
+            selected, integrity_service, workspace, names, anchor
+        )
         path = _build_export(
             export_service, selected, workspace.name, format, output_dir
         )

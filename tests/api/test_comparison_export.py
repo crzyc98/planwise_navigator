@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import duckdb
 import pytest
@@ -545,7 +546,13 @@ def test_metadata_lists_engine_version_and_like_for_like_verdict(tmp_path):
     ]
 
 
-def test_endpoint_rejects_an_anchor_outside_the_selection(env):
+def _metadata_verdicts(response) -> list[str | None]:
+    workbook = load_workbook(io.BytesIO(response.content), read_only=True)
+    rows = list(workbook["Metadata"].iter_rows(values_only=True))
+    return [row[1] for row in rows if row[0] == "like_for_like"]
+
+
+def test_anchor_outside_the_selection_falls_back_to_the_first(env):
     client, _, workspace, scenarios = env
 
     response = client.get(
@@ -553,7 +560,31 @@ def test_endpoint_rejects_an_anchor_outside_the_selection(env):
         params={"scenarios": ",".join(s.id for s in scenarios), "anchor": "other"},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 200
+    # Legacy test databases carry no run record, so the check can't tell.
+    assert _metadata_verdicts(response) == ["anchor", "unknown"]
+
+
+def test_failed_like_for_like_check_still_exports(env, caplog):
+    from planalign_api.services.current_result import CurrentResultIntegrityError
+
+    client, _, workspace, scenarios = env
+    failing = MagicMock()
+    failing.evaluate.side_effect = CurrentResultIntegrityError("broken pointer")
+    client.app.dependency_overrides[
+        analytics_router.get_comparison_integrity_service
+    ] = lambda: failing
+
+    with caplog.at_level("WARNING", logger=analytics_router.__name__):
+        response = client.get(
+            ENDPOINT.format(workspace_id=workspace.id),
+            params={"scenarios": ",".join(s.id for s in scenarios)},
+        )
+
+    assert response.status_code == 200
+    assert _metadata_verdicts(response) == [None, None]
+    [record] = [r for r in caplog.records if "Like-for-like" in r.getMessage()]
+    assert isinstance(record.exc_info[1], CurrentResultIntegrityError)
 
 
 def test_endpoint_records_verdict_against_the_requested_anchor(env):

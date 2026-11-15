@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from _version import __version__
 
 from ..models.comparison import RunTrustResult
+from .provenance.capture import MANIFEST_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -142,16 +143,16 @@ def add_current_config_drift(
 
 
 VersionGap = Literal["patch", "minor", "major"]
-_PROVENANCE_FILENAME = "provenance.json"
 
 
 def read_engine_version(run_dir: Path) -> str | None:
     """Engine version from a run's provenance JSON, without opening its database.
 
-    Scenario list reads run for every scenario on each call, so this reads only
-    the small JSON field rather than the DuckDB ``run_metadata`` table.
+    Scenario list reads run for every scenario on each call, so this parses the
+    small provenance file (without validating the full manifest) rather than
+    querying the DuckDB ``run_metadata`` table.
     """
-    path = run_dir / _PROVENANCE_FILENAME
+    path = run_dir / MANIFEST_NAME
     if not path.is_file():
         return None
     try:

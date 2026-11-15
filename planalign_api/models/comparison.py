@@ -82,12 +82,16 @@ class ConfigDiffResponse(APIModel):
 
 ComparisonVerdict = Literal["like_for_like", "not_like_for_like", "unknown"]
 ConfigGroup = Literal["plan_design", "employee_behavior", "workforce_and_pay", "other"]
-IntegrityCheck = Literal["census", "seed", "years", "engine_version", "config"]
+IntegrityCheck = Literal[
+    "census", "seed", "years", "engine_version", "seed_files", "config"
+]
 RunChangeCode = Literal[
     "census_differs",
     "seed_differs",
     "years_differ",
     "engine_version_differs",
+    "engine_build_differs",
+    "seed_files_differ",
     "config_differs",
 ]
 IntegrityReasonCode = Literal[
@@ -109,6 +113,10 @@ class IntegrityReason(APIModel):
     scenario_value: Any = Field(default=None, description="Compared scenario's value")
     path: Optional[str] = Field(default=None, description="Config path, if any")
     group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    files: List[str] = Field(
+        default_factory=list,
+        description="Seed table file names that differ (seed_files_differ only)",
+    )
     scenario_id: Optional[str] = Field(
         default=None, description="Scenario a note is about (anchor or compared)"
     )
@@ -152,6 +160,10 @@ class RunChange(APIModel):
     code: RunChangeCode
     path: Optional[str] = Field(default=None, description="Config path, if any")
     group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    files: List[str] = Field(
+        default_factory=list,
+        description="Seed table file names that differ (seed_files_differ only)",
+    )
     previous_value: Any = Field(default=None, description="Previous run's value")
     current_value: Any = Field(default=None, description="Selected result's value")
 
@@ -168,8 +180,8 @@ class RunChangesResponse(APIModel):
     )
     changes: List[RunChange] = Field(
         default_factory=list,
-        description="Census, seed, years, engine version and non-plan settings "
-        "first, then plan design settings",
+        description="Census, seed, years, engine, seed tables and non-plan "
+        "settings first, then plan design settings",
     )
     unevaluated: List[IntegrityCheck] = Field(
         default_factory=list, description="Checks one of the two runs did not record"
