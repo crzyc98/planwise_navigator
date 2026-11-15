@@ -648,6 +648,17 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     return dbt_vars
 
 
+def _census_parquet_path(configured: Any) -> str:
+    """Return the census path made absolute against the repo root."""
+    path = Path(configured)
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parent.parent.parent / path).resolve()
+    # dbt reads the census through a quoted SQL string literal.
+    if "'" in str(path):
+        raise ValueError("setup.census_parquet_path must not contain a single quote")
+    return str(path)
+
+
 def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export legacy extra-field configuration to dbt vars.
 
@@ -673,18 +684,13 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             dbt_vars[target] = legacy[source]
 
     # Staging/setup parameters
+    setup = getattr(cfg, "setup", None)
+    if isinstance(setup, dict) and setup.get("census_parquet_path"):
+        dbt_vars["census_parquet_path"] = _census_parquet_path(
+            setup["census_parquet_path"]
+        )
     try:
-        setup = getattr(cfg, "setup", None)
         if isinstance(setup, dict):
-            # census_parquet_path: make absolute relative to repo root
-            cpp = setup.get("census_parquet_path")
-            if cpp:
-                cpp_path = Path(cpp)
-                if not cpp_path.is_absolute():
-                    repo_root = Path(__file__).resolve().parent.parent.parent
-                    cpp_path = (repo_root / cpp_path).resolve()
-                dbt_vars["census_parquet_path"] = str(cpp_path)
-
             census_pay_basis = setup.get("census_pay_basis", "earnings")
             if census_pay_basis != "earnings":
                 dbt_vars["census_pay_basis"] = census_pay_basis
