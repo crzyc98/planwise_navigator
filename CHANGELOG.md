@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Configs now reject scenario and plan design ids that use characters other than letters, digits, spaces and `_ . : -` (up to 128 characters), and an auto-enrollment scope other than all eligible employees or new hires only (before, an unknown Studio scope silently auto-enrolled nobody). A Studio run's census must be inside the workspaces folder, and a census path can't contain a quote. The match template must be one of simple, tiered, stretch, safe harbor or QACA, the escalation effective date must be a real `MM-DD`, and age and tenure band labels can't contain a single quote. Existing scenarios use values that already pass, so their results don't change.
+- Downloading or deleting an imported file now only touches files inside that workspace's `data/` folder. Files in a workspace imported from another machine's export can now be downloaded, because their stored paths are matched to the new workspace's copy.
 
 ### Security
 
