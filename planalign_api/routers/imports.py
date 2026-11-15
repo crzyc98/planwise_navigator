@@ -699,8 +699,8 @@ def download_parquet_file(
     pf = service.get_parquet_file(workspace_id, file_id)
     if pf is None:
         raise HTTPException(status_code=404, detail="Parquet file not found")
-    storage_path = Path(pf.storage_path)
-    if not storage_path.exists():
+    storage_path = service.resolve_parquet_path(workspace_id, pf)
+    if storage_path is None:
         raise HTTPException(status_code=404, detail="Parquet file not found on disk")
     return FileResponse(
         path=str(storage_path),
