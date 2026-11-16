@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..services.report_service import (
     ReportNotFoundError,
+    ReportRequestError,
     build_scenario_report,
     render_report,
 )
@@ -28,6 +29,13 @@ def download_scenario_report(
     compare: str | None = Query(
         None, description="Comma-separated comparison scenario IDs"
     ),
+    anchor: str | None = Query(
+        None,
+        description=(
+            "Scenario that differences are measured against; must be one of the "
+            "selected scenarios. Defaults to the scenario in the path."
+        ),
+    ),
     settings: APISettings = Depends(get_settings),
 ) -> FileResponse:
     storage = WorkspaceStorage(settings.workspaces_root)
@@ -41,9 +49,12 @@ def download_scenario_report(
                 if compare
                 else None
             ),
+            anchor=anchor,
         )
     except ReportNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReportRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     directory = TemporaryDirectory(prefix="planalign-report-")
     output = Path(directory.name) / f"{scenario_id}-report.{format}"
     try:
