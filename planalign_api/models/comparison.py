@@ -80,6 +80,114 @@ class ConfigDiffResponse(APIModel):
     drift_warning: bool
 
 
+ComparisonVerdict = Literal["like_for_like", "not_like_for_like", "unknown"]
+ConfigGroup = Literal["plan_design", "employee_behavior", "workforce_and_pay", "other"]
+IntegrityCheck = Literal[
+    "census", "seed", "years", "engine_version", "seed_files", "config"
+]
+RunChangeCode = Literal[
+    "census_differs",
+    "seed_differs",
+    "years_differ",
+    "engine_version_differs",
+    "engine_build_differs",
+    "seed_files_differ",
+    "config_differs",
+]
+IntegrityReasonCode = Literal[
+    RunChangeCode,
+    "edited_since_run",
+    "mixed_generation",
+    "changed_since_previous_run",
+]
+
+
+class IntegrityReason(APIModel):
+    """One way a compared scenario differs from the anchor, or a caveat."""
+
+    code: IntegrityReasonCode
+    effect: Literal["breaks", "note"] = Field(
+        description="breaks: not like-for-like; note: reported, verdict unchanged"
+    )
+    anchor_value: Any = Field(default=None, description="Anchor scenario's value")
+    scenario_value: Any = Field(default=None, description="Compared scenario's value")
+    path: Optional[str] = Field(default=None, description="Config path, if any")
+    group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    files: List[str] = Field(
+        default_factory=list,
+        description="Seed table file names that differ (seed_files_differ only)",
+    )
+    scenario_id: Optional[str] = Field(
+        default=None, description="Scenario a note is about (anchor or compared)"
+    )
+
+
+class UnevaluatedCheck(APIModel):
+    """A like-for-like check that could not run, and why."""
+
+    check: IntegrityCheck
+    scenario_id: str = Field(description="Scenario whose record is missing")
+    cause: Literal["no_run_record", "not_recorded"]
+
+
+class ScenarioIntegrity(APIModel):
+    """Like-for-like verdict for one compared scenario against the anchor."""
+
+    scenario_id: str
+    scenario_name: str
+    verdict: ComparisonVerdict
+    reasons: List[IntegrityReason] = Field(default_factory=list)
+    unevaluated: List[UnevaluatedCheck] = Field(default_factory=list)
+    plan_design_differences: List[ConfigDelta] = Field(
+        default_factory=list,
+        description="Plan-design config differences (anchor=a, scenario=b)",
+    )
+    engine_version: Optional[str] = None
+
+
+class ComparisonIntegrityResponse(APIModel):
+    """Whether each compared scenario differs from the anchor only in plan design."""
+
+    anchor_scenario_id: str
+    anchor_scenario_name: str
+    anchor_engine_version: Optional[str] = None
+    scenarios: List[ScenarioIntegrity]
+
+
+class RunChange(APIModel):
+    """One way a scenario's selected result differs from its previous run."""
+
+    code: RunChangeCode
+    path: Optional[str] = Field(default=None, description="Config path, if any")
+    group: Optional[ConfigGroup] = Field(default=None, description="Config group")
+    files: List[str] = Field(
+        default_factory=list,
+        description="Seed table file names that differ (seed_files_differ only)",
+    )
+    previous_value: Any = Field(default=None, description="Previous run's value")
+    current_value: Any = Field(default=None, description="Selected result's value")
+
+
+class RunChangesResponse(APIModel):
+    """What changed between a scenario's previous run and its selected result."""
+
+    scenario_id: str
+    scenario_name: str
+    has_previous_run: bool
+    previous_run_id: Optional[str] = None
+    previous_run_at: Optional[datetime] = Field(
+        default=None, description="When the previous run started"
+    )
+    changes: List[RunChange] = Field(
+        default_factory=list,
+        description="Census, seed, years, engine, seed tables and non-plan "
+        "settings first, then plan design settings",
+    )
+    unevaluated: List[IntegrityCheck] = Field(
+        default_factory=list, description="Checks one of the two runs did not record"
+    )
+
+
 class WorkforceComparisonYear(APIModel):
     """Workforce comparison for a single year."""
 

@@ -1,7 +1,8 @@
 """Render a ``ScenarioReport`` as HTML, PDF (WeasyPrint) or PPTX.
 
-All three formats draw on the same ``report_tables`` and ``lead_lines``, so a
-figure on a slide is the same text as in the PDF. Unknown values print as a
+All three formats draw on the same ``report_tables``, ``lead_lines`` and
+``cost_series`` (PPTX lives in ``report_pptx``), so a figure on a slide is the
+same text as in the PDF. Unknown values print as a
 dash, never as zero.
 """
 
@@ -26,7 +27,7 @@ _DESIGN_ROWS = (
     ("Employer match", "match"),
     ("Core contribution", "core"),
 )
-_PALETTE = ("#2f7d32", "#1f5fa8", "#b0631a", "#7a3f9d", "#3f8f8f", "#9a3b3b")
+PALETTE = ("#2f7d32", "#1f5fa8", "#b0631a", "#7a3f9d", "#3f8f8f", "#9a3b3b")
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,17 @@ class ReportTable:
     header: list[str]
     rows: list[list[str]]
     note: int | None = None
+    numeric: bool = True
+    """Columns after the first hold figures (right-aligned); False for text."""
+
+
+@dataclass(frozen=True)
+class CostSeries:
+    """One line of the employer-cost chart; ``None`` is a year without a figure."""
+
+    name: str
+    values: list[float | None]
+    is_anchor: bool
 
 
 # --------------------------------------------------------------------------
@@ -87,7 +99,7 @@ def _periods_differ(report: ScenarioReport) -> bool:
     return len(spans) > 1
 
 
-def _label(report: ScenarioReport, scenario: ReportScenario) -> str:
+def scenario_label(report: ScenarioReport, scenario: ReportScenario) -> str:
     if report.is_comparison and scenario.is_anchor:
         return f"{scenario.name} (anchor)"
     return scenario.name
@@ -200,7 +212,7 @@ def report_tables(report: ScenarioReport) -> list[ReportTable]:
 
 
 def _design_label(report: ScenarioReport, scenario: ReportScenario) -> str:
-    label = _label(report, scenario)
+    label = scenario_label(report, scenario)
     return label if scenario.available else f"{label} (no result)"
 
 
@@ -212,7 +224,9 @@ def _design_table(report: ScenarioReport) -> ReportTable:
     header = ["", *(_design_label(report, s) for s in report.scenarios)]
     if not report.is_comparison:
         header = ["", "Design"]
-    return ReportTable("design", "Plan designs", header, rows, report.note("design"))
+    return ReportTable(
+        "design", "Plan designs", header, rows, report.note("design"), numeric=False
+    )
 
 
 def _summary_table(
@@ -238,7 +252,7 @@ def _summary_table(
     rows = []
     for scenario in available:
         final = scenario.years[-1] if scenario.years else ReportYear(year=0)
-        label = _label(report, scenario)
+        label = scenario_label(report, scenario)
         if differ:
             label += f" ({_scenario_period(scenario)})"
         row = [label, _money(scenario.total_employer_cost)]
@@ -276,16 +290,47 @@ def _year_table(
         [str(year), *(fmt(values.get(year)) for values in by_year)]
         for year in report.years
     ]
-    header = ["Year", *(_label(report, s) for s in scenarios)]
+    header = ["Year", *(scenario_label(report, s) for s in scenarios)]
     key = field.replace("_", "-")
     return ReportTable(key, title, header, rows, note or report.note("employer_cost"))
 
 
-def _trace(report: ScenarioReport) -> str:
+def trace_line(report: ScenarioReport) -> str:
     return " | ".join(
         f"{p.scenario_id} / config {p.config_fingerprint or 'unavailable'}"
         for p in report.provenance
     )
+
+
+def provenance_table(report: ScenarioReport) -> ReportTable:
+    """The runs behind every figure, for the appendix."""
+    return ReportTable(
+        "provenance",
+        "Results used",
+        ["Scenario", "Run", "Config", "Seed", "Run time", "Report build"],
+        _provenance_rows(report),
+        numeric=False,
+    )
+
+
+def generated_line(report: ScenarioReport) -> str:
+    generated = report.generated_at.strftime("%Y-%m-%d %H:%M UTC")
+    return f"Generated {generated}. Each figure is traceable to the run below."
+
+
+def cost_series(report: ScenarioReport) -> list[CostSeries]:
+    """Employer cost by year (``report.years``), one series per usable scenario."""
+    series = []
+    for scenario in (s for s in report.scenarios if s.available):
+        by_year = {y.year: y.employer_cost for y in scenario.years}
+        series.append(
+            CostSeries(
+                scenario_label(report, scenario),
+                [by_year.get(year) for year in report.years],
+                scenario.is_anchor,
+            )
+        )
+    return series
 
 
 def _provenance_rows(report: ScenarioReport) -> list[list[str]]:
@@ -302,9 +347,6 @@ def _provenance_rows(report: ScenarioReport) -> list[list[str]]:
     ]
 
 
-_PROVENANCE_HEADER = ["Scenario", "Run", "Config", "Seed", "Run time", "Report build"]
-
-
 # --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
@@ -318,7 +360,9 @@ def render_report(
     elif fmt == "pdf":
         _write_pdf(render_html(report, template_dir), output)
     elif fmt == "pptx":
-        _render_pptx(report, output)
+        from planalign_api.services.report_pptx import render_pptx
+
+        render_pptx(report, output)
     else:
         raise ValueError(f"Unsupported report format: {fmt}")
     return output
@@ -411,17 +455,13 @@ def _html_body(report: ScenarioReport) -> str:
 
 
 def _html_appendix(report: ScenarioReport) -> str:
-    provenance = ReportTable(
-        "provenance", "Results used", _PROVENANCE_HEADER, _provenance_rows(report)
-    )
     warnings = "".join(
         f"<li class='{w.severity}'>{escape(w.message)}</li>" for w in report.warnings
     )
-    generated = report.generated_at.strftime("%Y-%m-%d %H:%M UTC")
     return (
         "<section class='appendix'><h2>Appendix: provenance</h2>"
-        f"<p>Generated {generated}. Each figure is traceable to the run below.</p>"
-        f"{_html_table(provenance)}"
+        f"<p>{escape(generated_line(report))}</p>"
+        f"{_html_table(provenance_table(report))}"
         + (f"<h3>Data notes</h3><ul>{warnings}</ul>" if warnings else "")
         + "</section>"
     )
@@ -458,7 +498,7 @@ def render_html(report: ScenarioReport, template_dir: Path | None = None) -> str
     return (
         template.replace("{{ title }}", escape(report.title))
         .replace("{{ body }}", _html_body(report))
-        .replace("{{ trace }}", escape(_trace(report)))
+        .replace("{{ trace }}", escape(trace_line(report)))
     )
 
 
@@ -474,6 +514,10 @@ def _axis_money(largest: float) -> Callable[[float, int], str]:
     return lambda v, _: f"${v:,.0f}"
 
 
+def largest_cost(series: list[CostSeries]) -> float:
+    return max((v for s in series for v in s.values if v is not None), default=0.0)
+
+
 def _cost_chart(report: ScenarioReport) -> str:
     """Employer cost by year, one line per scenario with a result."""
     import matplotlib
@@ -483,22 +527,18 @@ def _cost_chart(report: ScenarioReport) -> str:
     from matplotlib.ticker import FuncFormatter
 
     figure, axis = plt.subplots(figsize=(8.4, 2.8), dpi=120)
-    available = [s for s in report.scenarios if s.available]
-    for index, scenario in enumerate(available):
+    series = cost_series(report)
+    for index, line in enumerate(series):
         axis.plot(
-            [y.year for y in scenario.years],
-            [
-                y.employer_cost if y.employer_cost is not None else float("nan")
-                for y in scenario.years
-            ],
-            color=_PALETTE[index % len(_PALETTE)],
+            report.years,
+            [float("nan") if v is None else v for v in line.values],
+            color=PALETTE[index % len(PALETTE)],
             marker="o",
-            linewidth=2.4 if scenario.is_anchor else 1.6,
-            label=_label(report, scenario),
+            linewidth=2.4 if line.is_anchor else 1.6,
+            label=line.name,
         )
     axis.set_title("Employer cost by year", fontsize=10)
-    costs = [y.employer_cost or 0.0 for s in available for y in s.years]
-    axis.yaxis.set_major_formatter(FuncFormatter(_axis_money(max(costs, default=0.0))))
+    axis.yaxis.set_major_formatter(FuncFormatter(_axis_money(largest_cost(series))))
     axis.set_xticks(report.years)
     axis.grid(alpha=0.2)
     axis.legend(fontsize=8, frameon=False)
@@ -509,86 +549,6 @@ def _cost_chart(report: ScenarioReport) -> str:
     return "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode(
         "ascii"
     )
-
-
-# --------------------------------------------------------------------------
-# PPTX (text and image; native tables are a follow-up)
-# --------------------------------------------------------------------------
-def _render_pptx(report: ScenarioReport, output: Path) -> None:
-    try:
-        from pptx import Presentation
-    except ImportError as exc:
-        raise RuntimeError(
-            "PowerPoint reports require the optional python-pptx dependency"
-        ) from exc
-    presentation = Presentation()
-    missing = missing_lines(report)
-    lead = lead_lines(report)
-    if missing:
-        lead += ["", "Not included (no usable result):", *missing]
-    _text_slide(presentation, report, report.title, lead, size=16)
-    for scenario in report.scenarios:
-        _text_slide(
-            presentation,
-            report,
-            f"Plan design: {_design_label(report, scenario)}",
-            [
-                f"{title}: {getattr(scenario.design, field, DASH)}"
-                for title, field in _DESIGN_ROWS
-            ],
-            size=14,
-        )
-    for table in report_tables(report)[1:]:
-        lines = [" | ".join(table.header), *(" | ".join(row) for row in table.rows)]
-        _text_slide(presentation, report, table.title, lines, size=12)
-    if any(s.available for s in report.scenarios):
-        _chart_slide(presentation, report)
-    _text_slide(
-        presentation,
-        report,
-        "Notes",
-        [f"{i}. {d.text}" for i, d in enumerate(report.definitions, 1)],
-        size=11,
-    )
-    appendix = [" | ".join(_PROVENANCE_HEADER)]
-    appendix += [" | ".join(row) for row in _provenance_rows(report)]
-    appendix += [w.message for w in report.warnings]
-    _text_slide(presentation, report, "Appendix: provenance", appendix, size=10)
-    presentation.save(str(output))
-
-
-def _text_slide(
-    presentation: Any, report: ScenarioReport, title: str, lines: list[str], size: int
-) -> None:
-    from pptx.util import Emu, Pt
-
-    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
-    slide.shapes.title.text = title
-    frame = slide.shapes.add_textbox(
-        Emu(500000), Emu(1500000), Emu(8100000), Emu(5000000)
-    ).text_frame
-    frame.word_wrap = True
-    for index, line in enumerate(lines):
-        paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
-        paragraph.text = line
-        paragraph.font.size = Pt(size)
-    _add_pptx_footer(slide, report)
-
-
-def _chart_slide(presentation: Any, report: ScenarioReport) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
-    slide.shapes.title.text = "Employer cost by year"
-    raw = base64.b64decode(_cost_chart(report).split(",", 1)[1])
-    slide.shapes.add_picture(io.BytesIO(raw), 400000, 1700000, width=8300000)
-    _add_pptx_footer(slide, report)
-
-
-def _add_pptx_footer(slide: Any, report: ScenarioReport) -> None:
-    from pptx.util import Pt
-
-    frame = slide.shapes.add_textbox(400000, 6650000, 8300000, 250000).text_frame
-    frame.text = f"Traceable PlanAlign report — {_trace(report)}"
-    frame.paragraphs[0].font.size = Pt(8)
 
 
 _DEFAULT_TEMPLATE = """<!doctype html>

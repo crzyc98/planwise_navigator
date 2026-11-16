@@ -30,23 +30,38 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
+import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import CostBreakdownTooltip from './CostBreakdownTooltip';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
-import { buildSeedRangeView, describeDifference, formatCostBand, formatDifference, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
+import { buildSeedRangeView, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
 import { useEnsembleCostRanges } from '../hooks/useEnsembleCostRanges';
+import {
+  buildCostSummary,
+  runIdsFromAnalytics,
+  compensationMatrixTSV,
+  costMatrixTSV,
+  differenceFromAnchor,
+  displayedCost,
+  formatCurrency,
+  formatPercent,
+  toSummaryExportRequest,
+  type GrandfatherInput,
+} from './costSummary';
+import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
   listScenarios,
   compareDCPlanAnalytics,
   compareGrandfatheredCost,
   downloadComparisonExport,
+  downloadComparisonSummary,
   ComparisonExportFormat,
   getScenarioConfig,
   getForfeitureProjection,
   listVestingSchedules,
   Scenario,
   DCPlanComparisonResponse,
-  DCPlanAnalytics,
   ContributionYearSummary,
+  CostSummaryView,
   DCPlanCohort,
   EmployerCostOffsetRow,
   ForfeiturePolicy,
@@ -60,19 +75,6 @@ import { MAX_SCENARIO_SELECTION } from '../constants';
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-const formatCurrency = (value: number): string => {
-  if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(2)}M`;
-  } else if (value >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`;
-  }
-  return `$${value.toFixed(0)}`;
-};
-
-const formatPercent = (value: number, decimals: number = 1): string => {
-  return `${value.toFixed(decimals)}%`;
-};
 
 // 134-new-hire-cohort: short segmented-control labels vs. the fuller badge/
 // methodology text (ui-contract.md) — kept separate per the contract's note
@@ -442,7 +444,7 @@ export default function ScenarioCostComparison() {
   const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState<ComparisonExportFormat | null>(null);
+  const [exporting, setExporting] = useState<ComparisonExportFormat | 'summary' | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
@@ -507,70 +509,16 @@ export default function ScenarioCostComparison() {
     }
   }, [anchorAnalytics, grandfatherCutoffYear]);
 
-  const grandfatherYearFor = useCallback((scenarioId: string, year: number) =>
-    grandfatherData?.scenarios.find(series => series.scenario_id === scenarioId)
-      ?.years.find(row => row.year === year) ?? null,
-    [grandfatherData]
-  );
+  const grandfatherInput = useMemo<GrandfatherInput | null>(() => grandfatherExisting
+    ? { data: grandfatherData, loading: grandfatherLoading, error: grandfatherError }
+    : null,
+  [grandfatherExisting, grandfatherData, grandfatherLoading, grandfatherError]);
 
   const displayedCostFor = useCallback((
     scenarioId: string,
     yearData: ContributionYearSummary
-  ): number | null => {
-    if (!grandfatherExisting) return yearData.total_employer_cost;
-    const row = grandfatherYearFor(scenarioId, yearData.year);
-    return row?.available ? row.total_employer_cost : null;
-  }, [grandfatherExisting, grandfatherYearFor]);
-
-  const displayedTotalFor = useCallback((analytics: DCPlanAnalytics): number | null => {
-    const values = analytics.contribution_by_year.map(year =>
-      displayedCostFor(analytics.scenario_id, year)
-    );
-    return values.some(value => value === null)
-      ? null
-      : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
-  }, [displayedCostFor]);
-
-  const cappedCompensationTotalFor = useCallback((analytics: DCPlanAnalytics): number =>
-    analytics.contribution_by_year.reduce(
-      (sum, year) => sum + year.total_capped_compensation, 0
-    ), []);
-
-  const displayedCostPctFor = useCallback((
-    scenarioId: string,
-    yearData: ContributionYearSummary
-  ): number | null => {
-    const cost = displayedCostFor(scenarioId, yearData);
-    if (cost === null) return null;
-    return yearData.total_capped_compensation > 0
-      ? cost / yearData.total_capped_compensation * 100
-      : 0;
-  }, [displayedCostFor]);
-
-  const displayedTotalCostPctFor = useCallback((analytics: DCPlanAnalytics): number | null => {
-    const cost = displayedTotalFor(analytics);
-    if (cost === null) return null;
-    const cappedCompensation = cappedCompensationTotalFor(analytics);
-    return cappedCompensation > 0 ? cost / cappedCompensation * 100 : 0;
-  }, [cappedCompensationTotalFor, displayedTotalFor]);
-
-  const unavailableCostState = useCallback((scenarioId: string, year: number) => {
-    if (grandfatherLoading) {
-      return { label: 'loading…', reason: 'Loading grandfathered employer cost.' };
-    }
-    if (grandfatherError) {
-      return {
-        label: 'unavailable',
-        reason: `Grandfathered employer cost request failed: ${grandfatherError}`,
-      };
-    }
-    const guardReason = grandfatherYearFor(scenarioId, year)?.unavailable_reason;
-    if (guardReason) return { label: 'unavailable', reason: guardReason };
-    return {
-      label: 'unavailable',
-      reason: 'Grandfathered employer cost has not been loaded.',
-    };
-  }, [grandfatherLoading, grandfatherError, grandfatherYearFor]);
+  ): number | null => displayedCost(scenarioId, yearData, grandfatherInput).value,
+  [grandfatherInput]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Forfeiture offsets (#444)
@@ -647,9 +595,7 @@ export default function ScenarioCostComparison() {
         if (anchorScenarioId && id !== anchorScenarioId) {
           const anchorValue = yearMap.get(anchorScenarioId)
             ?? (grandfatherExisting ? null : 0);
-          row[`${id}_delta`] = row[id] === null || anchorValue === null
-            ? null
-            : row[id]! - anchorValue;
+          row[`${id}_delta`] = differenceFromAnchor(row[id], anchorValue);
         }
       });
 
@@ -673,9 +619,10 @@ export default function ScenarioCostComparison() {
           newRow[id] = unavailable[id] ? null : runningTotals[id];
 
           if (anchorScenarioId && id !== anchorScenarioId) {
-            newRow[`${id}_delta`] = unavailable[id] || unavailable[anchorScenarioId]
-              ? null
-              : runningTotals[id] - runningTotals[anchorScenarioId];
+            newRow[`${id}_delta`] = differenceFromAnchor(
+              unavailable[id] ? null : runningTotals[id],
+              unavailable[anchorScenarioId] ? null : runningTotals[anchorScenarioId],
+            );
           }
         });
 
@@ -739,34 +686,6 @@ export default function ScenarioCostComparison() {
   [splitActive, chartData, comparisonData, selectedScenarioIds, viewMode]);
 
   // -------------------------------------------------------------------------
-  // Derived Data: Anchor Summary
-  // -------------------------------------------------------------------------
-  const anchorSummary = useMemo(() => {
-    if (!anchorAnalytics) return null;
-    const totalCost = displayedTotalFor(anchorAnalytics);
-    return {
-      name: anchorAnalytics.scenario_name,
-      yearCount: anchorAnalytics.contribution_by_year.length,
-      totalCost,
-      totalCostPctOfCappedCompensation: displayedTotalCostPctFor(anchorAnalytics),
-      avgAnnualCost: totalCost === null ? null : totalCost / anchorAnalytics.contribution_by_year.length,
-    };
-  }, [anchorAnalytics, displayedTotalFor, displayedTotalCostPctFor]);
-
-  /**
-   * #444: the anchor's net horizon total, so non-anchor scenarios can show a
-   * net variance rather than reusing the gross one.
-   */
-  const anchorNetTotal = useMemo(() => {
-    if (!anchorAnalytics || !netActive) return 0;
-    const gross = displayedTotalFor(anchorAnalytics) ?? 0;
-    const offset = years.reduce(
-      (sum, year) => sum + (appliedOffset(anchorScenarioId, year) ?? 0), 0
-    );
-    return gross - offset;
-  }, [anchorAnalytics, netActive, years, appliedOffset, anchorScenarioId, displayedTotalFor]);
-
-  // -------------------------------------------------------------------------
   // Derived Data: Ordered Scenario IDs (anchor first, then rest in user order)
   // -------------------------------------------------------------------------
   const orderedScenarioIds = useMemo(() => {
@@ -774,6 +693,39 @@ export default function ScenarioCostComparison() {
     const nonAnchor = selectedScenarioIds.filter(id => id !== anchorScenarioId);
     return [anchorScenarioId, ...nonAnchor];
   }, [selectedScenarioIds, anchorScenarioId]);
+
+  // -------------------------------------------------------------------------
+  // Derived Data: the cost tables, also posted as the summary workbook
+  // -------------------------------------------------------------------------
+  const costSummary = useMemo(() => buildCostSummary({
+    analytics: comparisonData?.analytics ?? [],
+    scenarioIds: orderedScenarioIds,
+    anchorId: anchorScenarioId,
+    years,
+    cohort,
+    grandfather: grandfatherInput,
+    net: netActive ? { offsets: offsetsByScenario, policyReducesCost } : null,
+    split: splitActive,
+  }), [comparisonData, orderedScenarioIds, anchorScenarioId, years, cohort, grandfatherInput,
+      netActive, offsetsByScenario, policyReducesCost, splitActive]);
+
+  const scenarioNames = useMemo(() => Object.fromEntries(
+    (comparisonData?.analytics ?? []).map(item => [
+      item.scenario_id,
+      comparisonData?.scenario_names[item.scenario_id] || item.scenario_name || item.scenario_id,
+    ])
+  ), [comparisonData]);
+
+  const anchorSummary = useMemo(() => {
+    const anchor = costSummary.find(item => item.is_anchor);
+    if (!anchorAnalytics || !anchor) return null;
+    return {
+      name: anchorAnalytics.scenario_name,
+      yearCount: anchorAnalytics.contribution_by_year.length,
+      totalCost: anchor.totals.employer_cost,
+      totalCostPctOfCappedCompensation: anchor.totals.cost_pct_of_capped_pay,
+    };
+  }, [anchorAnalytics, costSummary]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Consistent Color Map for Scenarios
@@ -882,13 +834,50 @@ export default function ScenarioCostComparison() {
     setExporting(format);
     setExportError(null);
     try {
-      await downloadComparisonExport(activeWorkspace.id, selectedScenarioIds, format);
+      await downloadComparisonExport(
+        activeWorkspace.id,
+        selectedScenarioIds,
+        format,
+        selectedScenarioIds.includes(anchorScenarioId) ? anchorScenarioId : undefined,
+      );
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setExporting(null);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
+
+  /** The workbook carries exactly the figures on screen, so wait for them to load. */
+  const summaryReady = !loading && costSummary.length > 0
+    && !grandfatherLoading && !(costView === 'net' && forfeitureLoading);
+
+  const handleSummaryExport = useCallback(async () => {
+    if (!activeWorkspace?.id || costSummary.length === 0) return;
+    setExporting('summary');
+    setExportError(null);
+    const view: CostSummaryView = {
+      anchor_scenario_id: anchorScenarioId,
+      cohort,
+      first_simulation_year: anchorAnalytics?.resolved_first_simulation_year ?? null,
+      cost_view: netActive ? 'net' : 'gross',
+      breakdown: splitActive ? 'split' : 'total',
+      vesting_schedule: netActive ? vestingSchedule : null,
+      forfeiture_policy: netActive ? forfeiturePolicy : null,
+      grandfather_cutoff_year: grandfatherExisting ? grandfatherCutoffYear : null,
+    };
+    const runIds = runIdsFromAnalytics(comparisonData?.analytics ?? []);
+    try {
+      await downloadComparisonSummary(
+        activeWorkspace.id, toSummaryExportRequest(costSummary, view, runIds),
+      );
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
+  }, [activeWorkspace?.id, costSummary, anchorScenarioId, cohort, anchorAnalytics, netActive,
+      splitActive, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear,
+      comparisonData]);
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
@@ -1122,160 +1111,29 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   // Table Data for Copy
   // -------------------------------------------------------------------------
-  const tableToTSV = useCallback(() => {
-    if (!comparisonData || years.length === 0) return '';
-
+  const tsvPreamble = useCallback((includeNet: boolean): string[] => {
     const lines: string[] = [];
-
     // 134-new-hire-cohort (FR-011, ui-contract.md): identifies the active
     // cohort out of UI context when the matrix is pasted elsewhere.
     if (cohort !== 'all') {
       lines.push(`# Cohort: ${cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}`);
     }
     // #444: the vesting schedule and policy behind the net rows travel with them.
-    if (netActive) {
+    if (includeNet && netActive) {
       lines.push(`# Net of forfeitures: ${vestingSchedule} schedule, ${POLICY_LABELS[forfeiturePolicy]}`);
     }
-
-    // Header row
-    lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
-
-    // Data rows
-    orderedScenarioIds.forEach(id => {
-      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
-      if (!analytics) return;
-
-      const yearValues = years.map(year => {
-        const yearData = analytics.contribution_by_year.find(y => y.year === year);
-        if (!yearData) return '-';
-        const value = displayedCostFor(id, yearData);
-        return value === null ? 'unavailable' : formatCurrency(value);
-      });
-
-      const total = displayedTotalFor(analytics);
-
-      let variance = '--';
-      if (id !== anchorScenarioId && anchorAnalytics) {
-        const anchorTotal = displayedTotalFor(anchorAnalytics);
-        if (total !== null && anchorTotal !== null) {
-          const delta = total - anchorTotal;
-          variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
-        }
-      }
-
-      const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
-      lines.push([name, ...yearValues, total === null ? 'unavailable' : formatCurrency(total), variance].join('\t'));
-
-      const rateValues = years.map(year => {
-        const yearData = analytics.contribution_by_year.find(y => y.year === year);
-        if (!yearData) return '-';
-        const rate = displayedCostPctFor(id, yearData);
-        return rate === null ? 'unavailable' : formatPercent(rate, 2);
-      });
-      const totalRate = displayedTotalCostPctFor(analytics);
-      const anchorRate = anchorAnalytics
-        ? displayedTotalCostPctFor(anchorAnalytics)
-        : null;
-      const rateVariance = id === anchorScenarioId || totalRate === null || anchorRate === null
-        ? '--'
-        : `${totalRate - anchorRate >= 0 ? '+' : ''}${(totalRate - anchorRate).toFixed(2)} pp`;
-      lines.push([
-        `${name} — cost % of capped compensation`,
-        ...rateValues,
-        totalRate === null ? 'unavailable' : formatPercent(totalRate, 2),
-        rateVariance,
-      ].join('\t'));
-
-      // #444: pasted output carries the same offset/net rows the table shows.
-      if (!netActive) return;
-
-      const offsetValues = years.map(year => {
-        const applied = appliedOffset(id, year);
-        return applied === null ? 'no measurable basis' : `-${formatCurrency(applied)}`;
-      });
-      const offsetTotal = years.reduce(
-        (sum, year) => sum + (appliedOffset(id, year) ?? 0), 0
-      );
-      lines.push([
-        `${name} — forfeiture offset`, ...offsetValues, `-${formatCurrency(offsetTotal)}`, '--',
-      ].join('\t'));
-
-      const netValues = years.map(year => {
-        const yearData = analytics.contribution_by_year.find(y => y.year === year);
-        const applied = appliedOffset(id, year);
-        if (!yearData || applied === null) return 'gross only';
-        return formatCurrency(yearData.total_employer_cost - applied);
-      });
-      const netTotal = (total ?? 0) - offsetTotal;
-      const netVariance = id === anchorScenarioId || !anchorAnalytics
-        ? '--'
-        : `${netTotal - anchorNetTotal >= 0 ? '+' : ''}${formatCurrency(netTotal - anchorNetTotal)}`;
-      lines.push([
-        `${name} — net employer cost`, ...netValues, formatCurrency(netTotal), netVariance,
-      ].join('\t'));
-    });
-
-    return lines.join('\n');
-  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort,
-      netActive, appliedOffset, anchorNetTotal, vestingSchedule, forfeiturePolicy,
-      displayedCostFor, displayedTotalFor, displayedCostPctFor,
-      displayedTotalCostPctFor]);
+    return lines;
+  }, [cohort, anchorAnalytics, netActive, vestingSchedule, forfeiturePolicy]);
 
   const handleCopy = useCallback(() => {
-    const tsv = tableToTSV();
-    if (tsv) copy(tsv);
-  }, [tableToTSV, copy]);
-
-  // -------------------------------------------------------------------------
-  // Compensation Table Data for Copy
-  // -------------------------------------------------------------------------
-  const compensationTableToTSV = useCallback(() => {
-    if (!comparisonData || years.length === 0) return '';
-
-    const lines: string[] = [];
-
-    // 134-new-hire-cohort (FR-011)
-    if (cohort !== 'all') {
-      lines.push(`# Cohort: ${cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}`);
-    }
-
-    // Header row
-    lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
-
-    // Data rows
-    orderedScenarioIds.forEach(id => {
-      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
-      if (!analytics) return;
-
-      const yearValues = years.map(year => {
-        const yearData = analytics.contribution_by_year.find(y => y.year === year);
-        return yearData ? formatCurrency(yearData.total_compensation) : '-';
-      });
-
-      const total = analytics.contribution_by_year.reduce(
-        (sum, y) => sum + y.total_compensation, 0
-      );
-
-      let variance = '--';
-      if (id !== anchorScenarioId && anchorAnalytics) {
-        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
-          (sum, y) => sum + y.total_compensation, 0
-        );
-        const delta = total - anchorTotal;
-        variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
-      }
-
-      const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
-      lines.push([name, ...yearValues, formatCurrency(total), variance].join('\t'));
-    });
-
-    return lines.join('\n');
-  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort]);
+    if (costSummary.length === 0 || years.length === 0) return;
+    copy(costMatrixTSV(costSummary, years, scenarioNames, tsvPreamble(true), netActive));
+  }, [costSummary, years, scenarioNames, tsvPreamble, netActive, copy]);
 
   const handleCompensationCopy = useCallback(() => {
-    const tsv = compensationTableToTSV();
-    if (tsv) copyCompensation(tsv);
-  }, [compensationTableToTSV, copyCompensation]);
+    if (costSummary.length === 0 || years.length === 0) return;
+    copyCompensation(compensationMatrixTSV(costSummary, years, scenarioNames, tsvPreamble(false)));
+  }, [costSummary, years, scenarioNames, tsvPreamble, copyCompensation]);
 
   // -------------------------------------------------------------------------
   // Render
@@ -1464,6 +1322,17 @@ export default function ScenarioCostComparison() {
                 {label}
               </button>
             ))}
+            <button
+              onClick={handleSummaryExport}
+              disabled={!summaryReady || exporting !== null}
+              title="Download the cost tables for the current view (.xlsx)"
+              className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exporting === 'summary'
+                ? <Loader2 size={14} className="mr-2 animate-spin" />
+                : <FileSpreadsheet size={14} className="mr-2" />}
+              Summary
+            </button>
           </div>
           {exporting === 'xlsx' && (
             <p className="text-[11px] text-ink-subtle">
@@ -1531,6 +1400,13 @@ export default function ScenarioCostComparison() {
                 </button>
               </div>
             )}
+
+            {/* Like-for-like verdict per scenario against the anchor (#1180) */}
+            <ComparisonIntegrityBanner
+              workspaceId={activeWorkspace?.id}
+              scenarioIds={selectedScenarioIds}
+              anchorId={anchorScenarioId}
+            />
 
             {/* Primary Chart: Employer Cost Trends */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
@@ -1961,289 +1837,16 @@ export default function ScenarioCostComparison() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-surface-subtle font-bold">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs text-ink-muted uppercase tracking-wider border-r border-border">
-                        Scenario Name
-                      </th>
-                      {years.map(y => (
-                        <th key={y} className="px-6 py-2 text-center text-[10px] text-ink-subtle uppercase">
-                          {y}
-                        </th>
-                      ))}
-                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle border-l border-border">
-                        Total
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle">
-                        Variance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border bg-surface-raised">
-                    {orderedScenarioIds.map((id) => {
-                      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
-                      if (!analytics) return null;
-
-                      const isAnchor = id === anchorScenarioId;
-                      const total = displayedTotalFor(analytics);
-                      const totalRate = displayedTotalCostPctFor(analytics);
-                      const anchorTotalRate = anchorAnalytics
-                        ? displayedTotalCostPctFor(anchorAnalytics)
-                        : null;
-
-                      let delta: number | null = null;
-                      if (!isAnchor && anchorAnalytics) {
-                        const anchorTotal = displayedTotalFor(anchorAnalytics);
-                        if (total !== null && anchorTotal !== null) delta = total - anchorTotal;
-                      }
-                      const seedRange = seedRangeFor(id);
-                      const rateDelta = !isAnchor
-                        && totalRate !== null
-                        && anchorTotalRate !== null
-                        ? totalRate - anchorTotalRate
-                        : null;
-
-                      const grossRow = (
-                        <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
-                          <td className="px-6 py-4 whitespace-nowrap border-r border-border">
-                            <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-brand-green'}`} />
-                              <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
-                                {comparisonData.scenario_names[id] || analytics.scenario_name || id}
-                                {isAnchor && (
-                                  <span className="ml-2 text-[8px] font-bold bg-info-surface text-info-ink px-1 py-0.5 rounded uppercase">
-                                    Anchor
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                          </td>
-                          {years.map((year) => {
-                            const yearData = analytics.contribution_by_year.find(y => y.year === year);
-                            if (!yearData) {
-                              // 134-new-hire-cohort (FR-012): a year absent from
-                              // contribution_by_year means zero cohort-matching
-                              // employees — distinguishable from a computed $0.
-                              return (
-                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-subtle font-mono italic">
-                                  {cohort !== 'all' ? (
-                                    <span title="No employees in cohort">—</span>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </td>
-                              );
-                            }
-                            const displayedCost = displayedCostFor(id, yearData);
-                            if (displayedCost === null) {
-                              const state = unavailableCostState(id, year);
-                              return (
-                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-warning-ink font-mono italic">
-                                  <span title={state.reason}>{state.label}</span>
-                                </td>
-                              );
-                            }
-                            const band = seedRangeFor(id)?.years.get(year);
-                            return (
-                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
-                                {formatCurrency(displayedCost)}
-                                {band && (
-                                  <div className="text-[10px] text-ink-subtle" title={`P10–P90 across ${band.n_seeds} seeds`}>
-                                    {formatCostBand(band)}
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
-                            {total === null ? (grandfatherLoading ? 'loading…' : 'unavailable') : formatCurrency(total)}
-                            {total !== null && seedRange?.total && (
-                              <div className="text-[10px] font-normal text-ink-subtle" title={`P10–P90 across ${seedRange.total.n_seeds} seeds`}>
-                                {formatCostBand(seedRange.total)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            {isAnchor || total === null || delta === null ? (
-                              <span className="text-xs text-ink-subtle italic">--</span>
-                            ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
-                                {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
-                              </span>
-                            )}
-                            {!isAnchor && delta !== null && seedRange?.difference && (
-                              <div
-                                className="mt-1.5 text-[10px] text-ink-subtle font-mono"
-                                title={describeDifference(delta, seedRange.difference)}
-                              >
-                                {formatDifference(seedRange.difference)}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-
-                      const cappedCompensationRateRow = (
-                        <tr className="bg-surface-subtle/20">
-                          <td title="Employer match + core (or selected net/cohort cost) divided by IRS-capped prorated compensation for all employees, including ineligible and terminated employees." className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-medium text-ink-muted">
-                            Employer cost / capped pay (all employees)
-                          </td>
-                          {years.map(year => {
-                            const yearData = analytics.contribution_by_year.find(y => y.year === year);
-                            if (!yearData) {
-                              return (
-                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
-                                  {cohort !== 'all' ? '—' : '-'}
-                                </td>
-                              );
-                            }
-                            const rate = displayedCostPctFor(id, yearData);
-                            return (
-                              <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono">
-                                {rate === null ? 'unavailable' : formatPercent(rate, 2)}
-                              </td>
-                            );
-                          })}
-                          <td className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono bg-surface-subtle/50 border-l border-border">
-                            {totalRate === null ? 'unavailable' : formatPercent(totalRate, 2)}
-                          </td>
-                          <td className="px-6 py-2 whitespace-nowrap text-right">
-                            {rateDelta === null ? (
-                              <span className="text-xs text-ink-subtle italic">--</span>
-                            ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${rateDelta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
-                                {rateDelta >= 0 ? '+' : ''}{rateDelta.toFixed(2)} pp
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-
-                      // #444: offset and net are *additional* rows. The gross
-                      // rows below only appear in the Net view.
-                      if (!netActive) {
-                        return (
-                          <React.Fragment key={id}>
-                            {grossRow}
-                            {cappedCompensationRateRow}
-                          </React.Fragment>
-                        );
-                      }
-
-                      const measurableYears = years.filter(
-                        year => appliedOffset(id, year) !== null
-                      );
-                      const offsetTotal = measurableYears.reduce(
-                        (sum, year) => sum + (appliedOffset(id, year) ?? 0), 0
-                      );
-                      const netTotal = (total ?? 0) - offsetTotal;
-                      const netDelta = !isAnchor && anchorAnalytics
-                        ? netTotal - anchorNetTotal
-                        : 0;
-
-                      return (
-                        <React.Fragment key={id}>
-                          {grossRow}
-                          {cappedCompensationRateRow}
-                          <tr className="bg-surface-subtle/20">
-                            <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs text-ink-muted">
-                              Forfeiture offset
-                            </td>
-                            {years.map(year => {
-                              const applied = appliedOffset(id, year);
-                              if (applied === null) {
-                                const reason = offsetFor(id, year)?.unavailable_reason
-                                  ?? 'No forfeiture projection for this year';
-                                return (
-                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
-                                    <span title={reason}>n/a</span>
-                                  </td>
-                                );
-                              }
-                              return (
-                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-success-ink font-mono">
-                                  {applied === 0 ? '$0' : `-${formatCurrency(applied)}`}
-                                </td>
-                              );
-                            })}
-                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-success-ink font-mono bg-surface-subtle/50 border-l border-border">
-                              {offsetTotal === 0 ? '$0' : `-${formatCurrency(offsetTotal)}`}
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle italic">--</td>
-                          </tr>
-
-                          {!policyReducesCost && (
-                            <tr className="bg-surface-subtle/20">
-                              <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs text-ink-muted">
-                                Reallocated to participants
-                              </td>
-                              {years.map(year => {
-                                const row = offsetFor(id, year);
-                                const allocated = row?.basis_available
-                                  ? (row.participant_allocation ?? 0)
-                                  : null;
-                                return (
-                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono">
-                                    {allocated === null ? (
-                                      <span className="italic text-ink-subtle">n/a</span>
-                                    ) : formatCurrency(allocated)}
-                                  </td>
-                                );
-                              })}
-                              <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono bg-surface-subtle/50 border-l border-border">
-                                {formatCurrency(
-                                  measurableYears.reduce(
-                                    (sum, year) => sum + (offsetFor(id, year)?.participant_allocation ?? 0), 0
-                                  )
-                                )}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle italic">--</td>
-                            </tr>
-                          )}
-
-                          <tr className="bg-surface-subtle/40">
-                            <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-bold text-ink">
-                              Net employer cost
-                            </td>
-                            {years.map(year => {
-                              const yearData = analytics.contribution_by_year.find(y => y.year === year);
-                              const applied = appliedOffset(id, year);
-                              if (!yearData || applied === null) {
-                                const reason = !yearData
-                                  ? 'No cost data for this year'
-                                  : (offsetFor(id, year)?.unavailable_reason
-                                     ?? 'No forfeiture projection for this year');
-                                return (
-                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
-                                    <span title={`Gross only — ${reason}`}>gross only</span>
-                                  </td>
-                                );
-                              }
-                              return (
-                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono">
-                                  {formatCurrency(yearData.total_employer_cost - applied)}
-                                </td>
-                              );
-                            })}
-                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono bg-surface-subtle/50 border-l border-border">
-                              {formatCurrency(netTotal)}
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap text-right">
-                              {isAnchor ? (
-                                <span className="text-xs text-ink-subtle italic">--</span>
-                              ) : (
-                                <span className={`px-2 py-1 text-xs font-bold rounded ${netDelta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
-                                  {netDelta >= 0 ? '+' : ''}{formatCurrency(netDelta)}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <CostMatrixTable
+                  summary={costSummary}
+                  years={years}
+                  names={scenarioNames}
+                  cohort={cohort}
+                  netActive={netActive}
+                  policyReducesCost={policyReducesCost}
+                  grandfatherLoading={grandfatherLoading}
+                  seedRangeFor={seedRangeFor}
+                />
               </div>
               {(seedRanges.rows.size > 0 || seedRanges.notes.length > 0) && (
                 <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted space-y-1">
@@ -2284,83 +1887,7 @@ export default function ScenarioCostComparison() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-surface-subtle font-bold">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs text-ink-muted uppercase tracking-wider border-r border-border">
-                        Scenario Name
-                      </th>
-                      {years.map(y => (
-                        <th key={y} className="px-6 py-2 text-center text-[10px] text-ink-subtle uppercase">
-                          {y}
-                        </th>
-                      ))}
-                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle border-l border-border">
-                        Total
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle">
-                        Variance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border bg-surface-raised">
-                    {orderedScenarioIds.map((id) => {
-                      const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
-                      if (!analytics) return null;
-
-                      const isAnchor = id === anchorScenarioId;
-                      const total = analytics.contribution_by_year.reduce(
-                        (sum, y) => sum + y.total_compensation, 0
-                      );
-
-                      let delta = 0;
-                      if (!isAnchor && anchorAnalytics) {
-                        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
-                          (sum, y) => sum + y.total_compensation, 0
-                        );
-                        delta = total - anchorTotal;
-                      }
-
-                      return (
-                        <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
-                          <td className="px-6 py-4 whitespace-nowrap border-r border-border">
-                            <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-brand-green'}`} />
-                              <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
-                                {comparisonData.scenario_names[id] || analytics.scenario_name || id}
-                                {isAnchor && (
-                                  <span className="ml-2 text-[8px] font-bold bg-info-surface text-info-ink px-1 py-0.5 rounded uppercase">
-                                    Anchor
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                          </td>
-                          {years.map((year) => {
-                            const yearData = analytics.contribution_by_year.find(y => y.year === year);
-                            return (
-                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
-                                {yearData ? formatCurrency(yearData.total_compensation) : '-'}
-                              </td>
-                            );
-                          })}
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
-                            {formatCurrency(total)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            {isAnchor ? (
-                              <span className="text-xs text-ink-subtle italic">--</span>
-                            ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
-                                {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <CompensationMatrixTable summary={costSummary} years={years} names={scenarioNames} />
               </div>
             </div>
 
@@ -2394,10 +1921,10 @@ export default function ScenarioCostComparison() {
                   </p>
                   <p>
                     <span className="text-ink-inverse font-bold">Incremental cost</span> is a scenario's
-                    employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s, so it
-                    reflects <strong>every</strong> difference between the two runs — workforce
-                    growth, compensation and census as well as plan design. It does not isolate the
-                    effect of a policy change on its own.
+                    employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s. It
+                    measures the plan change only when the scenario is like-for-like with the anchor;
+                    the like-for-like check above the charts says which scenarios are, and names
+                    what else differs for the rest.
                   </p>
                   {cohort !== 'all' && (
                     <p>

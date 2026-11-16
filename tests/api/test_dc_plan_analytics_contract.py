@@ -281,6 +281,27 @@ def test_resolved_first_simulation_year_is_always_present(env):
     assert response.json()["resolved_first_simulation_year"] == 2025
 
 
+def test_responses_name_the_run_the_figures_were_read_from(env):
+    client, workspace, scenarios = env
+    storage = WorkspaceStorage(api_config.settings.workspaces_root)
+    storage.update_scenario_status(
+        workspace.id, scenarios[0].id, "completed", run_id="run-7"
+    )
+
+    single = client.get(
+        SINGLE_ENDPOINT.format(workspace_id=workspace.id, scenario_id=scenarios[0].id)
+    )
+    compared = client.get(
+        COMPARE_ENDPOINT.format(workspace_id=workspace.id),
+        params={"scenarios": ",".join(s.id for s in scenarios)},
+    )
+
+    assert single.json()["run_id"] == "run-7"
+    by_id = {a["scenario_id"]: a for a in compared.json()["analytics"]}
+    assert by_id[scenarios[0].id]["run_id"] == "run-7"
+    assert by_id[scenarios[1].id]["run_id"] is None
+
+
 def test_new_hires_plus_baseline_equals_all(env):
     """FR-005 / SC-002: per-year cost invariant across cohorts."""
     client, workspace, scenarios = env

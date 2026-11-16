@@ -1284,6 +1284,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/compare/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Scenario Integrity
+         * @description Say whether each scenario differs from the anchor only in plan design.
+         */
+        get: operations["compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/analytics/compare/summary-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Comparison Summary
+         * @description Download the Cost Comparison page's tables as a small workbook.
+         *
+         *     The page posts the figures it renders; the server adds scenario names, view
+         *     labels and run provenance, and rejects figures from a superseded run.
+         */
+        post: operations["export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
         parameters: {
             query?: never;
@@ -2797,6 +2840,26 @@ export interface paths {
          *     by requiring the workspace_id, avoiding the need to search all workspaces.
          */
         get: operations["export_scenario_results_api_workspaces__workspace_id__scenarios__scenario_id__results_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/run-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scenario Run Changes
+         * @description Say what changed between a scenario's previous run and its selected result.
+         */
+        get: operations["get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4891,6 +4954,20 @@ export interface components {
             suggested_canonical_field: string | null;
         };
         /**
+         * ComparisonIntegrityResponse
+         * @description Whether each compared scenario differs from the anchor only in plan design.
+         */
+        ComparisonIntegrityResponse: {
+            /** Anchor Engine Version */
+            anchor_engine_version: string | null;
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /** Anchor Scenario Name */
+            anchor_scenario_name: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["ScenarioIntegrity"][];
+        };
+        /**
          * ComparisonResponse
          * @description Full comparison response.
          */
@@ -5576,6 +5653,157 @@ export interface components {
             /** Solved Total Pay */
             solved_total_pay: number;
         };
+        /** CostSummaryExportRequest */
+        CostSummaryExportRequest: {
+            /** Scenarios */
+            scenarios: components["schemas"]["CostSummaryScenario"][];
+            view: components["schemas"]["CostSummaryView"];
+        };
+        /**
+         * CostSummaryFigures
+         * @description One row of figures. Null means unavailable; ``notes`` says why.
+         */
+        CostSummaryFigures: {
+            /**
+             * Cost Pct Of Capped Pay
+             * @description Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)
+             */
+            cost_pct_of_capped_pay?: number | null;
+            /**
+             * Cost Pct Vs Anchor Pp
+             * @description Difference from the anchor, in percentage points
+             */
+            cost_pct_vs_anchor_pp?: number | null;
+            /** Employer Core */
+            employer_core?: number | null;
+            /**
+             * Employer Cost
+             * @description Employer match + core (grandfathered when selected)
+             */
+            employer_cost?: number | null;
+            /** Employer Cost Vs Anchor */
+            employer_cost_vs_anchor?: number | null;
+            /** Employer Match */
+            employer_match?: number | null;
+            /** Forfeiture Offset */
+            forfeiture_offset?: number | null;
+            /** Net Employer Cost */
+            net_employer_cost?: number | null;
+            /** Net Employer Cost Vs Anchor */
+            net_employer_cost_vs_anchor?: number | null;
+            /**
+             * Notes
+             * @description Why a figure is blank, keyed by field name
+             */
+            notes?: {
+                [key: string]: string;
+            };
+            /** Reallocated To Participants */
+            reallocated_to_participants?: number | null;
+            /** Total Compensation */
+            total_compensation?: number | null;
+            /** Total Compensation Vs Anchor */
+            total_compensation_vs_anchor?: number | null;
+        };
+        /** CostSummaryScenario */
+        CostSummaryScenario: {
+            /**
+             * Run Id
+             * @description Selected run the page loaded; a newer run makes the export stale
+             */
+            run_id?: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            totals: components["schemas"]["CostSummaryFigures"];
+            /** Years */
+            years: components["schemas"]["CostSummaryYear"][];
+        };
+        /**
+         * CostSummaryView
+         * @description The page settings the figures were derived under.
+         */
+        CostSummaryView: {
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /**
+             * Breakdown
+             * @default total
+             * @enum {string}
+             */
+            breakdown?: "total" | "split";
+            /**
+             * Cohort
+             * @default all
+             * @enum {string}
+             */
+            cohort?: "all" | "new_hires" | "baseline";
+            /**
+             * Cost View
+             * @default gross
+             * @enum {string}
+             */
+            cost_view?: "gross" | "net";
+            /** First Simulation Year */
+            first_simulation_year?: number | null;
+            forfeiture_policy?: components["schemas"]["ForfeiturePolicy"] | null;
+            /**
+             * Grandfather Cutoff Year
+             * @description Set when existing employees are grandfathered on the anchor design
+             */
+            grandfather_cutoff_year?: number | null;
+            vesting_schedule?: components["schemas"]["VestingScheduleType"] | null;
+        };
+        /** CostSummaryYear */
+        CostSummaryYear: {
+            /**
+             * Cost Pct Of Capped Pay
+             * @description Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)
+             */
+            cost_pct_of_capped_pay?: number | null;
+            /**
+             * Cost Pct Vs Anchor Pp
+             * @description Difference from the anchor, in percentage points
+             */
+            cost_pct_vs_anchor_pp?: number | null;
+            /** Employer Core */
+            employer_core?: number | null;
+            /**
+             * Employer Cost
+             * @description Employer match + core (grandfathered when selected)
+             */
+            employer_cost?: number | null;
+            /** Employer Cost Vs Anchor */
+            employer_cost_vs_anchor?: number | null;
+            /** Employer Match */
+            employer_match?: number | null;
+            /** Forfeiture Offset */
+            forfeiture_offset?: number | null;
+            /**
+             * Has Data
+             * @description False when the selected cohort has no employees this year
+             * @default true
+             */
+            has_data?: boolean;
+            /** Net Employer Cost */
+            net_employer_cost?: number | null;
+            /** Net Employer Cost Vs Anchor */
+            net_employer_cost_vs_anchor?: number | null;
+            /**
+             * Notes
+             * @description Why a figure is blank, keyed by field name
+             */
+            notes?: {
+                [key: string]: string;
+            };
+            /** Reallocated To Participants */
+            reallocated_to_participants?: number | null;
+            /** Total Compensation */
+            total_compensation?: number | null;
+            /** Total Compensation Vs Anchor */
+            total_compensation_vs_anchor?: number | null;
+            /** Year */
+            year: number;
+        };
         /** CrossCitation */
         CrossCitation: {
             /** Query */
@@ -5779,6 +6007,11 @@ export interface components {
              * @description First simulation year used to classify employees into the new_hires/baseline cohorts, always populated regardless of the requested cohort (134-new-hire-cohort)
              */
             resolved_first_simulation_year: number;
+            /**
+             * Run Id
+             * @description The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from
+             */
+            run_id: string | null;
             /**
              * Scenario Id
              * @description Scenario identifier
@@ -7798,6 +8031,53 @@ export interface components {
             /** Size Bytes */
             size_bytes: number | null;
         };
+        /**
+         * IntegrityReason
+         * @description One way a compared scenario differs from the anchor, or a caveat.
+         */
+        IntegrityReason: {
+            /**
+             * Anchor Value
+             * @description Anchor scenario's value
+             */
+            anchor_value: unknown;
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "engine_build_differs" | "seed_files_differ" | "config_differs" | "edited_since_run" | "mixed_generation" | "changed_since_previous_run";
+            /**
+             * Effect
+             * @description breaks: not like-for-like; note: reported, verdict unchanged
+             * @enum {string}
+             */
+            effect: "breaks" | "note";
+            /**
+             * Files
+             * @description Seed table file names that differ (seed_files_differ only)
+             */
+            files: string[];
+            /**
+             * Group
+             * @description Config group
+             */
+            group: ("plan_design" | "employee_behavior" | "workforce_and_pay" | "other") | null;
+            /**
+             * Path
+             * @description Config path, if any
+             */
+            path: string | null;
+            /**
+             * Scenario Id
+             * @description Scenario a note is about (anchor or compared)
+             */
+            scenario_id: string | null;
+            /**
+             * Scenario Value
+             * @description Compared scenario's value
+             */
+            scenario_value: unknown;
+        };
         /** JobError */
         JobError: {
             /** Failed Seed */
@@ -9199,6 +9479,71 @@ export interface components {
             terminations: number;
         };
         /**
+         * RunChange
+         * @description One way a scenario's selected result differs from its previous run.
+         */
+        RunChange: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "census_differs" | "seed_differs" | "years_differ" | "engine_version_differs" | "engine_build_differs" | "seed_files_differ" | "config_differs";
+            /**
+             * Current Value
+             * @description Selected result's value
+             */
+            current_value: unknown;
+            /**
+             * Files
+             * @description Seed table file names that differ (seed_files_differ only)
+             */
+            files: string[];
+            /**
+             * Group
+             * @description Config group
+             */
+            group: ("plan_design" | "employee_behavior" | "workforce_and_pay" | "other") | null;
+            /**
+             * Path
+             * @description Config path, if any
+             */
+            path: string | null;
+            /**
+             * Previous Value
+             * @description Previous run's value
+             */
+            previous_value: unknown;
+        };
+        /**
+         * RunChangesResponse
+         * @description What changed between a scenario's previous run and its selected result.
+         */
+        RunChangesResponse: {
+            /**
+             * Changes
+             * @description Census, seed, years, engine, seed tables and non-plan settings first, then plan design settings
+             */
+            changes: components["schemas"]["RunChange"][];
+            /** Has Previous Run */
+            has_previous_run: boolean;
+            /**
+             * Previous Run At
+             * @description When the previous run started
+             */
+            previous_run_at: string | null;
+            /** Previous Run Id */
+            previous_run_id: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /**
+             * Unevaluated
+             * @description Checks one of the two runs did not record
+             */
+            unevaluated: ("census" | "seed" | "years" | "engine_version" | "seed_files" | "config")[];
+        };
+        /**
          * RunDetails
          * @description Detailed information about a simulation run.
          */
@@ -9594,6 +9939,16 @@ export interface components {
             provenance: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Result Engine Version
+             * @description Engine version that produced the selected result
+             */
+            result_engine_version: string | null;
+            /**
+             * Result Engine Version Gap
+             * @description How far the selected result's engine version is behind the running one
+             */
+            result_engine_version_gap: ("patch" | "minor" | "major") | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
             /**
@@ -9730,6 +10085,32 @@ export interface components {
             total_vested: number;
             /** Years */
             years: components["schemas"]["ForfeitureYearRow"][];
+        };
+        /**
+         * ScenarioIntegrity
+         * @description Like-for-like verdict for one compared scenario against the anchor.
+         */
+        ScenarioIntegrity: {
+            /** Engine Version */
+            engine_version: string | null;
+            /**
+             * Plan Design Differences
+             * @description Plan-design config differences (anchor=a, scenario=b)
+             */
+            plan_design_differences: components["schemas"]["ConfigDelta"][];
+            /** Reasons */
+            reasons: components["schemas"]["IntegrityReason"][];
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            /** Unevaluated */
+            unevaluated: components["schemas"]["UnevaluatedCheck"][];
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "like_for_like" | "not_like_for_like" | "unknown";
         };
         /**
          * ScenarioProvenance
@@ -11407,6 +11788,27 @@ export interface components {
              * @description Number of terminated employees in the group
              */
             terminated_count: number;
+        };
+        /**
+         * UnevaluatedCheck
+         * @description A like-for-like check that could not run, and why.
+         */
+        UnevaluatedCheck: {
+            /**
+             * Cause
+             * @enum {string}
+             */
+            cause: "no_run_record" | "not_recorded";
+            /**
+             * Check
+             * @enum {string}
+             */
+            check: "census" | "seed" | "years" | "engine_version" | "seed_files" | "config";
+            /**
+             * Scenario Id
+             * @description Scenario whose record is missing
+             */
+            scenario_id: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -13989,6 +14391,8 @@ export interface operations {
                 scenarios: string;
                 /** @description xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets) */
                 format?: "xlsx" | "hyper" | "parquet";
+                /** @description Scenario the like-for-like verdicts use (default: first) */
+                anchor?: string | null;
             };
             header?: never;
             path: {
@@ -14018,6 +14422,90 @@ export interface operations {
                     "X-PlanAlign-Active-Run-Id"?: string;
                     "X-PlanAlign-Result-Run-Id"?: string;
                     "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated scenario IDs (2 to 6) */
+                scenarios: string;
+                /** @description Scenario the others are compared against (default: first) */
+                anchor?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonIntegrityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CostSummaryExportRequest"];
+            };
+        };
+        responses: {
+            /** @description The Cost Comparison tables for the posted view. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description A scenario has a newer run than the page loaded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
@@ -17063,6 +17551,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunChangesResponse"];
                 };
             };
             /** @description Validation Error */

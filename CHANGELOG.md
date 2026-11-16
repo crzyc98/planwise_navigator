@@ -14,11 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Studio's API can now run a seed ensemble for a scenario: it estimates the run count, time and disk first, then queues the ensemble behind other simulations, reports progress per seed, and can cancel it. Each ensemble's results stay in the workspace, and a run where some seeds fail is reported as partial. `planalign simulate --seeds` also takes `--parallel` to cap how many seeds run at once.
 - Cost Comparison shows how much each employer cost moves across simulation seeds when the compared scenarios have seed ensembles: P10–P90 beside each annual and total cost, and the range of the difference from the anchor, taken seed by seed (for example, "saves $40K–$80K"). An ensemble run before the scenario's settings changed shows no range, ensembles on different seeds or years aren't paired, and the page says why in each case.
 - Studio's Ensembles page can now run an ensemble: pick a scenario and seed count, review the estimated time and disk, then follow its progress, cancel it, or open its results with one click. No terminal or file path needed; opening a database by path moved under Advanced.
+- Cost Comparison can download its tables as a small Excel workbook (Summary). It has the figures the page shows for the current view (anchor, cohort, gross or net of forfeitures, match/core split), a by-year sheet, and a Notes sheet with the view settings and each scenario's run. Unavailable figures are blank cells with a note, never $0.
 
 ### Changed
 
 - New Studio workspaces now model 2026–2030. Existing workspaces and scenarios keep their years, and the CLI's default config is unchanged.
 - The scenario report (PDF, PowerPoint, HTML) now leads with each plan design in plain words and its employer cost against an anchor scenario, followed by cost by year, cost as % of capped pay, participation and average deferral, with cost definitions as notes and provenance in an appendix. Pick the anchor with `anchor=` on the report download or `planalign report --anchor`; a selected scenario without a usable result is listed as missing instead of dropped. Headcount and average pay are no longer in the report. A custom `--template-dir` template now fills only `{{ title }}`, `{{ body }}` and `{{ trace }}`; one written for the old `{{ rows }}`, `{{ charts }}`, `{{ provenance }}` or `{{ warnings }}` placeholders is rejected with an error instead of rendering without figures.
+- The PowerPoint scenario report now uses real PowerPoint tables and an editable line chart (data opens in PowerPoint's chart editor) instead of text boxes and a picture, on 16:9 slides; long tables continue on a second slide. Figures match the PDF.
+
+### Added
+
+- Studio's comparison pages now say whether each scenario is like-for-like with the anchor, meaning only its plan design differs (#1178). When the census, seed, simulated years, engine version or build, model seed tables, or a workforce, pay or employee-behavior setting differs, the page names each difference with both values, so part of the cost difference isn't read as the plan change. When a result didn't record enough to check, it says it can't tell. Scenarios and Overview show which engine version each result ran on and mark an older one with a one-click rerun, and comparison exports record each scenario's engine version and verdict. Overview also lists what changed since a scenario's previous run, with both values, and comparison pages note a scenario whose assumptions or inputs changed since then.
 
 ### Fixed
 
@@ -28,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - The API now rejects HTTP and WebSocket requests whose `Host` header isn't allowlisted (`localhost`, `127.0.0.1`, `::1` and the bind host by default). Set `PLANALIGN_API_ALLOWED_HOSTS` to serve the API under other names. Studio needs no change.
+
+### Fixed
+
+- Cost Comparison's net view with existing employees grandfathered now subtracts forfeiture offsets from the grandfathered cost each year, not the ungrandfathered cost. A net total whose gross total is unavailable, and an offset total with no measurable year, now read as unavailable instead of a dollar figure.
 
 ## [3.2.0] - 2026-11-12
 

@@ -4350,6 +4350,45 @@
         "title": "ColumnSuggestion",
         "type": "object"
       },
+      "ComparisonIntegrityResponse": {
+        "description": "Whether each compared scenario differs from the anchor only in plan design.",
+        "properties": {
+          "anchor_engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Engine Version"
+          },
+          "anchor_scenario_id": {
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "anchor_scenario_name": {
+            "title": "Anchor Scenario Name",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioIntegrity"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anchor_scenario_id",
+          "anchor_scenario_name",
+          "anchor_engine_version",
+          "scenarios"
+        ],
+        "title": "ComparisonIntegrityResponse",
+        "type": "object"
+      },
       "ComparisonResponse": {
         "description": "Full comparison response.",
         "properties": {
@@ -5773,6 +5812,508 @@
         "title": "CostEstimateRow",
         "type": "object"
       },
+      "CostSummaryExportRequest": {
+        "properties": {
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/CostSummaryScenario"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "view": {
+            "$ref": "#/components/schemas/CostSummaryView"
+          }
+        },
+        "required": [
+          "view",
+          "scenarios"
+        ],
+        "title": "CostSummaryExportRequest",
+        "type": "object"
+      },
+      "CostSummaryFigures": {
+        "description": "One row of figures. Null means unavailable; ``notes`` says why.",
+        "properties": {
+          "cost_pct_of_capped_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)",
+            "title": "Cost Pct Of Capped Pay"
+          },
+          "cost_pct_vs_anchor_pp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Difference from the anchor, in percentage points",
+            "title": "Cost Pct Vs Anchor Pp"
+          },
+          "employer_core": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Core"
+          },
+          "employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer match + core (grandfathered when selected)",
+            "title": "Employer Cost"
+          },
+          "employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Cost Vs Anchor"
+          },
+          "employer_match": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Match"
+          },
+          "forfeiture_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forfeiture Offset"
+          },
+          "net_employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost"
+          },
+          "net_employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost Vs Anchor"
+          },
+          "notes": {
+            "additionalProperties": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "description": "Why a figure is blank, keyed by field name",
+            "propertyNames": {
+              "enum": [
+                "employer_cost",
+                "employer_cost_vs_anchor",
+                "cost_pct_of_capped_pay",
+                "cost_pct_vs_anchor_pp",
+                "employer_match",
+                "employer_core",
+                "forfeiture_offset",
+                "reallocated_to_participants",
+                "net_employer_cost",
+                "net_employer_cost_vs_anchor",
+                "total_compensation",
+                "total_compensation_vs_anchor"
+              ]
+            },
+            "title": "Notes",
+            "type": "object"
+          },
+          "reallocated_to_participants": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reallocated To Participants"
+          },
+          "total_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation"
+          },
+          "total_compensation_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation Vs Anchor"
+          }
+        },
+        "title": "CostSummaryFigures",
+        "type": "object"
+      },
+      "CostSummaryScenario": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected run the page loaded; a newer run makes the export stale",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CostSummaryFigures"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/CostSummaryYear"
+            },
+            "maxItems": 100,
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "years",
+          "totals"
+        ],
+        "title": "CostSummaryScenario",
+        "type": "object"
+      },
+      "CostSummaryView": {
+        "description": "The page settings the figures were derived under.",
+        "properties": {
+          "anchor_scenario_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "breakdown": {
+            "default": "total",
+            "enum": [
+              "total",
+              "split"
+            ],
+            "title": "Breakdown",
+            "type": "string"
+          },
+          "cohort": {
+            "default": "all",
+            "enum": [
+              "all",
+              "new_hires",
+              "baseline"
+            ],
+            "title": "Cohort",
+            "type": "string"
+          },
+          "cost_view": {
+            "default": "gross",
+            "enum": [
+              "gross",
+              "net"
+            ],
+            "title": "Cost View",
+            "type": "string"
+          },
+          "first_simulation_year": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Simulation Year"
+          },
+          "forfeiture_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForfeiturePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grandfather_cutoff_year": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when existing employees are grandfathered on the anchor design",
+            "title": "Grandfather Cutoff Year"
+          },
+          "vesting_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VestingScheduleType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "anchor_scenario_id"
+        ],
+        "title": "CostSummaryView",
+        "type": "object"
+      },
+      "CostSummaryYear": {
+        "properties": {
+          "cost_pct_of_capped_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)",
+            "title": "Cost Pct Of Capped Pay"
+          },
+          "cost_pct_vs_anchor_pp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Difference from the anchor, in percentage points",
+            "title": "Cost Pct Vs Anchor Pp"
+          },
+          "employer_core": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Core"
+          },
+          "employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer match + core (grandfathered when selected)",
+            "title": "Employer Cost"
+          },
+          "employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Cost Vs Anchor"
+          },
+          "employer_match": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Match"
+          },
+          "forfeiture_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forfeiture Offset"
+          },
+          "has_data": {
+            "default": true,
+            "description": "False when the selected cohort has no employees this year",
+            "title": "Has Data",
+            "type": "boolean"
+          },
+          "net_employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost"
+          },
+          "net_employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost Vs Anchor"
+          },
+          "notes": {
+            "additionalProperties": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "description": "Why a figure is blank, keyed by field name",
+            "propertyNames": {
+              "enum": [
+                "employer_cost",
+                "employer_cost_vs_anchor",
+                "cost_pct_of_capped_pay",
+                "cost_pct_vs_anchor_pp",
+                "employer_match",
+                "employer_core",
+                "forfeiture_offset",
+                "reallocated_to_participants",
+                "net_employer_cost",
+                "net_employer_cost_vs_anchor",
+                "total_compensation",
+                "total_compensation_vs_anchor"
+              ]
+            },
+            "title": "Notes",
+            "type": "object"
+          },
+          "reallocated_to_participants": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reallocated To Participants"
+          },
+          "total_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation"
+          },
+          "total_compensation_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation Vs Anchor"
+          },
+          "year": {
+            "maximum": 2200.0,
+            "minimum": 1900.0,
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "CostSummaryYear",
+        "type": "object"
+      },
       "CrossCitation": {
         "additionalProperties": false,
         "properties": {
@@ -6253,6 +6794,18 @@
             "title": "Resolved First Simulation Year",
             "type": "integer"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from",
+            "title": "Run Id"
+          },
           "scenario_id": {
             "description": "Scenario identifier",
             "title": "Scenario Id",
@@ -6345,6 +6898,7 @@
         "required": [
           "scenario_id",
           "scenario_name",
+          "run_id",
           "resolved_first_simulation_year",
           "opt_out_by_year",
           "total_eligible",
@@ -10423,6 +10977,106 @@
         "title": "InputFingerprint",
         "type": "object"
       },
+      "IntegrityReason": {
+        "description": "One way a compared scenario differs from the anchor, or a caveat.",
+        "properties": {
+          "anchor_value": {
+            "description": "Anchor scenario's value",
+            "title": "Anchor Value"
+          },
+          "code": {
+            "enum": [
+              "census_differs",
+              "seed_differs",
+              "years_differ",
+              "engine_version_differs",
+              "engine_build_differs",
+              "seed_files_differ",
+              "config_differs",
+              "edited_since_run",
+              "mixed_generation",
+              "changed_since_previous_run"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "effect": {
+            "description": "breaks: not like-for-like; note: reported, verdict unchanged",
+            "enum": [
+              "breaks",
+              "note"
+            ],
+            "title": "Effect",
+            "type": "string"
+          },
+          "files": {
+            "description": "Seed table file names that differ (seed_files_differ only)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plan_design",
+                  "employee_behavior",
+                  "workforce_and_pay",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config group",
+            "title": "Group"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config path, if any",
+            "title": "Path"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scenario a note is about (anchor or compared)",
+            "title": "Scenario Id"
+          },
+          "scenario_value": {
+            "description": "Compared scenario's value",
+            "title": "Scenario Value"
+          }
+        },
+        "required": [
+          "code",
+          "effect",
+          "anchor_value",
+          "scenario_value",
+          "path",
+          "group",
+          "files",
+          "scenario_id"
+        ],
+        "title": "IntegrityReason",
+        "type": "object"
+      },
       "JobError": {
         "properties": {
           "failed_seed": {
@@ -13920,6 +14574,156 @@
         "title": "RollForwardSummary",
         "type": "object"
       },
+      "RunChange": {
+        "description": "One way a scenario's selected result differs from its previous run.",
+        "properties": {
+          "code": {
+            "enum": [
+              "census_differs",
+              "seed_differs",
+              "years_differ",
+              "engine_version_differs",
+              "engine_build_differs",
+              "seed_files_differ",
+              "config_differs"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "current_value": {
+            "description": "Selected result's value",
+            "title": "Current Value"
+          },
+          "files": {
+            "description": "Seed table file names that differ (seed_files_differ only)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plan_design",
+                  "employee_behavior",
+                  "workforce_and_pay",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config group",
+            "title": "Group"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Config path, if any",
+            "title": "Path"
+          },
+          "previous_value": {
+            "description": "Previous run's value",
+            "title": "Previous Value"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "group",
+          "files",
+          "previous_value",
+          "current_value"
+        ],
+        "title": "RunChange",
+        "type": "object"
+      },
+      "RunChangesResponse": {
+        "description": "What changed between a scenario's previous run and its selected result.",
+        "properties": {
+          "changes": {
+            "description": "Census, seed, years, engine, seed tables and non-plan settings first, then plan design settings",
+            "items": {
+              "$ref": "#/components/schemas/RunChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "has_previous_run": {
+            "title": "Has Previous Run",
+            "type": "boolean"
+          },
+          "previous_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the previous run started",
+            "title": "Previous Run At"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "unevaluated": {
+            "description": "Checks one of the two runs did not record",
+            "items": {
+              "enum": [
+                "census",
+                "seed",
+                "years",
+                "engine_version",
+                "seed_files",
+                "config"
+              ],
+              "type": "string"
+            },
+            "title": "Unevaluated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "has_previous_run",
+          "previous_run_id",
+          "previous_run_at",
+          "changes",
+          "unevaluated"
+        ],
+        "title": "RunChangesResponse",
+        "type": "object"
+      },
       "RunDetails": {
         "description": "Detailed information about a simulation run.",
         "properties": {
@@ -14806,6 +15610,35 @@
             "description": "Optional record of how this scenario was created",
             "title": "Provenance"
           },
+          "result_engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine version that produced the selected result",
+            "title": "Result Engine Version"
+          },
+          "result_engine_version_gap": {
+            "anyOf": [
+              {
+                "enum": [
+                  "patch",
+                  "minor",
+                  "major"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How far the selected result's engine version is behind the running one",
+            "title": "Result Engine Version Gap"
+          },
           "results_summary": {
             "anyOf": [
               {
@@ -14862,6 +15695,8 @@
           "last_run_id",
           "has_selected_result",
           "selected_result_run_id",
+          "result_engine_version",
+          "result_engine_version_gap",
           "results_summary"
         ],
         "title": "Scenario",
@@ -15141,6 +15976,72 @@
           "employer_cost_offsets"
         ],
         "title": "ScenarioForfeitureSeries",
+        "type": "object"
+      },
+      "ScenarioIntegrity": {
+        "description": "Like-for-like verdict for one compared scenario against the anchor.",
+        "properties": {
+          "engine_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "plan_design_differences": {
+            "description": "Plan-design config differences (anchor=a, scenario=b)",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDelta"
+            },
+            "title": "Plan Design Differences",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrityReason"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "unevaluated": {
+            "items": {
+              "$ref": "#/components/schemas/UnevaluatedCheck"
+            },
+            "title": "Unevaluated",
+            "type": "array"
+          },
+          "verdict": {
+            "enum": [
+              "like_for_like",
+              "not_like_for_like",
+              "unknown"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "verdict",
+          "reasons",
+          "unevaluated",
+          "plan_design_differences",
+          "engine_version"
+        ],
+        "title": "ScenarioIntegrity",
         "type": "object"
       },
       "ScenarioProvenance": {
@@ -18876,6 +19777,43 @@
           "confidence"
         ],
         "title": "TurnoverRateSuggestion",
+        "type": "object"
+      },
+      "UnevaluatedCheck": {
+        "description": "A like-for-like check that could not run, and why.",
+        "properties": {
+          "cause": {
+            "enum": [
+              "no_run_record",
+              "not_recorded"
+            ],
+            "title": "Cause",
+            "type": "string"
+          },
+          "check": {
+            "enum": [
+              "census",
+              "seed",
+              "years",
+              "engine_version",
+              "seed_files",
+              "config"
+            ],
+            "title": "Check",
+            "type": "string"
+          },
+          "scenario_id": {
+            "description": "Scenario whose record is missing",
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check",
+          "scenario_id",
+          "cause"
+        ],
+        "title": "UnevaluatedCheck",
         "type": "object"
       },
       "ValidationError": {
@@ -23504,6 +24442,24 @@
               "title": "Format",
               "type": "string"
             }
+          },
+          {
+            "description": "Scenario the like-for-like verdicts use (default: first)",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario the like-for-like verdicts use (default: first)",
+              "title": "Anchor"
+            }
           }
         ],
         "responses": {
@@ -23561,6 +24517,164 @@
           }
         },
         "summary": "Export Scenario Comparison",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/compare/integrity": {
+      "get": {
+        "description": "Say whether each scenario differs from the anchor only in plan design.",
+        "operationId": "compare_scenario_integrity_api_workspaces__workspace_id__analytics_compare_integrity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated scenario IDs (2 to 6)",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated scenario IDs (2 to 6)",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Scenario the others are compared against (default: first)",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario the others are compared against (default: first)",
+              "title": "Anchor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonIntegrityResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Compare Scenario Integrity",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/compare/summary-export": {
+      "post": {
+        "description": "Download the Cost Comparison page's tables as a small workbook.\n\nThe page posts the figures it renders; the server adds scenario names, view\nlabels and run provenance, and rejects figures from a superseded run.",
+        "operationId": "export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostSummaryExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "The Cost Comparison tables for the posted view."
+          },
+          "409": {
+            "description": "A scenario has a newer run than the page loaded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Comparison Summary",
         "tags": [
           "Analytics"
         ]
@@ -30029,6 +31143,92 @@
         "summary": "Export Scenario Results",
         "tags": [
           "Scenarios"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/run-changes": {
+      "get": {
+        "description": "Say what changed between a scenario's previous run and its selected result.",
+        "operationId": "get_scenario_run_changes_api_workspaces__workspace_id__scenarios__scenario_id__run_changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunChangesResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Scenario Run Changes",
+        "tags": [
+          "Analytics"
         ]
       }
     },

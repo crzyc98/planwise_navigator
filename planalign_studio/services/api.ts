@@ -175,6 +175,13 @@ export type ScenarioProvenance = Schemas['ScenarioProvenance'];
 
 export type ConfigDiffResponse = Schemas['ConfigDiffResponse'];
 
+export type ComparisonIntegrityResponse = Schemas['ComparisonIntegrityResponse'];
+export type ScenarioIntegrity = Schemas['ScenarioIntegrity'];
+export type IntegrityReason = Schemas['IntegrityReason'];
+export type UnevaluatedCheck = Schemas['UnevaluatedCheck'];
+export type RunChange = Schemas['RunChange'];
+export type RunChangesResponse = Schemas['RunChangesResponse'];
+
 // ============================================================================
 // API Error Handling
 // ============================================================================
@@ -524,14 +531,38 @@ export async function downloadComparisonExport(
   workspaceId: string,
   scenarioIds: string[],
   format: ComparisonExportFormat,
+  anchorId?: string,
 ): Promise<void> {
   const params = new URLSearchParams({ scenarios: scenarioIds.join(','), format });
+  if (anchorId) params.set('anchor', anchorId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
   );
   if (!response.ok) await handleResponse<never>(response);
   const extension = format === 'parquet' ? 'zip' : format;
   const filename = filenameFromContentDisposition(response, `scenario_comparison.${extension}`);
+  saveBrowserDownload(await response.blob(), filename);
+}
+
+export type CostSummaryExportRequest = Schemas['CostSummaryExportRequest'];
+export type CostSummaryFiguresPayload = Schemas['CostSummaryFigures'];
+export type CostSummaryView = Schemas['CostSummaryView'];
+
+/** The Cost Comparison tables, as the page shows them, in a small workbook. */
+export async function downloadComparisonSummary(
+  workspaceId: string,
+  request: CostSummaryExportRequest,
+): Promise<void> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/summary-export`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    },
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const filename = filenameFromContentDisposition(response, 'cost_comparison_summary.xlsx');
   saveBrowserDownload(await response.blob(), filename);
 }
 
@@ -606,6 +637,34 @@ export async function getScenarioConfigDiff(
     `${API_BASE}/api/workspaces/${workspaceId}/comparison/config-diff?${params}`
   );
   return handleResponse<ConfigDiffResponse>(response);
+}
+
+/** Whether each scenario differs from the anchor only in plan design (#1179). */
+export async function getComparisonIntegrity(
+  workspaceId: string,
+  scenarioIds: string[],
+  anchorId: string,
+  signal?: AbortSignal
+): Promise<ComparisonIntegrityResponse> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), anchor: anchorId });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/compare/integrity?${params}`,
+    { signal }
+  );
+  return handleResponse<ComparisonIntegrityResponse>(response);
+}
+
+/** What changed between a scenario's previous run and its selected result (#1186). */
+export async function getScenarioRunChanges(
+  workspaceId: string,
+  scenarioId: string,
+  signal?: AbortSignal
+): Promise<RunChangesResponse> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/run-changes`,
+    { signal }
+  );
+  return handleResponse<RunChangesResponse>(response);
 }
 
 // ============================================================================
