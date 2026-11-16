@@ -122,6 +122,8 @@ SCENARIO_READ_ROUTES = {
     "download_artifact",
     "compare_scenario_configs",
     "compare_scenarios",
+    "compare_scenario_integrity",
+    "get_scenario_run_changes",
     "get_dc_plan_analytics",
     "compare_dc_plan_analytics",
     "export_scenario_comparison",

@@ -30,6 +30,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
+import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import CostBreakdownTooltip from './CostBreakdownTooltip';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
 import { buildSeedRangeView, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
@@ -833,13 +834,18 @@ export default function ScenarioCostComparison() {
     setExporting(format);
     setExportError(null);
     try {
-      await downloadComparisonExport(activeWorkspace.id, selectedScenarioIds, format);
+      await downloadComparisonExport(
+        activeWorkspace.id,
+        selectedScenarioIds,
+        format,
+        selectedScenarioIds.includes(anchorScenarioId) ? anchorScenarioId : undefined,
+      );
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setExporting(null);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
 
   /** The workbook carries exactly the figures on screen, so wait for them to load. */
   const summaryReady = !loading && costSummary.length > 0
@@ -1395,6 +1401,13 @@ export default function ScenarioCostComparison() {
               </div>
             )}
 
+            {/* Like-for-like verdict per scenario against the anchor (#1180) */}
+            <ComparisonIntegrityBanner
+              workspaceId={activeWorkspace?.id}
+              scenarioIds={selectedScenarioIds}
+              anchorId={anchorScenarioId}
+            />
+
             {/* Primary Chart: Employer Cost Trends */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-8">
@@ -1908,10 +1921,10 @@ export default function ScenarioCostComparison() {
                   </p>
                   <p>
                     <span className="text-ink-inverse font-bold">Incremental cost</span> is a scenario's
-                    employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s, so it
-                    reflects <strong>every</strong> difference between the two runs — workforce
-                    growth, compensation and census as well as plan design. It does not isolate the
-                    effect of a policy change on its own.
+                    employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s. It
+                    measures the plan change only when the scenario is like-for-like with the anchor;
+                    the like-for-like check above the charts says which scenarios are, and names
+                    what else differs for the rest.
                   </p>
                   {cohort !== 'all' && (
                     <p>

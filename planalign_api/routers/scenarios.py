@@ -26,6 +26,7 @@ from ..services.database_path_resolver import (
     is_selected_result,
 )
 from ..services.current_result import CurrentResultIntegrityError
+from ..services.run_trust import engine_version_gap, read_engine_version
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..storage.workspace_storage import WorkspaceStorage
@@ -47,12 +48,21 @@ def _with_result_selection(storage: WorkspaceStorage, scenario: Scenario) -> Sce
             status_code=500, detail="Current result integrity failure"
         ) from exc
     available = is_selected_result(resolved, scenario.status)
+    # Read from the run's provenance JSON: this runs for every scenario on each
+    # list call, so it must not open scenario databases.
+    engine_version = (
+        read_engine_version(resolved.path.parent)
+        if available and resolved.source == "run" and resolved.path is not None
+        else None
+    )
     return scenario.model_copy(
         update={
             "has_selected_result": available,
             "selected_result_run_id": (
                 (resolved.run_id or scenario.last_run_id) if available else None
             ),
+            "result_engine_version": engine_version,
+            "result_engine_version_gap": engine_version_gap(engine_version),
         }
     )
 
