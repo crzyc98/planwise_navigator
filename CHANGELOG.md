@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Studio's API can now run a seed ensemble for a scenario: it estimates the run count, time and disk first, then queues the ensemble behind other simulations, reports progress per seed, and can cancel it. Each ensemble's results stay in the workspace, and a run where some seeds fail is reported as partial. `planalign simulate --seeds` also takes `--parallel` to cap how many seeds run at once.
 - Cost Comparison shows how much each employer cost moves across simulation seeds when the compared scenarios have seed ensembles: P10–P90 beside each annual and total cost, and the range of the difference from the anchor, taken seed by seed (for example, "saves $40K–$80K"). An ensemble run before the scenario's settings changed shows no range, ensembles on different seeds or years aren't paired, and the page says why in each case.
 - Studio's Ensembles page can now run an ensemble: pick a scenario and seed count, review the estimated time and disk, then follow its progress, cancel it, or open its results with one click. No terminal or file path needed; opening a database by path moved under Advanced.
+- Cost Comparison can download its tables as a small Excel workbook (Summary). It has the figures the page shows for the current view (anchor, cohort, gross or net of forfeitures, match/core split), a by-year sheet, and a Notes sheet with the view settings and each scenario's run. Unavailable figures are blank cells with a note, never $0.
 
 ### Changed
 
@@ -27,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - The API now rejects HTTP and WebSocket requests whose `Host` header isn't allowlisted (`localhost`, `127.0.0.1`, `::1` and the bind host by default). Set `PLANALIGN_API_ALLOWED_HOSTS` to serve the API under other names. Studio needs no change.
+
+### Fixed
+
+- Cost Comparison's net view with existing employees grandfathered now subtracts forfeiture offsets from the grandfathered cost each year, not the ungrandfathered cost. A net total whose gross total is unavailable, and an offset total with no measurable year, now read as unavailable instead of a dollar figure.
 
 ## [3.2.0] - 2026-11-12
 

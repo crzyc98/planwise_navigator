@@ -1284,6 +1284,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/compare/summary-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Comparison Summary
+         * @description Download the Cost Comparison page's tables as a small workbook.
+         *
+         *     The page posts the figures it renders; the server adds scenario names, view
+         *     labels and run provenance, and rejects figures from a superseded run.
+         */
+        post: operations["export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
         parameters: {
             query?: never;
@@ -5443,6 +5466,157 @@ export interface components {
             /** Solved Total Pay */
             solved_total_pay: number;
         };
+        /** CostSummaryExportRequest */
+        CostSummaryExportRequest: {
+            /** Scenarios */
+            scenarios: components["schemas"]["CostSummaryScenario"][];
+            view: components["schemas"]["CostSummaryView"];
+        };
+        /**
+         * CostSummaryFigures
+         * @description One row of figures. Null means unavailable; ``notes`` says why.
+         */
+        CostSummaryFigures: {
+            /**
+             * Cost Pct Of Capped Pay
+             * @description Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)
+             */
+            cost_pct_of_capped_pay?: number | null;
+            /**
+             * Cost Pct Vs Anchor Pp
+             * @description Difference from the anchor, in percentage points
+             */
+            cost_pct_vs_anchor_pp?: number | null;
+            /** Employer Core */
+            employer_core?: number | null;
+            /**
+             * Employer Cost
+             * @description Employer match + core (grandfathered when selected)
+             */
+            employer_cost?: number | null;
+            /** Employer Cost Vs Anchor */
+            employer_cost_vs_anchor?: number | null;
+            /** Employer Match */
+            employer_match?: number | null;
+            /** Forfeiture Offset */
+            forfeiture_offset?: number | null;
+            /** Net Employer Cost */
+            net_employer_cost?: number | null;
+            /** Net Employer Cost Vs Anchor */
+            net_employer_cost_vs_anchor?: number | null;
+            /**
+             * Notes
+             * @description Why a figure is blank, keyed by field name
+             */
+            notes?: {
+                [key: string]: string;
+            };
+            /** Reallocated To Participants */
+            reallocated_to_participants?: number | null;
+            /** Total Compensation */
+            total_compensation?: number | null;
+            /** Total Compensation Vs Anchor */
+            total_compensation_vs_anchor?: number | null;
+        };
+        /** CostSummaryScenario */
+        CostSummaryScenario: {
+            /**
+             * Run Id
+             * @description Selected run the page loaded; a newer run makes the export stale
+             */
+            run_id?: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            totals: components["schemas"]["CostSummaryFigures"];
+            /** Years */
+            years: components["schemas"]["CostSummaryYear"][];
+        };
+        /**
+         * CostSummaryView
+         * @description The page settings the figures were derived under.
+         */
+        CostSummaryView: {
+            /** Anchor Scenario Id */
+            anchor_scenario_id: string;
+            /**
+             * Breakdown
+             * @default total
+             * @enum {string}
+             */
+            breakdown?: "total" | "split";
+            /**
+             * Cohort
+             * @default all
+             * @enum {string}
+             */
+            cohort?: "all" | "new_hires" | "baseline";
+            /**
+             * Cost View
+             * @default gross
+             * @enum {string}
+             */
+            cost_view?: "gross" | "net";
+            /** First Simulation Year */
+            first_simulation_year?: number | null;
+            forfeiture_policy?: components["schemas"]["ForfeiturePolicy"] | null;
+            /**
+             * Grandfather Cutoff Year
+             * @description Set when existing employees are grandfathered on the anchor design
+             */
+            grandfather_cutoff_year?: number | null;
+            vesting_schedule?: components["schemas"]["VestingScheduleType"] | null;
+        };
+        /** CostSummaryYear */
+        CostSummaryYear: {
+            /**
+             * Cost Pct Of Capped Pay
+             * @description Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)
+             */
+            cost_pct_of_capped_pay?: number | null;
+            /**
+             * Cost Pct Vs Anchor Pp
+             * @description Difference from the anchor, in percentage points
+             */
+            cost_pct_vs_anchor_pp?: number | null;
+            /** Employer Core */
+            employer_core?: number | null;
+            /**
+             * Employer Cost
+             * @description Employer match + core (grandfathered when selected)
+             */
+            employer_cost?: number | null;
+            /** Employer Cost Vs Anchor */
+            employer_cost_vs_anchor?: number | null;
+            /** Employer Match */
+            employer_match?: number | null;
+            /** Forfeiture Offset */
+            forfeiture_offset?: number | null;
+            /**
+             * Has Data
+             * @description False when the selected cohort has no employees this year
+             * @default true
+             */
+            has_data?: boolean;
+            /** Net Employer Cost */
+            net_employer_cost?: number | null;
+            /** Net Employer Cost Vs Anchor */
+            net_employer_cost_vs_anchor?: number | null;
+            /**
+             * Notes
+             * @description Why a figure is blank, keyed by field name
+             */
+            notes?: {
+                [key: string]: string;
+            };
+            /** Reallocated To Participants */
+            reallocated_to_participants?: number | null;
+            /** Total Compensation */
+            total_compensation?: number | null;
+            /** Total Compensation Vs Anchor */
+            total_compensation_vs_anchor?: number | null;
+            /** Year */
+            year: number;
+        };
         /** CrossCitation */
         CrossCitation: {
             /** Query */
@@ -5646,6 +5820,11 @@ export interface components {
              * @description First simulation year used to classify employees into the new_hires/baseline cohorts, always populated regardless of the requested cohort (134-new-hire-cohort)
              */
             resolved_first_simulation_year: number;
+            /**
+             * Run Id
+             * @description The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from
+             */
+            run_id: string | null;
             /**
              * Scenario Id
              * @description Scenario identifier
@@ -13885,6 +14064,48 @@ export interface operations {
                     "X-PlanAlign-Active-Run-Id"?: string;
                     "X-PlanAlign-Result-Run-Id"?: string;
                     "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CostSummaryExportRequest"];
+            };
+        };
+        responses: {
+            /** @description The Cost Comparison tables for the posted view. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description A scenario has a newer run than the page loaded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

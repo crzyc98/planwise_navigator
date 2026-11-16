@@ -119,6 +119,7 @@ def analytics_service(tmp_path):
     conn.close()
 
     mock_storage = MagicMock()
+    mock_storage.get_scenario.return_value.last_run_id = "run-1"
     mock_resolver = MagicMock()
     mock_resolver.resolve.return_value = ResolvedDatabasePath(
         path=db_path, source="scenario"
@@ -713,6 +714,8 @@ class TestSingleYearMatchesTopLevel:
         result = service.get_dc_plan_analytics("ws", "sc", "test")
 
         assert result is not None
+        # No run in the resolved path, so it falls back to the scenario's last run.
+        assert result.run_id == "run-1"
         assert len(result.contribution_by_year) == 1
 
         top_level_rate = result.participation_rate
