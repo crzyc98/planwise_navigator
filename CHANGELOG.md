@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cost Comparison shows how much each employer cost moves across simulation seeds when the compared scenarios have seed ensembles: P10–P90 beside each annual and total cost, and the range of the difference from the anchor, taken seed by seed (for example, "saves $40K–$80K"). An ensemble run before the scenario's settings changed shows no range, ensembles on different seeds or years aren't paired, and the page says why in each case.
 - Studio's Ensembles page can now run an ensemble: pick a scenario and seed count, review the estimated time and disk, then follow its progress, cancel it, or open its results with one click. No terminal or file path needed; opening a database by path moved under Advanced.
 - Cost Comparison can download its tables as a small Excel workbook (Summary). It has the figures the page shows for the current view (anchor, cohort, gross or net of forfeitures, match/core split), a by-year sheet, and a Notes sheet with the view settings and each scenario's run. Unavailable figures are blank cells with a note, never $0.
+- Points-based core contributions can pay a flat rate until an employee reaches a minimum service, for example 1% until three years of service and the points table after that (#1222). It is off unless set, so existing scenarios produce the same results.
 
 ### Changed
 

@@ -287,6 +287,9 @@ export const DEFAULT_FORM_DATA: FormData = {
     { minPoints: 40, maxPoints: 75, rate: 2.0 },
     { minPoints: 75, maxPoints: null, rate: 3.0 },
   ],
+  dcCorePointsMinServiceEnabled: false,
+  dcCorePointsMinServiceYears: 3,
+  dcCorePointsPreServiceRate: 1.0,
   dcCoreAgeSchedule: [
     { minAge: 0, maxAge: 30, rate: 3.0 },
     { minAge: 30, maxAge: 40, rate: 4.0 },

@@ -150,7 +150,8 @@ export function coreSummary(form: FormData, config: Config = {}): string {
   switch (form.dcCoreStatus) {
     case 'flat': schedule = `${form.dcCoreContributionRate}% of eligible compensation`; break;
     case 'graded_by_service': schedule = form.dcCoreGradedSchedule.map(tier => `${tier.serviceYearsMin}–${tier.serviceYearsMax ?? '∞'} service years: ${tier.rate}%`).join('; '); break;
-    case 'points_based': schedule = form.dcCorePointsSchedule.map(tier => `${tier.minPoints}–${tier.maxPoints ?? '∞'} points: ${tier.rate}%`).join('; '); break;
+    case 'points_based': schedule = (form.dcCorePointsMinServiceEnabled ? `${form.dcCorePointsPreServiceRate}% until ${form.dcCorePointsMinServiceYears} years of service, then ` : '')
+      + form.dcCorePointsSchedule.map(tier => `${tier.minPoints}–${tier.maxPoints ?? '∞'} points: ${tier.rate}%`).join('; '); break;
     case 'age_banded': schedule = form.dcCoreAgeSchedule.map(tier => `${tier.minAge}–${tier.maxAge ?? '∞'} age: ${tier.rate}%`).join('; '); break;
     default: schedule = `Saved custom mode: ${form.dcCoreStatus}`;
   }

@@ -97,6 +97,8 @@ describe('Effective configuration review', () => {
     // Saved-to-draft changes use the same units as resolved engine assumptions.
     expect(formatDraftValue('dc_plan.escalation_mode', 'automatic')).toBe('Automatic (everyone unless they opt out)');
     expect(formatDraftValue('dc_plan.escalation_participant_elected_signup_probability', 0.0125)).toBe('1.25%');
+    expect(formatDraftValue('dc_plan.core_points_pre_service_rate', 1)).toBe('1%');
+    expect(formatDraftValue('dc_plan.core_points_min_service_years', 3)).toBe('3');
     expect(formatDraftValue('dc_plan.below_default_share_tiers', behavior.below_default_share_tiers)).toContain('3%: 10%');
     expect(formatDraftValue('dc_plan.below_default_steps', behavior.below_default_steps)).toContain('1 percentage point below (75%)');
   });

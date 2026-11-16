@@ -11,6 +11,16 @@ function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], 
   return value !== '' ? { [key]: Number(value) / 100 } : {};
 }
 
+function pointsMinService(formData: FormData) {
+  const on = formData.dcCorePointsMinServiceEnabled && formData.dcCoreStatus === 'points_based';
+  // A cleared input is sent as null, not 0, so the server rejects the half-filled pair.
+  const value = (raw: number | string) => (on && String(raw).trim() !== '' ? Number(raw) : null);
+  return {
+    core_points_min_service_years: value(formData.dcCorePointsMinServiceYears),
+    core_points_pre_service_rate: value(formData.dcCorePointsPreServiceRate),
+  };
+}
+
 export function buildConfigPayload(
   formData: FormData,
   promotionHazardConfig: PromotionHazardConfig | null,
@@ -201,6 +211,9 @@ export function buildConfigPayload(
         max_points: tier.maxPoints,
         contribution_rate: tier.rate / 100,
       })),
+      // Optional service minimum for points-based core; null when off. The rate
+      // stays in percent, the unit of the points table.
+      ...pointsMinService(formData),
       core_age_schedule: formData.dcCoreAgeSchedule.map(tier => ({
         min_age: tier.minAge,
         max_age: tier.maxAge,

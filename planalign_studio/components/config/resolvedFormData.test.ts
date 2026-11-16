@@ -49,6 +49,13 @@ describe('resolved engine inputs in configuration controls', () => {
     expect(resolved.newHireAgeDistribution).toEqual([{ age: 37, weight: 1, description: '' }]);
   });
 
+  it('resolves the points-core service minimum in percent', () => {
+    expect(applyResolvedFormData({ employer_core_points_min_service_years: 3, employer_core_points_pre_service_rate: 1 }, DEFAULT_FORM_DATA))
+      .toMatchObject({ dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 3, dcCorePointsPreServiceRate: 1 });
+    expect(applyResolvedFormData({ employer_core_points_min_service_years: null }, DEFAULT_FORM_DATA).dcCorePointsMinServiceEnabled).toBe(false);
+    expect(applyResolvedFormData({}, DEFAULT_FORM_DATA).dcCorePointsMinServiceEnabled).toBe(false);
+  });
+
   it('replaces misleading Studio defaults with resolved legacy values including zero', () => {
     const resolved = applyResolvedFormData({
       random_seed: 0, eligibility_waiting_period_days: 0,

@@ -51,6 +51,9 @@
 {% set employer_core_graded_schedule = var('employer_core_graded_schedule', []) %}
 {% set employer_core_points_schedule = var('employer_core_points_schedule', []) %}
 {% set employer_core_age_schedule = var('employer_core_age_schedule', []) %}
+{% set employer_core_points_min_service_years = var('employer_core_points_min_service_years', none) %}
+{% set employer_core_points_pre_service_rate = var('employer_core_points_pre_service_rate', none) %}
+{% set applied_years_of_service_expr = 'COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)' %}
 {% set employer_core_integration_enabled = var('employer_core_integration_enabled', false) %}
 {% set employer_core_integration_level_mode = var('employer_core_integration_level_mode', 'ss_wage_base') %}
 {% set employer_core_integration_level_value = var('employer_core_integration_level_value', none) %}
@@ -76,7 +79,17 @@
     {% elif employer_core_status == 'age_banded' and employer_core_age_schedule | length > 0 %}
     {{ get_age_banded_core_rate('COALESCE(snap.current_age, 0)', employer_core_age_schedule, employer_core_contribution_rate) }}
     {% elif employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
-    {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
+    {% set points_rate_expr = get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(' ~ applied_years_of_service_expr ~ ')::INT)', employer_core_points_schedule, employer_core_contribution_rate) %}
+    {% if employer_core_points_min_service_years is not none and employer_core_points_pre_service_rate is not none %}
+    -- #1222: flat pre-service rate until the service minimum, then the points band
+    CASE
+      WHEN {{ applied_years_of_service_expr }} < {{ employer_core_points_min_service_years | int }}
+        THEN {{ employer_core_points_pre_service_rate / 100.0 }}
+      ELSE {{ points_rate_expr }}
+    END
+    {% else %}
+    {{ points_rate_expr }}
+    {% endif %}
     {% elif employer_core_status == 'graded_by_service' and employer_core_graded_schedule | length > 0 %}
     {{ get_tiered_core_rate('COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)', employer_core_graded_schedule, employer_core_contribution_rate) }}
     {% else %}
@@ -288,7 +301,7 @@ SELECT
     {{ employer_core_contribution_rate }} AS standard_core_rate,
     {% endif %}
     -- Audit trail: years of service used for tier lookup
-    COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT) AS applied_years_of_service,
+    {{ applied_years_of_service_expr }} AS applied_years_of_service,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
@@ -302,6 +315,13 @@ SELECT
     CASE
       WHEN NOT COALESCE(elig.eligible_for_core, FALSE) THEN 'ineligible'
       WHEN pdp.core_formula_family = 'flat' THEN 'flat'
+      {% if 'points_based' in referenced_core_families %}
+      -- No points band matched: leave 'default' so the guard still rejects a gap.
+      WHEN pdp.core_formula_family = 'points_based' AND core_points.rate IS NULL THEN 'default'
+      WHEN pdp.core_formula_family = 'points_based'
+        AND {{ applied_years_of_service_expr }} < pdp.core_points_min_service_years
+        THEN 'points_service_minimum'
+      {% endif %}
       WHEN {{ core_rate_expr }} IS NOT NULL THEN 'band'
       ELSE 'default'
     END::VARCHAR AS core_rate_source,

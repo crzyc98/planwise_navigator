@@ -300,6 +300,19 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
   };
 }
 
+/** Points-core service minimum: absent inherits, null turns it off. */
+function mapPointsMinService(dc: Record<string, unknown>, prev: FormData): Partial<FormData> {
+  if (!('core_points_min_service_years' in dc)) return {};
+  const years = dc.core_points_min_service_years;
+  const rate = dc.core_points_pre_service_rate;
+  if (typeof years !== 'number') return { dcCorePointsMinServiceEnabled: false };
+  return {
+    dcCorePointsMinServiceEnabled: true,
+    dcCorePointsMinServiceYears: years,
+    dcCorePointsPreServiceRate: typeof rate === 'number' ? rate : prev.dcCorePointsPreServiceRate,
+  };
+}
+
 /** Map DC plan core contribution config fields to FormData. */
 function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
   return {
@@ -319,6 +332,7 @@ function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
           rate: convertRateToPercent(tier.contribution_rate, 0),
         }))
       : prev.dcCorePointsSchedule,
+    ...mapPointsMinService(cfg.dc_plan ?? {}, prev),
     dcCoreAgeSchedule: cfg.dc_plan?.core_age_schedule
       ? cfg.dc_plan.core_age_schedule.map((tier: any) => ({
           minAge: tier.min_age ?? 0,

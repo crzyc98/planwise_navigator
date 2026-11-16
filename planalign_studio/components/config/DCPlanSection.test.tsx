@@ -993,3 +993,35 @@ describe('contribution rate change controls', () => {
     expect(renderToStaticMarkup(editor())).not.toContain('role="alert"');
   });
 });
+
+describe('points-based core service minimum', () => {
+  const checkbox = (html: string) => input(html, 'dcCorePointsMinServiceEnabled');
+
+  it.each(['flat', 'graded_by_service', 'age_banded'])('is absent for core type %s', mode => {
+    state.formData.dcCoreStatus = mode;
+    expect(checkbox(render())).toBe('');
+  });
+
+  it('is unchecked by default and reveals both inputs when turned on', () => {
+    state.formData.dcCoreStatus = 'points_based';
+    const off = render();
+    expect(checkbox(off)).not.toBe('');
+    expect(checkbox(off)).not.toContain('checked');
+    expect(input(off, 'dcCorePointsMinServiceYears')).toBe('');
+    toggle('dcCorePointsMinServiceEnabled', true);
+    const on = render();
+    expect(checkbox(on)).toContain('checked');
+    expect(on).toContain('Years of service');
+    expect(on).toContain('Rate before that');
+    expect(on).toContain('whole years from hire date');
+  });
+
+  it('prefixes the core summary only when on', () => {
+    state.formData = { ...state.formData, dcCoreStatus: 'points_based', dcCorePointsSchedule: [
+      { minPoints: 0, maxPoints: 30, rate: 1 }, { minPoints: 30, maxPoints: 50, rate: 2 }, { minPoints: 50, maxPoints: null, rate: 3 },
+    ] };
+    expect(coreSummary(state.formData)).toMatch(/^0–30 points: 1%; 30–50 points: 2%; 50–∞ points: 3%\./);
+    state.formData = { ...state.formData, dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 3, dcCorePointsPreServiceRate: 1 };
+    expect(coreSummary(state.formData)).toMatch(/^1% until 3 years of service, then 0–30 points: 1%; 30–50 points: 2%; 50–∞ points: 3%\./);
+  });
+});

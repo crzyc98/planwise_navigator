@@ -45,6 +45,8 @@ DBT_VAR_PER_DESIGN = frozenset(
         "employer_core_graded_schedule",
         "employer_core_status",
         "employer_core_points_schedule",
+        "employer_core_points_min_service_years",
+        "employer_core_points_pre_service_rate",
         "employer_core_age_schedule",
         "employer_core_integration_enabled",
         "employer_core_integration_level_mode",
@@ -1292,6 +1294,27 @@ def _transform_age_tiers(age_schedule: list) -> list:
     ]
 
 
+POINTS_MIN_SERVICE_DBT_VARS = (
+    "employer_core_points_min_service_years",
+    "employer_core_points_pre_service_rate",
+)
+
+
+def _points_min_service_vars(source: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+    """Export the optional points-core service minimum; empty when unset (#1222).
+
+    Both keys are validated together at load, so a half-set pair never reaches here.
+    """
+    min_years = source.get(f"{prefix}points_min_service_years")
+    pre_service_rate = source.get(f"{prefix}points_pre_service_rate")
+    if min_years is None or pre_service_rate is None:
+        return {}
+    return {
+        "employer_core_points_min_service_years": int(min_years),
+        "employer_core_points_pre_service_rate": float(pre_service_rate),
+    }
+
+
 def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export employer core contribution settings to dbt vars.
 
@@ -1369,6 +1392,7 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     }
                     transformed_points.append(transformed_tier)
                 dbt_vars["employer_core_points_schedule"] = transformed_points
+            dbt_vars.update(_points_min_service_vars(core_contrib, ""))
 
             age_schedule = core_contrib.get("age_schedule")
             if isinstance(age_schedule, list) and len(age_schedule) > 0:
@@ -1545,6 +1569,18 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         }
                         transformed_points.append(transformed_tier)
                     dbt_vars["employer_core_points_schedule"] = transformed_points
+            min_service_vars = _points_min_service_vars(dc_plan_dict, "core_")
+            if "core_points_min_service_years" in dc_plan_dict:
+                # Studio's explicit null turns off a minimum set in the YAML core block.
+                for key in POINTS_MIN_SERVICE_DBT_VARS:
+                    dbt_vars.pop(key, None)
+            dbt_vars.update(min_service_vars)
+            core_top_level.update(
+                {
+                    key.removeprefix("employer_core_"): value
+                    for key, value in min_service_vars.items()
+                }
+            )
 
             # Age-banded core schedule (for age_banded mode)
             if dc_plan_dict.get("core_age_schedule") is not None:
@@ -1581,6 +1617,14 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     dbt_vars["employer_core_contribution"] = {}
                 # Merge top-level fields
                 dbt_vars["employer_core_contribution"].update(core_top_level)
+                if (
+                    "core_points_min_service_years" in dc_plan_dict
+                    and not min_service_vars
+                ):
+                    for key in POINTS_MIN_SERVICE_DBT_VARS:
+                        dbt_vars["employer_core_contribution"].pop(
+                            key.removeprefix("employer_core_"), None
+                        )
                 # Deep merge eligibility
                 if core_eligibility_overrides:
                     current_eligibility = dbt_vars["employer_core_contribution"].get(

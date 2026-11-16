@@ -251,3 +251,32 @@ describe('annual starting-pay growth', () => {
     expect(payload(DEFAULT_FORM_DATA).new_hire).toMatchObject({ salary_growth_rate: 0 });
   });
 });
+
+describe('points-based core service minimum', () => {
+  const points = { ...DEFAULT_FORM_DATA, dcCoreStatus: 'points_based' };
+
+  it('sends nulls when off and the values in percent when on', () => {
+    expect(payload(points).dc_plan).toMatchObject({ core_points_min_service_years: null, core_points_pre_service_rate: null });
+    const on = { ...points, dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 3, dcCorePointsPreServiceRate: 1 };
+    expect(payload(on).dc_plan).toMatchObject({ core_points_min_service_years: 3, core_points_pre_service_rate: 1 });
+    expect(payload({ ...on, dcCoreStatus: 'flat' }).dc_plan).toMatchObject({ core_points_min_service_years: null, core_points_pre_service_rate: null });
+  });
+
+  it('sends a cleared input as null, not 0', () => {
+    const cleared = { ...points, dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 3, dcCorePointsPreServiceRate: '' as unknown as number };
+    expect(payload(cleared).dc_plan).toMatchObject({ core_points_min_service_years: 3, core_points_pre_service_rate: null });
+  });
+
+  it('loads saved values, turns off on null and inherits when absent', () => {
+    const form = applyConfigToFormData({ dc_plan: { core_status: 'points_based', core_points_min_service_years: 4, core_points_pre_service_rate: 1.5 } }, DEFAULT_FORM_DATA);
+    expect(form).toMatchObject({ dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 4, dcCorePointsPreServiceRate: 1.5 });
+    expect(payload(form).dc_plan).toMatchObject({ core_points_min_service_years: 4, core_points_pre_service_rate: 1.5 });
+    expect(applyConfigToFormData({ dc_plan: {} }, form).dcCorePointsMinServiceEnabled).toBe(true);
+    expect(applyConfigToFormData({ dc_plan: { core_points_min_service_years: null, core_points_pre_service_rate: null } }, form).dcCorePointsMinServiceEnabled).toBe(false);
+  });
+
+  it('adds no keys to an untouched scenario', () => {
+    const loaded = applyResolvedFormData({}, points);
+    expect(applyConfigEdits({}, payload(loaded), payload(loaded))).toEqual({});
+  });
+});

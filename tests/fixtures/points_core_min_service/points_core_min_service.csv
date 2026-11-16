@@ -1,0 +1,8 @@
+employee_id,employee_ssn,employee_birth_date,employee_hire_date,employee_termination_date,employee_gross_compensation,employee_capped_compensation,active,employee_deferral_rate,employee_contribution,pre_tax_contribution,roth_contribution,after_tax_contribution,employer_core_contribution,employer_match_contribution,eligibility_entry_date,scheduled_hours_per_week,auto_escalation_opt_out,eligibility_override,cohort
+PTS_OLD_RECENT,999-26-0001,1977-03-01,2024-02-01,,82000,82000,true,0.04,3280,3280,0,0,0,0,2024-02-01,40,false,,older_recent_hire
+PTS_SENIOR_CROSSER,999-26-0002,1968-05-01,2023-03-01,,95000,95000,true,0.05,4750,4750,0,0,0,0,2023-03-01,40,false,,reaches_3_years_in_2026
+PTS_EXACT_30,999-26-0003,1999-01-10,2020-01-15,,61000,61000,true,0.03,1830,1830,0,0,0,0,2020-01-15,40,false,,exactly_30_points
+PTS_YOUNG_LONG,999-26-0004,2003-02-01,2021-06-01,,52000,52000,true,0.03,1560,1560,0,0,0,0,2021-06-01,40,false,,under_30_points
+PTS_MID,999-26-0005,1990-04-01,2017-04-01,,88000,88000,true,0.05,4400,4400,0,0,0,0,2017-04-01,40,false,,middle_band
+PTS_LONG_OLD,999-26-0006,1975-08-01,2005-09-01,,140000,140000,true,0.06,8400,8400,0,0,0,0,2005-09-01,40,false,,top_band
+PTS_YOUNG_RECENT,999-26-0007,2002-07-01,2024-07-01,,50000,50000,true,0.03,1500,1500,0,0,0,0,2024-07-01,40,false,,young_recent_hire

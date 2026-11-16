@@ -1206,6 +1206,27 @@ export function DCPlanSection() {
                     </div>
                   ) : null;
                 })()}
+                {/* Optional service minimum: a flat rate until whole years of service reach it. */}
+                <label className="mt-4 flex items-center gap-2 text-sm font-medium text-ink-muted">
+                  <input
+                    type="checkbox"
+                    name="dcCorePointsMinServiceEnabled"
+                    checked={formData.dcCorePointsMinServiceEnabled}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-brand-ink border-border-strong rounded focus:ring-brand-green"
+                  />
+                  Flat rate until a minimum service
+                </label>
+                {formData.dcCorePointsMinServiceEnabled && (
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <InputField label="Years of service" {...inputProps('dcCorePointsMinServiceYears')} type="number" step="1" min={1} suffix="years" />
+                    <InputField label="Rate before that" {...inputProps('dcCorePointsPreServiceRate')} type="number" step="0.5" min={0} suffix="%" />
+                    <p className="sm:col-span-3 text-xs text-ink-muted">
+                      Employees below the minimum get the flat rate and the points table applies from then on;
+                      service is whole years from hire date, and one rate applies for the whole year.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -253,6 +253,11 @@ export interface FormData {
   dcCoreStatus: string;
   dcCoreGradedSchedule: CoreGradedTier[];
   dcCorePointsSchedule: PointsCoreTier[];
+  // Optional points-core service minimum: a flat rate (percent) applies until
+  // whole years of service reach the minimum. Off by default.
+  dcCorePointsMinServiceEnabled: boolean;
+  dcCorePointsMinServiceYears: number;
+  dcCorePointsPreServiceRate: number;
   dcCoreAgeSchedule: AgeCoreTier[];
   // Social Security integration (permitted disparity, §401(l)). A modifier on
   // whatever base rate dcCoreStatus resolved — not a fifth core status.
