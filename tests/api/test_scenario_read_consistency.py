@@ -99,6 +99,33 @@ def test_corrupt_pointer_fails_closed(tmp_path, client_factory):
 
 
 @pytest.mark.parametrize(
+    "path",
+    [
+        "/scenarios/{scenario_id}/run-changes",
+        "/analytics/compare/integrity?scenarios={scenario_id},{other_id}",
+    ],
+)
+def test_corrupt_pointer_fails_closed_on_like_for_like_reads(
+    tmp_path, client_factory, path
+):
+    storage, workspace_id, scenario_id = _scenario(tmp_path)
+    other = storage.create_scenario(workspace_id, ScenarioCreate(name="T"))
+    assert other is not None
+    scenario_path = storage._scenario_path(workspace_id, scenario_id)
+    (scenario_path / "current_result.json").write_text("not-json")
+    client = client_factory("secret", raise_server_exceptions=False)
+
+    response = client.get(
+        f"/api/workspaces/{workspace_id}"
+        + path.format(scenario_id=scenario_id, other_id=other.id),
+        headers={"Authorization": "Bearer secret"},
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Current result integrity failure"
+
+
+@pytest.mark.parametrize(
     "status", ["completed", "queued", "running", "failed", "cancelled"]
 )
 def test_selected_result_available_in_list_and_detail(tmp_path, client_factory, status):

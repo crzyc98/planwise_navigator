@@ -13,6 +13,7 @@ function scenario(id: string, status: Scenario['status'], available = true): Sce
     description: null, last_run_at: null, provenance: null, results_summary: null, models_current_plan: false,
     created_at: '2026-09-29', has_selected_result: available,
     last_run_id: 'latest-attempt', selected_result_run_id: available ? `success-${id}` : null,
+    result_engine_version: null, result_engine_version_gap: null,
   };
 }
 

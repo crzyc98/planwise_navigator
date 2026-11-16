@@ -97,6 +97,13 @@ class Scenario(APIModel):
     selected_result_run_id: Optional[str] = Field(
         None, description="Selected successful run ID, independent of latest attempt"
     )
+    result_engine_version: Optional[str] = Field(
+        None, description="Engine version that produced the selected result"
+    )
+    result_engine_version_gap: Optional[Literal["patch", "minor", "major"]] = Field(
+        None,
+        description="How far the selected result's engine version is behind the running one",
+    )
     results_summary: Optional[ScenarioResultsSummary] = Field(
         None, description="Summary of last run results"
     )

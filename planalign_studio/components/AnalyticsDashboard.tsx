@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
-  Download, Filter, Calendar, Users, TrendingUp, DollarSign, PieChart as PieChartIcon,
+  Filter, Calendar, Users, TrendingUp, DollarSign, PieChart as PieChartIcon,
   ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, ChevronDown, Database, Loader2,
   Clipboard, Check
 } from 'lucide-react';
@@ -19,13 +19,18 @@ import {
   SimulationResults
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
+import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
+import { reportRequest } from './reportExport';
 import RunHealthSummary from './simulation/RunHealthSummary';
 import CensusTieOutPanel from './CensusTieOutPanel';
+import EngineVersionBadge from './EngineVersionBadge';
+import RunChangesSince from './RunChangesSince';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
   activeWorkspace: Workspace;
   lastRunScenarioId: string | null;
+  isSimulationRunning: boolean;
 }
 
 const trendIcons: Record<string, React.ReactNode> = {
@@ -195,7 +200,7 @@ export default function AnalyticsDashboard() {
     new_hire_termination: chartTheme.colorAt(3),
   };
   const [searchParams] = useSearchParams();
-  const { activeWorkspace: contextWorkspace, lastRunScenarioId } = useOutletContext<LayoutContext>();
+  const { activeWorkspace: contextWorkspace, lastRunScenarioId, isSimulationRunning } = useOutletContext<LayoutContext>();
 
   // Priority: URL param > context lastRun > default
   const scenarioIdFromUrl = searchParams.get('scenario') || lastRunScenarioId;
@@ -212,6 +217,8 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState<ReportExportFormat | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   // Population filter toggle
   const [population, setPopulation] = useState<'all' | 'active' | 'terminated'>('all');
@@ -325,6 +332,20 @@ export default function AnalyticsDashboard() {
       setError(err.message || 'Failed to export results');
     }
   }, [selectedWorkspaceId, selectedScenarioId]);
+
+  const handleReportExport = async (format: ReportExportFormat) => {
+    const request = reportRequest(selectedScenarioId ? [selectedScenarioId] : [], selectedScenarioId, format);
+    if (!selectedWorkspaceId || !request) return;
+    setReportBusy(format);
+    setReportError(null);
+    try {
+      await downloadScenarioReport(selectedWorkspaceId, request.scenarioId, request.options);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Failed to export report');
+    } finally {
+      setReportBusy(null);
+    }
+  };
 
   const handleRefresh = () => {
     fetchWorkspaces();
@@ -511,22 +532,17 @@ export default function AnalyticsDashboard() {
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
 
-          <button
-            onClick={() => {
-              if (!selectedWorkspaceId || !selectedScenarioId) return;
-              downloadScenarioReport(selectedWorkspaceId, selectedScenarioId, 'pdf').catch((err) => {
-                console.error('Failed to export report:', err);
-                setError(err instanceof Error ? err.message : 'Failed to export report');
-              });
-            }}
+          <ReportExportButtons
+            onExport={handleReportExport}
+            busy={reportBusy}
             disabled={!selectedScenarioId || loading}
-            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-brand-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
-          >
-            <Download size={16} className="mr-2" />
-            Export report (PDF)
-          </button>
+          />
         </div>
       </div>
+
+      {reportError && (
+        <p role="alert" className="text-sm text-danger-ink">{reportError}</p>
+      )}
 
       {/* Content Area */}
       {loading ? (
@@ -593,8 +609,18 @@ export default function AnalyticsDashboard() {
           {selectedScenario && (
             <div className="bg-info-surface border border-info-border rounded-lg p-4 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-info-ink">{selectedScenario.name}</h3>
+                <h3 className="font-semibold text-info-ink flex items-center gap-2">
+                  {selectedScenario.name}
+                  <EngineVersionBadge scenario={selectedScenario} rerunDisabled={isSimulationRunning} />
+                </h3>
                 <p className="text-sm text-info-ink">{selectedScenario.description || 'No description'}</p>
+                <div className="mt-2 text-info-ink">
+                  <RunChangesSince
+                    workspaceId={selectedWorkspaceId}
+                    scenarioId={selectedScenario.id}
+                    resultRunId={selectedScenario.selected_result_run_id}
+                  />
+                </div>
               </div>
               <div className="text-right text-sm text-info-ink">
                 <p>Last run: {selectedScenario.last_run_at ? new Date(selectedScenario.last_run_at).toLocaleDateString() : 'Never'}</p>

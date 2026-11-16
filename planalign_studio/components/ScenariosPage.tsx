@@ -4,6 +4,7 @@ import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCir
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
+import EngineVersionBadge from './EngineVersionBadge';
 
 export default function ScenariosPage() {
   const navigate = useWorkspaceNavigate();
@@ -428,6 +429,11 @@ export default function ScenariosPage() {
                         {scenario.models_current_plan && (
                           <span className="ml-2 px-2 py-0.5 text-xs rounded-full border border-border text-ink-muted">
                             Current plan
+                          </span>
+                        )}
+                        {!selectMode && (
+                          <span className="ml-2">
+                            <EngineVersionBadge scenario={scenario} rerunDisabled={isSimulationRunning} />
                           </span>
                         )}
                       </div>
