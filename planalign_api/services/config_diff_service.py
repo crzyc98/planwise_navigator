@@ -24,6 +24,7 @@ from ..models.workspace import Workspace
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
     DatabasePathResolver,
+    ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
 from .run_trust import evaluate_run_trust
@@ -69,8 +70,8 @@ class ConfigDiffService:
         existence check), lets both scenarios' configs be merged without
         re-reading workspace.json/base_config.yaml from disk per scenario.
         """
-        config_a = self._get_config(workspace_id, scenario_a, workspace)
-        config_b = self._get_config(workspace_id, scenario_b, workspace)
+        config_a = self.get_effective_config(workspace_id, scenario_a, workspace)
+        config_b = self.get_effective_config(workspace_id, scenario_b, workspace)
         differences, unchanged_count = _diff_configs(config_a, config_b)
         provenance = {
             scenario_a: self._read_provenance(workspace_id, scenario_a, config_a),
@@ -88,13 +89,20 @@ class ConfigDiffService:
             drift_warning=any(item.drift_warning for item in provenance.values()),
         )
 
-    def _get_config(
+    def get_effective_config(
         self,
         workspace_id: str,
         scenario_id: str,
         workspace: Optional[Workspace] = None,
+        resolved: Optional[ResolvedDatabasePath] = None,
     ) -> dict[str, Any]:
-        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        """The config the selected result ran with, else the current merged one.
+
+        Pass ``resolved`` to read the config of a result the caller already
+        resolved, so the config and the figures come from the same run.
+        """
+        if resolved is None:
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if resolved.config_path is not None:
             try:
                 archived = yaml.safe_load(
