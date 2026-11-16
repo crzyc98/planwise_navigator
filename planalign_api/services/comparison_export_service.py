@@ -15,7 +15,7 @@ import re
 import tempfile
 import zipfile
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Literal
@@ -23,11 +23,13 @@ from typing import Any, Iterator, Literal
 import duckdb
 import yaml
 
+from ..models.comparison import ComparisonIntegrityResponse
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
 )
+from .run_trust import read_engine_version
 
 ExportFormat = Literal["xlsx", "hyper", "parquet"]
 
@@ -54,6 +56,9 @@ class ExportScenario:
     database_path: Path
     census_path: str | None
     run_id: str | None
+    engine_version: str | None = None
+    # "anchor", or this scenario's like-for-like verdict against the anchor.
+    like_for_like: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,9 +100,28 @@ class ComparisonExportService:
                         else None
                     ),
                     run_id=resolved.run_id,
+                    engine_version=(
+                        read_engine_version(resolved.path.parent)
+                        if resolved.source == "run"
+                        else None
+                    ),
                 )
             )
         return scenarios
+
+    @staticmethod
+    def with_verdicts(
+        scenarios: list[ExportScenario], integrity: ComparisonIntegrityResponse
+    ) -> list[ExportScenario]:
+        """Record each scenario's like-for-like verdict for the export metadata."""
+        verdicts: dict[str, str] = {
+            item.scenario_id: item.verdict for item in integrity.scenarios
+        }
+        verdicts[integrity.anchor_scenario_id] = "anchor"
+        return [
+            replace(scenario, like_for_like=verdicts.get(scenario.scenario_id))
+            for scenario in scenarios
+        ]
 
     def build(
         self,
@@ -254,6 +278,8 @@ def _create_metadata_table(
                 ("scenario_id", scenario.scenario_id),
                 ("run_id", scenario.run_id or ""),
                 ("census_path", scenario.census_path or ""),
+                ("engine_version", scenario.engine_version or ""),
+                ("like_for_like", scenario.like_for_like or ""),
             ]
         )
     conn.execute("CREATE TEMP TABLE export_metadata (field VARCHAR, value VARCHAR)")
