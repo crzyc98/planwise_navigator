@@ -29863,6 +29863,24 @@
               "description": "Comma-separated comparison scenario IDs",
               "title": "Compare"
             }
+          },
+          {
+            "description": "Scenario that differences are measured against; must be one of the selected scenarios. Defaults to the scenario in the path.",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario that differences are measured against; must be one of the selected scenarios. Defaults to the scenario in the path.",
+              "title": "Anchor"
+            }
           }
         ],
         "responses": {
