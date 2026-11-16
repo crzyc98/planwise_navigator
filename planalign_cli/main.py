@@ -205,6 +205,12 @@ def simulate(
         "--threshold",
         help="Repeatable ensemble threshold in metric:value form",
     ),
+    parallel: Optional[int] = typer.Option(
+        None,
+        "--parallel",
+        min=1,
+        help="Ensemble seed worker processes (default: sized from CPU and memory)",
+    ),
 ):
     """🎯 Run multi-year workforce simulation with Rich progress tracking."""
     run_simulation(
@@ -226,6 +232,7 @@ def simulate(
         min_seeds=min_seeds,
         discard_seed_dbs=discard_seed_dbs,
         threshold=threshold,
+        parallel=parallel,
     )
 
 

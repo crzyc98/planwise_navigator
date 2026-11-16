@@ -61,6 +61,9 @@ VALID_ALTERNATES: dict[str, dict[str, Any]] = {
         }
         for dim in ("age", "income")
     },
+    "enrollment.auto_enrollment.scope": {
+        "enrollment.auto_enrollment.scope": "all_eligible_employees"
+    },
     "enrollment.auto_enrollment.reenrollment_sweep.method": {
         "enrollment.auto_enrollment.reenrollment_sweep.method": "into_aip"
     },

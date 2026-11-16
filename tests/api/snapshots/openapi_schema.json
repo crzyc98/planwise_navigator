@@ -1766,6 +1766,7 @@
           "band_label": {
             "description": "Human-readable label (e.g., '25-34', '< 25')",
             "maxLength": 50,
+            "pattern": "^[^']*$",
             "title": "Band Label",
             "type": "string"
           },
@@ -5437,6 +5438,30 @@
         "title": "ContributionYearSummary",
         "type": "object"
       },
+      "CostBand": {
+        "description": "P10-P90 of one scenario's employer cost across its ensemble's seeds.",
+        "properties": {
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "p10": {
+            "title": "P10",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p10",
+          "p90",
+          "n_seeds"
+        ],
+        "title": "CostBand",
+        "type": "object"
+      },
       "CostEstimateRow": {
         "description": "Pay and estimated employer cost for one year, before and after solving.\n\nCalibration skips the plan calculations, so employer cost is estimated: it\nstays the same share of pay as in the run calibration started from.",
         "properties": {
@@ -6737,6 +6762,30 @@
         "title": "DetectedColumn",
         "type": "object"
       },
+      "DifferenceRange": {
+        "description": "Spread of (scenario - anchor) employer cost, differenced seed by seed.",
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "n_seeds"
+        ],
+        "title": "DifferenceRange",
+        "type": "object"
+      },
       "DistributionStats": {
         "description": "Statistics from census distribution analysis.",
         "properties": {
@@ -7442,6 +7491,28 @@
         "title": "EmployerCostOffsetRow",
         "type": "object"
       },
+      "EnsembleCostRanges": {
+        "description": "Seed ranges beside Cost Comparison's gross employer cost.\n\nThe metric is ``total_employer_plan_cost``: the sum of employer match and\ncore over every snapshot row, the same quantity as the page's gross\nemployer cost for all employees.",
+        "properties": {
+          "anchor_scenario_id": {
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioCostRange"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anchor_scenario_id",
+          "scenarios"
+        ],
+        "title": "EnsembleCostRanges",
+        "type": "object"
+      },
       "EnsembleDatabaseSummary": {
         "description": "One discovered ensemble database, for a Studio picker.",
         "properties": {
@@ -7512,6 +7583,315 @@
           "size_bytes"
         ],
         "title": "EnsembleDatabaseSummary",
+        "type": "object"
+      },
+      "EnsembleError": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "seeds_failed",
+              "no_seeds",
+              "interrupted",
+              "unexpected"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "message"
+        ],
+        "title": "EnsembleError",
+        "type": "object"
+      },
+      "EnsembleEstimate": {
+        "description": "What an ensemble will cost, known before any seed starts.",
+        "properties": {
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "estimated_disk_mib": {
+            "description": "Peak disk while seeds run; only the aggregate is kept after",
+            "title": "Estimated Disk Mib",
+            "type": "number"
+          },
+          "estimated_seconds": {
+            "title": "Estimated Seconds",
+            "type": "number"
+          },
+          "run_count": {
+            "description": "Seed runs, one at a time",
+            "title": "Run Count",
+            "type": "integer"
+          },
+          "seconds_per_run": {
+            "title": "Seconds Per Run",
+            "type": "number"
+          },
+          "seed_count": {
+            "title": "Seed Count",
+            "type": "integer"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "time_basis": {
+            "description": "'measured' scales the scenario's last completed run; 'default' uses a fixed per-run-year rate because no run was found",
+            "enum": [
+              "measured",
+              "default"
+            ],
+            "title": "Time Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seed_count",
+          "seeds",
+          "start_year",
+          "end_year",
+          "run_count",
+          "seconds_per_run",
+          "estimated_seconds",
+          "time_basis",
+          "estimated_disk_mib"
+        ],
+        "title": "EnsembleEstimate",
+        "type": "object"
+      },
+      "EnsembleJob": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnsembleError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/EnsembleEstimate"
+          },
+          "failed_seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Failed Seeds",
+            "type": "array"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnsembleOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/EnsembleProgress"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "seed_count": {
+            "title": "Seed Count",
+            "type": "integer"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "workspace_id",
+          "scenario_id",
+          "scenario_name",
+          "status",
+          "seed_count",
+          "seeds",
+          "start_year",
+          "end_year",
+          "estimate",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "progress",
+          "failed_seeds",
+          "error",
+          "output"
+        ],
+        "title": "EnsembleJob",
+        "type": "object"
+      },
+      "EnsembleOutput": {
+        "description": "Where a finished ensemble's aggregate lives, for the reader endpoints.",
+        "properties": {
+          "database_path": {
+            "title": "Database Path",
+            "type": "string"
+          },
+          "ensemble_id": {
+            "title": "Ensemble Id",
+            "type": "string"
+          },
+          "ensemble_scenario_id": {
+            "title": "Ensemble Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "database_path",
+          "ensemble_id",
+          "ensemble_scenario_id"
+        ],
+        "title": "EnsembleOutput",
+        "type": "object"
+      },
+      "EnsembleProgress": {
+        "properties": {
+          "current_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Seed"
+          },
+          "seeds_completed": {
+            "default": 0,
+            "title": "Seeds Completed",
+            "type": "integer"
+          },
+          "seeds_failed": {
+            "default": 0,
+            "title": "Seeds Failed",
+            "type": "integer"
+          },
+          "seeds_total": {
+            "title": "Seeds Total",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "seeds_total",
+          "seeds_completed",
+          "seeds_failed",
+          "current_seed",
+          "updated_at"
+        ],
+        "title": "EnsembleProgress",
+        "type": "object"
+      },
+      "EnsembleRequest": {
+        "properties": {
+          "seed_count": {
+            "default": 10,
+            "maximum": 50.0,
+            "minimum": 5.0,
+            "title": "Seed Count",
+            "type": "integer"
+          }
+        },
+        "title": "EnsembleRequest",
         "type": "object"
       },
       "EscalationMetrics": {
@@ -14257,6 +14637,136 @@
         "title": "ScenarioApplyOutcome",
         "type": "object"
       },
+      "ScenarioCostRange": {
+        "description": "Seed ranges for one compared scenario; empty when there are none.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "current": {
+            "default": false,
+            "description": "Whether the ensemble ran on the same settings (config fingerprint) as the scenario's results shown; ranges are only given when it did",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "difference_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DifferenceRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "difference_years": {
+            "items": {
+              "$ref": "#/components/schemas/YearDifferenceRange"
+            },
+            "title": "Difference Years",
+            "type": "array"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "paired": {
+            "default": false,
+            "description": "Whether differences from the anchor were taken seed by seed",
+            "title": "Paired",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why ranges or pairing are missing, in one line",
+            "title": "Reason"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost summed over the ensemble's years"
+          },
+          "years": {
+            "description": "Annual employer cost, P10-P90",
+            "items": {
+              "$ref": "#/components/schemas/YearCostBand"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "job_id",
+          "completed_at",
+          "start_year",
+          "end_year",
+          "current",
+          "years",
+          "total",
+          "paired",
+          "difference_years",
+          "difference_total",
+          "reason"
+        ],
+        "title": "ScenarioCostRange",
+        "type": "object"
+      },
       "ScenarioCreate": {
         "description": "Request model for creating a scenario.",
         "properties": {
@@ -15767,6 +16277,7 @@
           "band_label": {
             "description": "Human-readable label (e.g., '25-34', '< 25')",
             "maxLength": 50,
+            "pattern": "^[^']*$",
             "title": "Band Label",
             "type": "string"
           },
@@ -16441,6 +16952,13 @@
           "match_template": {
             "anyOf": [
               {
+                "enum": [
+                  "simple",
+                  "tiered",
+                  "stretch",
+                  "safe_harbor",
+                  "qaca"
+                ],
                 "type": "string"
               },
               {
@@ -19079,6 +19597,62 @@
           }
         },
         "title": "WorkspaceUpdate",
+        "type": "object"
+      },
+      "YearCostBand": {
+        "properties": {
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "p10": {
+            "title": "P10",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "p10",
+          "p90",
+          "n_seeds",
+          "year"
+        ],
+        "title": "YearCostBand",
+        "type": "object"
+      },
+      "YearDifferenceRange": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "n_seeds": {
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "n_seeds",
+          "year"
+        ],
+        "title": "YearDifferenceRange",
         "type": "object"
       },
       "YearState": {
@@ -25410,6 +25984,305 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/ensembles": {
+      "get": {
+        "description": "A workspace's ensemble jobs, newest first, optionally for one scenario.",
+        "operationId": "list_ensemble_jobs_api_workspaces__workspace_id__ensembles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EnsembleJob"
+                  },
+                  "title": "Response List Ensemble Jobs Api Workspaces  Workspace Id  Ensembles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List Ensemble Jobs",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/cost-ranges": {
+      "get": {
+        "description": "Seed ranges beside Cost Comparison's gross employer cost.\n\nEach scenario's latest finished ensemble gives P10-P90 of annual and total\nemployer cost; a scenario whose ensemble ran on the anchor's seeds and\nyears also gets its difference from the anchor, taken seed by seed.\nRegistered before ``/ensembles/{job_id}`` so the path isn't read as a job id.",
+        "operationId": "get_ensemble_cost_ranges_api_workspaces__workspace_id__ensembles_cost_ranges_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated compared scenario IDs",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated compared scenario IDs",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Anchor scenario ID, one of `scenarios`",
+            "in": "query",
+            "name": "anchor",
+            "required": true,
+            "schema": {
+              "description": "Anchor scenario ID, one of `scenarios`",
+              "title": "Anchor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleCostRanges"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Ensemble Cost Ranges",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}": {
+      "get": {
+        "operationId": "get_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ensemble Job",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/ensembles/{job_id}/cancel": {
+      "post": {
+        "description": "Stop a queued or running ensemble and its whole process tree.",
+        "operationId": "cancel_ensemble_job_api_workspaces__workspace_id__ensembles__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Ensemble Job",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/evidence-pack/compare": {
       "get": {
         "operationId": "get_cross_scenario_evidence_pack_api_workspaces__workspace_id__evidence_pack_compare_get",
@@ -28154,6 +29027,130 @@
         "summary": "Get Employee Timeline",
         "tags": [
           "Timeline"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles": {
+      "post": {
+        "description": "Queue a seed ensemble; it waits for a simulation slot like any run.",
+        "operationId": "start_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Ensemble",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/ensembles/estimate": {
+      "post": {
+        "description": "Seeds, run count, time and disk an ensemble would take; starts nothing.",
+        "operationId": "estimate_ensemble_api_workspaces__workspace_id__scenarios__scenario_id__ensembles_estimate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsembleEstimate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estimate Ensemble",
+        "tags": [
+          "Ensembles"
         ]
       }
     },
