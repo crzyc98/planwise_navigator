@@ -47,6 +47,8 @@ import {
   toSummaryExportRequest,
   type GrandfatherInput,
 } from './costSummary';
+import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
+import { reportBasisNote, reportRequest } from './reportExport';
 import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
   listScenarios,
@@ -54,6 +56,7 @@ import {
   compareGrandfatheredCost,
   downloadComparisonExport,
   downloadComparisonSummary,
+  downloadScenarioReport,
   ComparisonExportFormat,
   getScenarioConfig,
   getForfeitureProjection,
@@ -445,6 +448,7 @@ export default function ScenarioCostComparison() {
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ComparisonExportFormat | 'summary' | null>(null);
+  const [reportBusy, setReportBusy] = useState<ReportExportFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
@@ -527,6 +531,8 @@ export default function ScenarioCostComparison() {
   const netActive = costView === 'net' && (
     grandfatherExisting ? grandfatherData !== null : forfeitureData !== null
   );
+
+  const reportNote = reportBasisNote({ cohort, costView, grandfatherExisting });
 
   const policyReducesCost = POLICY_REDUCES_EMPLOYER_COST[forfeiturePolicy];
 
@@ -844,6 +850,20 @@ export default function ScenarioCostComparison() {
       setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setExporting(null);
+    }
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
+
+  const handleReportExport = useCallback(async (format: ReportExportFormat) => {
+    const request = reportRequest(selectedScenarioIds, anchorScenarioId, format);
+    if (!activeWorkspace?.id || !request) return;
+    setReportBusy(format);
+    setExportError(null);
+    try {
+      await downloadScenarioReport(activeWorkspace.id, request.scenarioId, request.options);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Report export failed');
+    } finally {
+      setReportBusy(null);
     }
   }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
 
@@ -1312,7 +1332,7 @@ export default function ScenarioCostComparison() {
               <button
                 key={format}
                 onClick={() => handleExport(format)}
-                disabled={selectedScenarioIds.length === 0 || exporting !== null}
+                disabled={selectedScenarioIds.length === 0 || exporting !== null || reportBusy !== null}
                 title={title}
                 className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1324,7 +1344,7 @@ export default function ScenarioCostComparison() {
             ))}
             <button
               onClick={handleSummaryExport}
-              disabled={!summaryReady || exporting !== null}
+              disabled={!summaryReady || exporting !== null || reportBusy !== null}
               title="Download the cost tables for the current view (.xlsx)"
               className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1334,6 +1354,12 @@ export default function ScenarioCostComparison() {
               Summary
             </button>
           </div>
+          <ReportExportButtons
+            onExport={handleReportExport}
+            busy={reportBusy}
+            disabled={selectedScenarioIds.length === 0 || exporting !== null}
+          />
+          {reportNote && <p className="text-[11px] text-ink-subtle">{reportNote}</p>}
           {exporting === 'xlsx' && (
             <p className="text-[11px] text-ink-subtle">
               Large Excel exports can take several minutes. Tableau is much faster.
