@@ -342,16 +342,22 @@ def test_report_with_no_usable_result_is_not_found(env):
 def test_pptx_carries_designs_costs_and_differences(env, tmp_path):
     pptx = pytest.importorskip("pptx")
     output = render_report(_comparison(env), tmp_path / "r.pptx", "pptx")
-    text = "\n".join(
-        shape.text_frame.text
-        for slide in pptx.Presentation(str(output)).slides
-        for shape in slide.shapes
-        if shape.has_text_frame
-    )
-    assert "Plan design: Baseline (anchor)" in text
-    assert "Employer match: 100% of the first 6% deferred" in text
+    shapes = [
+        s for slide in pptx.Presentation(str(output)).slides for s in slide.shapes
+    ]
+    text = "\n".join(s.text_frame.text for s in shapes if s.has_text_frame)
+    cells = {
+        cell.text
+        for s in shapes
+        if s.has_table
+        for row in s.table.rows
+        for cell in row.cells
+    }
+    assert {"Baseline (anchor)", "Re-enroll All (no result)"} <= cells
+    assert any(c.startswith("100% of the first 6% deferred") for c in cells)
     assert "Difference from Baseline by year" in text
     assert "Re-enroll All: Not run yet." in text
+    assert any(s.has_chart for s in shapes)
 
 
 def test_route_accepts_anchor_and_rejects_invalid_one(env):
