@@ -86,6 +86,7 @@ class ScenarioService:
             name=data.name,
             description=data.description,
             config_overrides=data.config_overrides,
+            models_current_plan=data.models_current_plan,
         )
 
     def delete_scenario(self, workspace_id: str, scenario_id: str) -> bool:

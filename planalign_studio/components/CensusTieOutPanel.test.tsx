@@ -7,9 +7,11 @@ import {
   formatTieOutDifference,
   formatTieOutValue,
   loadTieOutState,
+  MarkStatus,
+  saveCurrentPlanMark,
   TieOutState,
 } from './CensusTieOutPanel';
-import { CensusTieOut, CensusTieOutRow } from '../services/api';
+import { CensusTieOut, CensusTieOutRow, Scenario } from '../services/api';
 
 vi.mock('../services/api', () => ({}));
 
@@ -43,8 +45,12 @@ const tieOut: CensusTieOut = {
   ],
 };
 
+const marked = { marked: true, status: 'idle', onToggle: () => undefined } as const;
+
 const render = (props: Partial<React.ComponentProps<typeof CensusTieOutView>>) =>
-  renderToStaticMarkup(<CensusTieOutView tieOut={tieOut} loading={false} failed={false} {...props} />);
+  renderToStaticMarkup(
+    <CensusTieOutView tieOut={tieOut} loading={false} failed={false} mark={marked} {...props} />,
+  );
 
 describe('Census tie-out panel', () => {
   it('prints the server sentence naming the census file and years', () => {
@@ -121,6 +127,45 @@ describe('Census tie-out panel', () => {
     const states: TieOutState[] = [];
     await loadTieOutState(() => Promise.resolve(tieOut), state => states.push(state), () => true);
     expect(states).toEqual([{ tieOut: null, loading: true, failed: false }]);
+  });
+
+  it('says when the scenario is the current plan and offers to unmark it', () => {
+    const html = render({});
+    expect(html).toContain('Marked as the current plan.');
+    expect(html).toContain('>Unmark</button>');
+    expect(html).not.toContain('Gaps are expected');
+  });
+
+  it('hides the gap count but keeps row status when not the current plan', () => {
+    const html = render({ mark: { ...marked, marked: false } });
+    expect(html).toContain(
+      'Not marked as the current plan. Gaps are expected if this scenario changes the plan design.',
+    );
+    expect(html).toContain('>Mark as current plan</button>');
+    expect(html).not.toMatch(/>\d+ gaps?</);
+    expect(html).toContain('data-tie-out-status="gap"');
+    expect(html).toContain('>Gap</span>');
+  });
+
+  it('disables the mark while saving and says when saving failed', () => {
+    expect(render({ mark: { ...marked, status: 'saving' } })).toContain('disabled=""');
+    expect(render({ mark: { ...marked, status: 'failed' } })).toContain("The mark couldn&#x27;t be saved.");
+  });
+
+  it('saves the mark and hands back the updated scenario', async () => {
+    const updated = { id: 's', models_current_plan: true } as Scenario;
+    const save = vi.fn(() => Promise.resolve(updated));
+    const statuses: MarkStatus[] = [];
+    const onSaved = vi.fn();
+    await saveCurrentPlanMark(save, true, status => statuses.push(status), onSaved);
+    expect(save).toHaveBeenCalledWith(true);
+    expect(onSaved).toHaveBeenCalledWith(updated);
+    expect(statuses).toEqual(['saving', 'idle']);
+
+    statuses.length = 0;
+    await saveCurrentPlanMark(() => Promise.reject(new Error('offline')), false, s => statuses.push(s), onSaved);
+    expect(statuses).toEqual(['saving', 'failed']);
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
   it('links to the panel on Overview', () => {

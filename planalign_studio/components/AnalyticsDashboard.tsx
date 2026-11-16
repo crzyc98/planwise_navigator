@@ -444,6 +444,11 @@ export default function AnalyticsDashboard() {
 
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
   const selectedScenario = scenarios.find(s => s.id === selectedScenarioId);
+  // Marking one scenario unmarks the workspace's others on the server too.
+  const handleCurrentPlanSaved = (updated: Scenario) => setScenarios(prev => prev.map(s => {
+    if (s.id === updated.id) return updated;
+    return updated.models_current_plan ? { ...s, models_current_plan: false } : s;
+  }));
   const yearRange = results
     ? `${results.start_year}-${results.end_year}`
     : selectedScenario?.config_overrides?.simulation?.start_year
@@ -552,7 +557,12 @@ export default function AnalyticsDashboard() {
         <>
           {/* Run Health Summary for the selected scenario's current result */}
           {selectedScenarioId && (
-            <RunHealthSummary scenarioId={selectedScenarioId} compact />
+            // Remount on a mark change: Run Health shows the tie-out line only for the current plan.
+            <RunHealthSummary
+              key={`${selectedScenarioId}:${selectedScenario?.models_current_plan ? 'plan' : 'other'}`}
+              scenarioId={selectedScenarioId}
+              compact
+            />
           )}
 
           {/* KPI Summary Cards */}
@@ -682,7 +692,12 @@ export default function AnalyticsDashboard() {
 
           {/* Census year beside the first simulated year */}
           {selectedWorkspaceId && selectedScenarioId && (
-            <CensusTieOutPanel workspaceId={selectedWorkspaceId} scenarioId={selectedScenarioId} />
+            <CensusTieOutPanel
+              workspaceId={selectedWorkspaceId}
+              scenarioId={selectedScenarioId}
+              marked={selectedScenario?.models_current_plan ?? false}
+              onMarkSaved={handleCurrentPlanSaved}
+            />
           )}
 
           {/* Main Charts Grid */}

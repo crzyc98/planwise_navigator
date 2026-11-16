@@ -373,6 +373,7 @@ class WorkspaceStorage:
                     description=data.get("description"),
                     config_overrides=data.get("config_overrides", {}),
                     provenance=data.get("provenance"),
+                    models_current_plan=bool(data.get("models_current_plan", False)),
                     status=data.get("status", "not_run"),
                     created_at=datetime.fromisoformat(data["created_at"]),
                     last_run_at=(
@@ -403,6 +404,7 @@ class WorkspaceStorage:
             description=data.get("description"),
             config_overrides=data.get("config_overrides", {}),
             provenance=data.get("provenance"),
+            models_current_plan=bool(data.get("models_current_plan", False)),
             status=data.get("status", "not_run"),
             created_at=datetime.fromisoformat(data["created_at"]),
             last_run_at=(
@@ -474,8 +476,13 @@ class WorkspaceStorage:
         name: Optional[str] = None,
         description: Optional[str] = None,
         config_overrides: Optional[Dict[str, Any]] = None,
+        models_current_plan: Optional[bool] = None,
     ) -> Optional[Scenario]:
-        """Update a scenario."""
+        """Update a scenario.
+
+        Marking a scenario as modeling the current plan unmarks every other
+        scenario in the workspace, so at most one is marked.
+        """
         scenario_json_path = self._scenario_json_path(workspace_id, scenario_id)
         if not scenario_json_path.exists():
             return None
@@ -494,11 +501,26 @@ class WorkspaceStorage:
                 self._scenario_path(workspace_id, scenario_id) / "overrides.yaml", "w"
             ) as f:
                 yaml.dump(config_overrides, f, default_flow_style=False)
+        if models_current_plan is not None:
+            data["models_current_plan"] = models_current_plan
+            if models_current_plan:
+                self._unmark_current_plan(workspace_id, except_id=scenario_id)
 
         with open(scenario_json_path, "w") as f:
             json.dump(data, f, indent=2)
 
         return self.get_scenario(workspace_id, scenario_id)
+
+    def _unmark_current_plan(self, workspace_id: str, except_id: str) -> None:
+        """Clear the current-plan mark on every scenario but ``except_id``."""
+        for scenario_json in self._scenarios_path(workspace_id).glob("*/scenario.json"):
+            if scenario_json.parent.name == except_id:
+                continue
+            with open(scenario_json) as f:
+                data = json.load(f)
+            if data.pop("models_current_plan", False):
+                with open(scenario_json, "w") as f:
+                    json.dump(data, f, indent=2)
 
     def update_scenario_status(
         self,

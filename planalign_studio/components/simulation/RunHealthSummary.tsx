@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 
 import { getRunHealth, RunHealthFinding, RunHealthReport } from '../../services/api';
+import { useWorkspacePath } from '../../hooks/useWorkspaceNavigation';
+import { censusTieOutPath } from '../CensusTieOutPanel';
 
 const SEVERITY_STYLES: Record<string, string> = {
   error: 'bg-danger-surface text-danger-ink',
@@ -96,6 +98,26 @@ function FindingsTable({ findings }: Readonly<{ findings: RunHealthFinding[] }>)
   );
 }
 
+/** One line when the run's census tie-out has gaps; links to the Overview panel. */
+export function CensusTieOutLine({ scenarioId, report }: Readonly<{
+  scenarioId: string;
+  report: RunHealthReport;
+}>) {
+  const to = useWorkspacePath(censusTieOutPath(scenarioId));
+  if (!report.census_tie_out) return null;
+  return (
+    <Link
+      to={to}
+      data-run-health-tie-out
+      className="flex items-center gap-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-ink transition-colors hover:bg-surface-subtle"
+    >
+      <AlertTriangle size={16} />
+      <span>{report.census_tie_out.message}</span>
+      <ArrowRight size={14} className="ml-auto" />
+    </Link>
+  );
+}
+
 export default function RunHealthSummary({
   scenarioId,
   runId,
@@ -168,23 +190,26 @@ export default function RunHealthSummary({
       unavailable: 'text-warning-ink',
     }[report.status];
     return (
-      <Link
-        to={`/simulate/${scenarioId}`}
-        data-run-health-status={report.status}
-        className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-          report.status === 'failed'
-            ? 'border-danger-border bg-danger-surface text-danger-ink hover:bg-surface-subtle'
-            : report.status === 'warnings' || report.status === 'unavailable'
-              ? 'border-warning-border bg-warning-surface text-warning-ink hover:bg-surface-subtle'
-              : 'border-border bg-surface-subtle text-ink-muted hover:bg-surface-raised'
-        }`}
-      >
-        <StatusIcon size={16} className={iconStyle} />
-        <span className="font-medium">Run health:</span>
-        <span>{statusText}</span>
-        {(report.status === 'warnings' || report.status === 'failed') && <Counts report={report} />}
-        <ArrowRight size={14} className="ml-auto" />
-      </Link>
+      <div className="space-y-2">
+        <Link
+          to={`/simulate/${scenarioId}`}
+          data-run-health-status={report.status}
+          className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+            report.status === 'failed'
+              ? 'border-danger-border bg-danger-surface text-danger-ink hover:bg-surface-subtle'
+              : report.status === 'warnings' || report.status === 'unavailable'
+                ? 'border-warning-border bg-warning-surface text-warning-ink hover:bg-surface-subtle'
+                : 'border-border bg-surface-subtle text-ink-muted hover:bg-surface-raised'
+          }`}
+        >
+          <StatusIcon size={16} className={iconStyle} />
+          <span className="font-medium">Run health:</span>
+          <span>{statusText}</span>
+          {(report.status === 'warnings' || report.status === 'failed') && <Counts report={report} />}
+          <ArrowRight size={14} className="ml-auto" />
+        </Link>
+        <CensusTieOutLine scenarioId={scenarioId} report={report} />
+      </div>
     );
   }
 
@@ -243,6 +268,9 @@ export default function RunHealthSummary({
             <FindingsTable findings={report.findings} />
           </div>
         </>
+      )}
+      {report.census_tie_out && (
+        <div className="mt-3"><CensusTieOutLine scenarioId={scenarioId} report={report} /></div>
       )}
     </div>
   );

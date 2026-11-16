@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import Field
 
 from .base import APIModel
+from .census_tie_out import CensusTieOut
 
 MAX_REPORT_SCENARIOS = 6
 
@@ -77,6 +78,11 @@ class ReportScenario(APIModel):
     total_cost_pct_of_capped_pay: float | None = None
     total_difference_from_anchor: float | None = None
     total_difference_pct_of_anchor: float | None = None
+    census_tie_out: CensusTieOut | None = Field(
+        default=None,
+        description="Census tie-out of the scenario's selected run; set only for "
+        "the scenario marked as modeling the current plan",
+    )
 
     @property
     def available(self) -> bool:
@@ -119,6 +125,11 @@ class ScenarioReport(APIModel):
         return next(
             (i for i, d in enumerate(self.definitions, 1) if d.term == term), None
         )
+
+    @property
+    def tie_out_scenario(self) -> ReportScenario | None:
+        """The scenario whose census tie-out the report shows, if any."""
+        return next((s for s in self.scenarios if s.census_tie_out), None)
 
     @property
     def years(self) -> list[int]:

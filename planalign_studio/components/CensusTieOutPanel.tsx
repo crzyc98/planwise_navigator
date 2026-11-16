@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-import { CensusTieOut, CensusTieOutRow, getCensusTieOut } from '../services/api';
+import { CensusTieOut, CensusTieOutRow, getCensusTieOut, Scenario, updateScenario } from '../services/api';
 
 /** Element id of the panel; `?focus=census-tie-out` on Overview scrolls to it. */
 export const CENSUS_TIE_OUT_ANCHOR = 'census-tie-out';
@@ -150,8 +150,56 @@ export async function loadTieOutState(
   }
 }
 
-export function CensusTieOutView({ tieOut, loading, failed }: Readonly<TieOutState>) {
-  const gaps = tieOut?.available ? tieOut.rows.filter(row => row.status === 'gap').length : 0;
+export type MarkStatus = 'idle' | 'saving' | 'failed';
+
+/** Save the current-plan mark; `onSaved` gets the updated scenario. */
+export async function saveCurrentPlanMark(
+  save: (marked: boolean) => Promise<Scenario>,
+  marked: boolean,
+  setStatus: (status: MarkStatus) => void,
+  onSaved: (scenario: Scenario) => void,
+): Promise<void> {
+  setStatus('saving');
+  try {
+    onSaved(await save(marked));
+    setStatus('idle');
+  } catch {
+    setStatus('failed');
+  }
+}
+
+export interface CurrentPlanMark {
+  marked: boolean;
+  status: MarkStatus;
+  onToggle: () => void;
+}
+
+function MarkLine({ marked, status, onToggle }: Readonly<CurrentPlanMark>) {
+  return (
+    <p className="text-sm text-ink-muted mb-4">
+      {marked
+        ? 'Marked as the current plan. '
+        : 'Not marked as the current plan. Gaps are expected if this scenario changes the plan design. '}
+      <button
+        type="button"
+        className="text-brand-ink hover:underline disabled:opacity-50"
+        disabled={status === 'saving'}
+        onClick={onToggle}
+      >
+        {marked ? 'Unmark' : 'Mark as current plan'}
+      </button>
+      {status === 'failed' && <span className="ml-2">The mark couldn't be saved. Try again.</span>}
+    </p>
+  );
+}
+
+export function CensusTieOutView({ tieOut, loading, failed, mark }: Readonly<TieOutState & {
+  mark: CurrentPlanMark;
+}>) {
+  // Only the current plan should tie out; elsewhere gaps are expected, so no count.
+  const gaps = mark.marked && tieOut?.available
+    ? tieOut.rows.filter(row => row.status === 'gap').length
+    : 0;
   return (
     <section
       id={CENSUS_TIE_OUT_ANCHOR}
@@ -165,16 +213,21 @@ export function CensusTieOutView({ tieOut, loading, failed }: Readonly<TieOutSta
           </span>
         )}
       </div>
+      <MarkLine {...mark} />
       <Body tieOut={tieOut} loading={loading} failed={failed} />
     </section>
   );
 }
 
-export default function CensusTieOutPanel({ workspaceId, scenarioId }: Readonly<{
+export default function CensusTieOutPanel({ workspaceId, scenarioId, marked, onMarkSaved }: Readonly<{
   workspaceId: string;
   scenarioId: string;
+  /** Whether the scenario is marked as modeling the current plan. */
+  marked: boolean;
+  onMarkSaved: (scenario: Scenario) => void;
 }>) {
   const [state, setState] = useState<TieOutState>(LOADING);
+  const [markStatus, setMarkStatus] = useState<MarkStatus>('idle');
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const focused = searchParams.get('focus') === CENSUS_TIE_OUT_ANCHOR;
@@ -192,5 +245,17 @@ export default function CensusTieOutPanel({ workspaceId, scenarioId }: Readonly<
     }
   }, [focused, state.loading, location.key]);
 
-  return <CensusTieOutView {...state} />;
+  useEffect(() => setMarkStatus('idle'), [scenarioId]);
+
+  const mark: CurrentPlanMark = {
+    marked,
+    status: markStatus,
+    onToggle: () => void saveCurrentPlanMark(
+      value => updateScenario(workspaceId, scenarioId, { models_current_plan: value }),
+      !marked,
+      setMarkStatus,
+      onMarkSaved,
+    ),
+  };
+  return <CensusTieOutView {...state} mark={mark} />;
 }

@@ -2518,7 +2518,8 @@ export interface paths {
          * Update Scenario
          * @description Update a scenario.
          *
-         *     Allows updating name, description, and config_overrides.
+         *     Allows updating name, description, config_overrides and the
+         *     current-plan mark (marking one scenario unmarks the workspace's others).
          *     Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
          *     atomically — if any section is invalid, the entire update is rejected.
          */
@@ -9672,6 +9673,8 @@ export interface components {
         };
         /** RunHealthReport */
         RunHealthReport: {
+            /** @description Set when the selected run's census tie-out has a gap; null when it ties, is unavailable, or the run isn't the selected result. */
+            census_tie_out: components["schemas"]["RunHealthTieOut"] | null;
             counts: components["schemas"]["RunHealthCounts"];
             /** Disposition */
             disposition: string | null;
@@ -9686,6 +9689,19 @@ export interface components {
              * @enum {string}
              */
             status: "clean" | "warnings" | "failed" | "missing_provenance" | "unavailable";
+        };
+        /**
+         * RunHealthTieOut
+         * @description Census tie-out rows that differ from the census (gaps only).
+         */
+        RunHealthTieOut: {
+            /**
+             * Labels
+             * @description Labels of the rows with a gap.
+             */
+            labels: string[];
+            /** Message */
+            message: string;
         };
         /** RunIdentityEvidence */
         RunIdentityEvidence: {
@@ -9927,6 +9943,12 @@ export interface components {
              * @description Last run ID
              */
             last_run_id: string | null;
+            /**
+             * Models Current Plan
+             * @description Whether this is the workspace's one scenario marked as modeling the current plan; Run Health and reports show its census tie-out
+             * @default false
+             */
+            models_current_plan: boolean;
             /**
              * Name
              * @description Scenario name
@@ -10172,6 +10194,11 @@ export interface components {
             config_overrides?: components["schemas"]["StudioConfig"] | null;
             /** Description */
             description?: string | null;
+            /**
+             * Models Current Plan
+             * @description Mark (true) or unmark (false) this scenario as modeling the current plan. Marking it unmarks the workspace's other scenarios.
+             */
+            models_current_plan?: boolean | null;
             /** Name */
             name?: string | null;
         };

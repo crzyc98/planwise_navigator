@@ -17,6 +17,7 @@ from typing import Any
 
 import duckdb
 
+from planalign_api.models.census_tie_out import CensusTieOut
 from planalign_api.models.comparison import RunTrustResult
 from planalign_api.models.report import (
     MAX_REPORT_SCENARIOS,
@@ -38,6 +39,7 @@ from planalign_api.services.database_path_resolver import (
     create_api_database_path_resolver,
     is_selected_result,
 )
+from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.report_design import describe_plan_design
 from planalign_api.services.report_render import ReportTemplateError, render_report
 from planalign_api.services.run_trust import add_current_config_drift, read_run_trust
@@ -104,9 +106,12 @@ def build_scenario_report(
         anchor_scenario_id=anchor_id,
     )
     for scenario in scenarios:
-        report.scenarios.append(
-            _scenario_section(report, storage, workspace_id, scenario, anchor_id)
-        )
+        section = _scenario_section(report, storage, workspace_id, scenario, anchor_id)
+        if section.available and scenario.models_current_plan:
+            section.census_tie_out = _census_tie_out(
+                report, storage, workspace_id, scenario
+            )
+        report.scenarios.append(section)
     if not any(item.available for item in report.scenarios):
         missing = "; ".join(f"{s.name}: {s.missing_reason}" for s in report.scenarios)
         raise ReportNotFoundError(
@@ -212,6 +217,34 @@ def _scenario_section(
         )
     _append_provenance(report, workspace_id, scenario, resolved, current_config)
     return section
+
+
+def _census_tie_out(
+    report: ScenarioReport,
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    scenario: Scenario,
+) -> CensusTieOut | None:
+    """The same tie-out the Overview panel shows; a failure only adds a warning.
+
+    Only the scenario marked as the current plan gets one (at most one per
+    workspace), because a plan-design alternative differs from the census on
+    purpose.
+    """
+    try:
+        return CensusTieOutService(storage).get_tie_out(
+            workspace_id, scenario.id, scenario.name
+        )
+    except Exception:  # the tie-out is advisory and must never block a report
+        logger.exception("Census tie-out failed for scenario %s", scenario.id)
+        report.warnings.append(
+            ReportWarning(
+                code="census_tie_out_unavailable",
+                message=f"{scenario.name}: the census tie-out could not be "
+                "computed for this report.",
+            )
+        )
+        return None
 
 
 def _design_config(

@@ -215,7 +215,8 @@ def update_scenario(
     """
     Update a scenario.
 
-    Allows updating name, description, and config_overrides.
+    Allows updating name, description, config_overrides and the
+    current-plan mark (marking one scenario unmarks the workspace's others).
     Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
     atomically — if any section is invalid, the entire update is rejected.
     """
@@ -240,6 +241,7 @@ def update_scenario(
         name=data.name,
         description=data.description,
         config_overrides=data.config_overrides,
+        models_current_plan=data.models_current_plan,
     )
     if not scenario:
         raise HTTPException(

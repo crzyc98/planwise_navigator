@@ -26,6 +26,8 @@ from planalign_api.services.report_render import (
     missing_lines,
     provenance_table,
     report_tables,
+    tie_out_cells,
+    tie_out_title,
     trace_line,
 )
 
@@ -97,6 +99,7 @@ def render_pptx(report: ScenarioReport, output: Path) -> None:
         _table_slides(deck, report, table, text)
     if any(s.available for s in report.scenarios):
         _chart_slide(deck, report)
+    _tie_out_slides(deck, report)
     _notes_slide(deck, report)
     appendix = _TableText("Appendix: provenance", intro=generated_line(report))
     _table_slides(deck, report, provenance_table(report), appendix)
@@ -215,6 +218,31 @@ def _notes_slide(deck: Any, report: ScenarioReport) -> None:
             for i in range(1, len(report.definitions) + 1)
         ],
     )
+
+
+def _tie_out_slides(deck: Any, report: ScenarioReport) -> None:
+    """The current plan's census tie-out as a native table, before the notes.
+
+    A gap's message follows its metric in the first cell, as on the Overview
+    panel, so the planned row heights (and any continuation slide) include it.
+    The source note sits where other tables put their footnote.
+    """
+    scenario = report.tie_out_scenario
+    tie_out = scenario.census_tie_out if scenario else None
+    if scenario is None or tie_out is None:
+        return
+    title = tie_out_title(scenario)
+    if not tie_out.available:
+        slide = _new_slide(deck, report, title)
+        reason = tie_out.unavailable_reason or ""
+        _text_block(slide, BODY_TOP, 1.0, [(reason, 14, INK, False, False)])
+        return
+    header, *rows = tie_out_cells(tie_out)
+    for cells, row in zip(rows, tie_out.rows):
+        if row.status == "gap":
+            cells[0] = f"{row.label}: {row.message}"
+    table = ReportTable("census-tie-out", title, header, rows)
+    _table_slides(deck, report, table, _TableText(title, note=tie_out.source_note))
 
 
 def _data_notes_slide(deck: Any, report: ScenarioReport) -> None:

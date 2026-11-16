@@ -46,6 +46,13 @@ class ScenarioUpdate(APIModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     config_overrides: Optional[StudioConfigDict] = None
+    models_current_plan: Optional[bool] = Field(
+        None,
+        description=(
+            "Mark (true) or unmark (false) this scenario as modeling the current "
+            "plan. Marking it unmarks the workspace's other scenarios."
+        ),
+    )
 
 
 class ScenarioResultsSummary(APIModel):
@@ -70,6 +77,13 @@ class Scenario(APIModel):
     )
     provenance: Optional[Dict[str, Any]] = Field(
         default=None, description="Optional record of how this scenario was created"
+    )
+    models_current_plan: bool = Field(
+        False,
+        description=(
+            "Whether this is the workspace's one scenario marked as modeling the "
+            "current plan; Run Health and reports show its census tie-out"
+        ),
     )
     status: Literal[
         "not_run", "queued", "running", "completed", "failed", "cancelled"

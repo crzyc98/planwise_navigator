@@ -426,6 +426,11 @@ export default function ScenariosPage() {
                         <span className={`ml-3 px-2 py-0.5 text-xs rounded-full ${getStatusColor(scenario.status)}`}>
                           {getStatusLabel(scenario.status)}
                         </span>
+                        {scenario.models_current_plan && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded-full border border-border text-ink-muted">
+                            Current plan
+                          </span>
+                        )}
                         {!selectMode && (
                           <span className="ml-2">
                             <EngineVersionBadge scenario={scenario} rerunDisabled={isSimulationRunning} />

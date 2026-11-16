@@ -79,6 +79,8 @@ export type Scenario = Schemas['Scenario'];
 
 export type ScenarioCreate = Schemas['ScenarioCreate'];
 
+export type ScenarioUpdate = Schemas['ScenarioUpdate'];
+
 export type TimelineEvent = Schemas['TimelineEvent'];
 
 export type YearState = Schemas['YearState'];
@@ -402,7 +404,7 @@ export async function createScenario(
 export async function updateScenario(
   workspaceId: string,
   scenarioId: string,
-  data: Partial<ScenarioCreate>
+  data: ScenarioUpdate
 ): Promise<Scenario> {
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}`,

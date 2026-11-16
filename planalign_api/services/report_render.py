@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from html import escape
 from pathlib import Path
 from typing import Any, Callable
 
+from planalign_api.models.census_tie_out import CensusTieOut, CensusTieOutRow
 from planalign_api.models.report import ReportScenario, ReportYear, ScenarioReport
 
 DASH = "—"
@@ -348,6 +350,67 @@ def _provenance_rows(report: ScenarioReport) -> list[list[str]]:
 
 
 # --------------------------------------------------------------------------
+# Census tie-out (the scenario marked as the current plan only)
+# --------------------------------------------------------------------------
+_TIE_OUT_STATUS = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
+
+
+def tie_out_value(row: CensusTieOutRow, value: float | None) -> str:
+    """A tie-out value as the Studio panel formats it."""
+    if value is None:
+        return DASH
+    if row.unit == "rate":
+        return f"{value * 100:.1f}%"
+    whole = f"{math.floor(value + 0.5):,}"  # half up, like JavaScript Math.round
+    return f"${whole}" if row.unit == "dollars" else whole
+
+
+def tie_out_difference(row: CensusTieOutRow) -> str:
+    """A tie-out difference as the Studio panel formats it."""
+    value = row.difference
+    if value is None:
+        return DASH
+    # The sign follows the shown figure, so a value that rounds to zero reads "+0".
+    if row.unit == "rate":
+        points = f"{abs(value * 100):.1f}"
+        return f"{'-' if value < 0 and float(points) else '+'}{points} pts"
+    whole = abs(math.floor(value + 0.5))
+    sign = "-" if value < 0 and whole else "+"
+    return f"{sign}{'$' if row.unit == 'dollars' else ''}{whole:,}"
+
+
+def tie_out_title(scenario: ReportScenario) -> str:
+    return f"Census tie-out: {scenario.name}"
+
+
+def tie_out_cells(tie_out: CensusTieOut) -> list[list[str]]:
+    """Header and one row per metric, as the Overview panel shows them."""
+    header = [
+        "Metric",
+        f"Census {tie_out.census_year}",
+        f"Simulated {tie_out.first_simulated_year}",
+        "Difference",
+        "Status",
+    ]
+    return [header] + [
+        [
+            row.label,
+            tie_out_value(row, row.census_value),
+            tie_out_value(row, row.simulated_value),
+            tie_out_difference(row),
+            _TIE_OUT_STATUS[row.status],
+        ]
+        for row in tie_out.rows
+    ]
+
+
+def _tie_out_gaps(tie_out: CensusTieOut) -> list[str]:
+    return [
+        f"{row.label}: {row.message}" for row in tie_out.rows if row.status == "gap"
+    ]
+
+
+# --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
 def render_report(
@@ -448,10 +511,36 @@ def _html_body(report: ScenarioReport) -> str:
             f"<section class='chart'><img src='{_cost_chart(report)}' "
             "alt='Employer cost by year'/></section>"
         )
+    parts.append(_html_tie_out(report))
     notes = "".join(f"<li>{escape(d.text)}</li>" for d in report.definitions)
     parts.append(f"<section class='notes'><h2>Notes</h2><ol>{notes}</ol></section>")
     parts.append(_html_appendix(report))
     return "\n".join(parts)
+
+
+def _html_tie_out(report: ScenarioReport) -> str:
+    scenario = report.tie_out_scenario
+    if scenario is None or scenario.census_tie_out is None:
+        return ""
+    tie_out = scenario.census_tie_out
+    heading = f"<h2>{escape(tie_out_title(scenario))}</h2>"
+    if not tie_out.available:
+        reason = escape(tie_out.unavailable_reason or "")
+        return f"<section class='tie-out'>{heading}<p>{reason}</p></section>"
+    header, *rows = tie_out_cells(tie_out)
+    head = "".join(f"<th>{escape(cell)}</th>" for cell in header)
+    body = "".join(
+        f"<tr class='tie-{row.status}'>"
+        + "".join(f"<td>{escape(cell)}</td>" for cell in cells)
+        + "</tr>"
+        for row, cells in zip(tie_out.rows, rows)
+    )
+    return (
+        f"<section class='tie-out'>{heading}"
+        f"<p>{escape(tie_out.source_note or '')}</p>"
+        f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+        f"{_html_list(_tie_out_gaps(tie_out), 'tie-out-gaps')}</section>"
+    )
 
 
 def _html_appendix(report: ScenarioReport) -> str:
@@ -579,6 +668,8 @@ _DEFAULT_TEMPLATE = """<!doctype html>
   .notes ol { padding-left: 18px; color: #3d4a45; }
   .appendix { page-break-before: always; }
   .appendix td { text-align: left; font-family: monospace; font-size: 10px; }
+  .tie-out tr.tie-gap td:last-child { color: #9a6700; font-weight: bold; }
+  .tie-out-gaps li { color: #3d4a45; }
   .warning { color: #9a6700; }
   .error { color: #b42318; }
   footer { position: fixed; bottom: -0.4in; font-size: 8px; color: #64736d; }
