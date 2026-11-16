@@ -20,6 +20,7 @@ from ..models.analytics import (
     DCPlanComparisonResponse,
     GrandfatheredCostComparisonResponse,
 )
+from ..models.census_tie_out import CensusTieOut
 from ..models.comparison import ComparisonIntegrityResponse, RunChangesResponse
 from ..models.cost_summary import CostSummaryExportRequest
 from ..models.employer_cost import ForfeiturePolicy
@@ -27,6 +28,7 @@ from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
 from ..models.workspace import Workspace
 from ..services.analytics_service import AnalyticsService
+from ..services.census_tie_out import CensusTieOutService
 from ..services.comparison_integrity import ComparisonIntegrityService
 from ..services.current_result import CurrentResultIntegrityError
 from ..services.comparison_export_service import (
@@ -292,6 +294,28 @@ def get_scenario_run_changes(
         return service.run_changes(workspace_id, scenario_id, scenario.name)
     except CurrentResultIntegrityError as exc:
         raise _integrity_failure(exc) from exc
+
+
+@router.get(
+    "/{workspace_id}/scenarios/{scenario_id}/analytics/census-tie-out",
+    response_model=CensusTieOut,
+)
+def get_census_tie_out(
+    workspace_id: str,
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> CensusTieOut:
+    """Compare the run's archived census with its first simulated year.
+
+    Returns one row per metric (headcount, eligibility, participation,
+    deferral, pay, match, core) with a status of ``ties``, ``gap`` or
+    ``not_in_census``. A run without an archived census returns
+    ``available: false`` with a reason.
+    """
+    names = _completed_scenario_names(storage, workspace_id, [scenario_id])
+    return CensusTieOutService(storage).get_tie_out(
+        workspace_id, scenario_id, names[scenario_id]
+    )
 
 
 @router.get(

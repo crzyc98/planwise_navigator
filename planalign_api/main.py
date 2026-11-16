@@ -125,6 +125,7 @@ SCENARIO_READ_ROUTES = {
     "compare_scenario_integrity",
     "get_scenario_run_changes",
     "get_dc_plan_analytics",
+    "get_census_tie_out",
     "compare_dc_plan_analytics",
     "export_scenario_comparison",
     "compare_grandfathered_cost",
