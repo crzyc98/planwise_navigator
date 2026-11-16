@@ -22,6 +22,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
 import { reportRequest } from './reportExport';
 import RunHealthSummary from './simulation/RunHealthSummary';
+import CensusTieOutPanel from './CensusTieOutPanel';
 import EngineVersionBadge from './EngineVersionBadge';
 import RunChangesSince from './RunChangesSince';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
@@ -677,6 +678,11 @@ export default function AnalyticsDashboard() {
                 <p className="mt-3 text-xs text-ink-subtle">CAGR requires more than one simulation year to calculate.</p>
               )}
             </div>
+          )}
+
+          {/* Census year beside the first simulated year */}
+          {selectedWorkspaceId && selectedScenarioId && (
+            <CensusTieOutPanel workspaceId={selectedWorkspaceId} scenarioId={selectedScenarioId} />
           )}
 
           {/* Main Charts Grid */}
