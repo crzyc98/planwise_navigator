@@ -1,5 +1,6 @@
 """Analytics endpoints: DC Plan and Winners & Losers."""
 
+import logging
 import shutil
 import tempfile
 from datetime import datetime
@@ -20,12 +21,16 @@ from ..models.analytics import (
     GrandfatheredCostComparisonResponse,
 )
 from ..models.census_tie_out import CensusTieOut
+from ..models.comparison import ComparisonIntegrityResponse, RunChangesResponse
 from ..models.cost_summary import CostSummaryExportRequest
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
+from ..models.workspace import Workspace
 from ..services.analytics_service import AnalyticsService
 from ..services.census_tie_out import CensusTieOutService
+from ..services.comparison_integrity import ComparisonIntegrityService
+from ..services.current_result import CurrentResultIntegrityError
 from ..services.comparison_export_service import (
     ComparisonExportError,
     ComparisonExportService,
@@ -51,6 +56,7 @@ from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -70,6 +76,13 @@ def get_comparison_export_service(
 ) -> ComparisonExportService:
     """Dependency to get the multi-scenario export service."""
     return ComparisonExportService(storage)
+
+
+def get_comparison_integrity_service(
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> ComparisonIntegrityService:
+    """Dependency to get the like-for-like comparison check."""
+    return ComparisonIntegrityService(storage)
 
 
 def get_comparison_summary_export_service(
@@ -192,6 +205,95 @@ def get_dc_plan_analytics(
         )
 
     return analytics
+
+
+def _integrity_failure(exc: CurrentResultIntegrityError) -> HTTPException:
+    """Same fail-closed answer as other scenario reads; never echo pointer text."""
+    logger.error("Current result integrity failure: %s", type(exc).__name__)
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Current result integrity failure",
+    )
+
+
+def _integrity_selection(
+    scenarios: str, anchor: Optional[str]
+) -> tuple[List[str], str]:
+    """Validate the compared scenario IDs and resolve the anchor."""
+    scenario_ids = list(
+        dict.fromkeys(s.strip() for s in scenarios.split(",") if s.strip())
+    )
+    if not 2 <= len(scenario_ids) <= MAX_SCENARIO_COMPARISON:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Select between 2 and {MAX_SCENARIO_COMPARISON} scenarios",
+        )
+    anchor_id = anchor or scenario_ids[0]
+    if anchor_id not in scenario_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The anchor must be one of the compared scenarios",
+        )
+    return scenario_ids, anchor_id
+
+
+@router.get(
+    "/{workspace_id}/analytics/compare/integrity",
+    response_model=ComparisonIntegrityResponse,
+)
+def compare_scenario_integrity(
+    workspace_id: str,
+    scenarios: str = Query(
+        ...,
+        description=f"Comma-separated scenario IDs (2 to {MAX_SCENARIO_COMPARISON})",
+    ),
+    anchor: Optional[str] = Query(
+        None, description="Scenario the others are compared against (default: first)"
+    ),
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: ComparisonIntegrityService = Depends(get_comparison_integrity_service),
+) -> ComparisonIntegrityResponse:
+    """Say whether each scenario differs from the anchor only in plan design."""
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    scenario_ids, anchor_id = _integrity_selection(scenarios, anchor)
+    try:
+        names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+        return service.evaluate(workspace, names, anchor_id)
+    except CurrentResultIntegrityError as exc:
+        raise _integrity_failure(exc) from exc
+
+
+@router.get(
+    "/{workspace_id}/scenarios/{scenario_id}/run-changes",
+    response_model=RunChangesResponse,
+)
+def get_scenario_run_changes(
+    workspace_id: str,
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: ComparisonIntegrityService = Depends(get_comparison_integrity_service),
+) -> RunChangesResponse:
+    """Say what changed between a scenario's previous run and its selected result."""
+    if not storage.get_workspace(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+    try:
+        return service.run_changes(workspace_id, scenario_id, scenario.name)
+    except CurrentResultIntegrityError as exc:
+        raise _integrity_failure(exc) from exc
 
 
 @router.get(
@@ -322,6 +424,29 @@ def compare_dc_plan_analytics(
     )
 
 
+def _with_export_verdicts(
+    selected: List[ExportScenario],
+    integrity_service: ComparisonIntegrityService,
+    workspace: Workspace,
+    names: Dict[str, str],
+    anchor: Optional[str],
+) -> List[ExportScenario]:
+    """Add like-for-like verdicts; never fail the export over them.
+
+    An anchor outside the selection falls back to the first scenario. When the
+    check itself fails the export is still written, with blank verdicts.
+    """
+    if len(names) < 2:
+        return selected
+    anchor_id = anchor if anchor in names else next(iter(names))
+    try:
+        integrity = integrity_service.evaluate(workspace, names, anchor_id)
+    except (CurrentResultIntegrityError, OSError, ValueError) as exc:
+        logger.warning("Like-for-like check failed for comparison export", exc_info=exc)
+        return selected
+    return ComparisonExportService.with_verdicts(selected, integrity)
+
+
 def _resolve_export(
     export_service: ComparisonExportService,
     workspace_id: str,
@@ -381,8 +506,15 @@ def export_scenario_comparison(
         "xlsx",
         description="xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
     ),
+    anchor: Optional[str] = Query(
+        None,
+        description="Scenario the like-for-like verdicts use (default: first)",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     export_service: ComparisonExportService = Depends(get_comparison_export_service),
+    integrity_service: ComparisonIntegrityService = Depends(
+        get_comparison_integrity_service
+    ),
 ) -> FileResponse:
     """Download every selected scenario's workforce snapshot plus the census."""
     workspace = storage.get_workspace(workspace_id)
@@ -404,6 +536,9 @@ def export_scenario_comparison(
     output_dir = Path(tempfile.mkdtemp(prefix="planalign-compare-export-"))
     try:
         selected = _resolve_export(export_service, workspace_id, scenario_ids, names)
+        selected = _with_export_verdicts(
+            selected, integrity_service, workspace, names, anchor
+        )
         path = _build_export(
             export_service, selected, workspace.name, format, output_dir
         )
