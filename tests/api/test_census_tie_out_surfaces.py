@@ -12,14 +12,14 @@ import duckdb
 import pytest
 
 from planalign_api.models.census_tie_out import CensusTieOut
-from planalign_api.models.report import ScenarioReport
+from planalign_api.models.report import ReportScenario, ReportYear, ScenarioReport
 from planalign_api.models.run_health import RunHealthCounts, RunHealthReport
 from planalign_api.routers import simulations
 from planalign_api.services import report_service
 from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.current_result import publish_current_result
-from planalign_api.services.report_service import (
-    _render_html,
+from planalign_api.services.report_render import (
+    render_html,
     render_report,
     tie_out_difference,
     tie_out_value,
@@ -195,73 +195,138 @@ def test_unmarked_scenario_gets_no_line_and_its_db_is_not_opened(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("marked", [True, False])
-def test_report_tie_out_only_for_the_current_plan(
-    tmp_path: Path, monkeypatch, marked: bool
-) -> None:
+def _section(
+    scenario_id: str, tie_out: CensusTieOut | None = None, *, anchor: bool = True
+) -> ReportScenario:
+    return ReportScenario(
+        scenario_id=scenario_id,
+        name=f"Scenario {scenario_id[-1].upper()}",
+        is_anchor=anchor,
+        years=[ReportYear(year=2025, employer_cost=1000.0)],
+        total_employer_cost=1000.0,
+        census_tie_out=tie_out,
+    )
+
+
+def _brief(*sections: ReportScenario) -> ScenarioReport:
+    return ScenarioReport(
+        title="Report",
+        generated_at=datetime.now(timezone.utc),
+        anchor_scenario_id=sections[0].scenario_id,
+        scenarios=list(sections),
+    )
+
+
+@pytest.fixture()
+def report_inputs(tmp_path: Path, monkeypatch):
+    """build_scenario_report over stub scenarios; returns (build, tie-out calls)."""
     _build_tied_run(tmp_path, OVER_MATCH)
-    scenario = SimpleNamespace(
-        id="scenario-a",
-        name="Scenario A",
-        status="completed",
-        models_current_plan=marked,
-    )
-    resolved = SimpleNamespace(exists=True, path=tmp_path / "db.duckdb")
-    monkeypatch.setattr(report_service, "_resolve_scenario", lambda *a: scenario)
-    monkeypatch.setattr(
-        report_service,
-        "create_api_database_path_resolver",
-        lambda storage: SimpleNamespace(resolve=lambda *a, **k: resolved),
-    )
-
-    def append_scenario(report: ScenarioReport, *args: object) -> list[object]:
-        report.provenance.append(
-            SimpleNamespace()
-        )  # stands in for the run's provenance
-        return [object()]
-
-    monkeypatch.setattr(report_service, "_append_scenario", append_scenario)
     computed = _tie_out(tmp_path)
-    calls: list[object] = []
+    calls: list[str] = []
 
-    def tie_out(service: object, *args: object) -> CensusTieOut:
-        calls.append(args)
+    def tie_out(service: object, workspace_id: str, scenario_id: str, name: str):
+        calls.append(scenario_id)
         return computed
 
     monkeypatch.setattr(CensusTieOutService, "get_tie_out", tie_out)
-
-    report = report_service.build_scenario_report(
-        WorkspaceStorage(tmp_path), "workspace", "scenario-a"
+    monkeypatch.setattr(
+        report_service,
+        "_scenario_section",
+        lambda report, storage, workspace_id, scenario, anchor_id: _section(
+            scenario.id, anchor=scenario.id == anchor_id
+        ),
     )
 
-    assert (report.census_tie_out is not None) == marked
-    assert len(calls) == int(marked)
+    def build(marked: dict[str, bool]) -> ScenarioReport:
+        scenarios = {
+            scenario_id: SimpleNamespace(
+                id=scenario_id,
+                name=f"Scenario {scenario_id[-1].upper()}",
+                models_current_plan=is_marked,
+            )
+            for scenario_id, is_marked in marked.items()
+        }
+        monkeypatch.setattr(
+            report_service, "_resolve_scenario", lambda s, w, i: scenarios.get(i)
+        )
+        first, *others = scenarios
+        return report_service.build_scenario_report(
+            WorkspaceStorage(tmp_path), "workspace", first, others
+        )
+
+    return build, calls
+
+
+@pytest.mark.parametrize("marked", [True, False])
+def test_report_tie_out_only_for_the_current_plan(report_inputs, marked) -> None:
+    build, calls = report_inputs
+    report = build({"scenario-a": marked})
+    assert (report.scenarios[0].census_tie_out is not None) == marked
+    assert calls == (["scenario-a"] if marked else [])
+
+
+def test_comparison_report_ties_out_the_selected_current_plan(report_inputs) -> None:
+    build, calls = report_inputs
+    report = build({"scenario-a": False, "scenario-b": True, "scenario-c": False})
+    assert calls == ["scenario-b"]
+    assert report.tie_out_scenario is not None
+    assert report.tie_out_scenario.scenario_id == "scenario-b"
+    html = render_html(report)
+    assert html.count("Census tie-out") == 1
+    assert "<h2>Census tie-out: Scenario B</h2>" in html
+
+
+def test_comparison_without_the_current_plan_has_no_tie_out(report_inputs) -> None:
+    build, calls = report_inputs
+    report = build({"scenario-a": False, "scenario-b": False})
+    assert calls == []
+    assert report.tie_out_scenario is None
+    assert "Census tie-out" not in render_html(report)
+
+
+def test_report_tie_out_failure_becomes_a_warning(report_inputs, monkeypatch) -> None:
+    build, _ = report_inputs
+
+    def broken(*args: object) -> CensusTieOut:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(CensusTieOutService, "get_tie_out", broken)
+    report = build({"scenario-a": True})
+    assert report.scenarios[0].census_tie_out is None
+    assert [w.code for w in report.warnings] == ["census_tie_out_unavailable"]
+    assert "Census tie-out" not in render_html(report)
 
 
 def test_report_table_matches_the_service_rows(tmp_path: Path) -> None:
     _build_tied_run(tmp_path, OVER_MATCH)
     tie_out = _tie_out(tmp_path)
-    report = ScenarioReport(
-        title="Report",
-        generated_at=datetime.now(timezone.utc),
-        census_tie_out=tie_out,
-    )
-    html = _render_html(report, None)
-    assert "<h2>Census tie-out</h2>" in html
-    assert tie_out.source_note and tie_out.source_note in html
-    assert "Meaningful only for a scenario that models the current plan." in html
-    assert "census_2024.parquet (census year 2024) with 2025" in html
-    body = html.split("<h2>Census tie-out</h2>", 1)[1]
+    html = render_html(_brief(_section("scenario-a", tie_out)))
+    heading = "<h2>Census tie-out: Scenario A</h2>"
+    assert heading in html
+    body = html.split(heading, 1)[1].split("</section>", 1)[0]
+    assert tie_out.source_note and f"<p>{tie_out.source_note}</p>" in body
+    assert "Meaningful only for a scenario that models the current plan." in body
+    assert "<th>Census 2024</th><th>Simulated 2025</th>" in body
+    status = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
     for row in tie_out.rows:
-        status = {"ties": "Ties", "gap": "Gap", "not_in_census": "Not in census"}
         cells = (
+            f"<tr class='tie-{row.status}'><td>{row.label}</td>"
             f"<td>{tie_out_value(row, row.census_value)}</td>"
             f"<td>{tie_out_value(row, row.simulated_value)}</td>"
             f"<td>{tie_out_difference(row)}</td>"
-            f"<td class='tie-{row.status}'>{status[row.status]}</td>"
+            f"<td>{status[row.status]}</td></tr>"
         )
-        assert row.label in body and cells in body
+        assert cells in body
         assert (row.message in body) == (row.status == "gap")
+
+
+def test_report_tie_out_sits_after_the_figures_before_the_notes(
+    tmp_path: Path,
+) -> None:
+    _build_tied_run(tmp_path, OVER_MATCH)
+    html = render_html(_brief(_section("scenario-a", _tie_out(tmp_path))))
+    tie_out = html.index("Census tie-out")
+    assert html.index("class='chart'") < tie_out < html.index("<h2>Notes</h2>")
 
 
 def test_report_formats_values_like_the_panel(tmp_path: Path) -> None:
@@ -282,25 +347,12 @@ def test_report_formats_values_like_the_panel(tmp_path: Path) -> None:
 
 def test_unavailable_tie_out_states_the_reason(tmp_path: Path) -> None:
     tie_out = _tie_out(tmp_path)
-    report = ScenarioReport(
-        title="Report", generated_at=datetime.now(timezone.utc), census_tie_out=tie_out
+    html = render_html(_brief(_section("scenario-a", tie_out)))
+    assert tie_out.unavailable_reason
+    assert (
+        f"<h2>Census tie-out: Scenario A</h2><p>{tie_out.unavailable_reason}</p>"
+        in html
     )
-    html = _render_html(report, None)
-    assert f"<h2>Census tie-out</h2><p>{tie_out.unavailable_reason}</p>" in html
-
-
-def test_report_tie_out_failure_becomes_a_warning(tmp_path, monkeypatch) -> None:
-    def broken(*args: object) -> CensusTieOut:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(CensusTieOutService, "get_tie_out", broken)
-    report = ScenarioReport(title="Report", generated_at=datetime.now(timezone.utc))
-    scenario = SimpleNamespace(id="scenario-a", name="Scenario A")
-    result = report_service._census_tie_out(
-        report, WorkspaceStorage(tmp_path), "workspace", scenario
-    )
-    assert result is None
-    assert [w.code for w in report.warnings] == ["census_tie_out_unavailable"]
 
 
 @pytest.mark.parametrize(
@@ -339,16 +391,19 @@ def test_pptx_tie_out_slide_fits_and_wraps(tmp_path: Path) -> None:
     pytest.importorskip("pptx.enum.text")
     _build_tied_run(tmp_path / "run", OVER_MATCH)
     tie_out = _all_gaps(_tie_out(tmp_path / "run"))
-    report = ScenarioReport(
-        title="Report", generated_at=datetime.now(timezone.utc), census_tie_out=tie_out
+    report = _brief(
+        _section("scenario-a"), _section("scenario-b", tie_out, anchor=False)
     )
     output = render_report(report, tmp_path / "report.pptx", "pptx")
 
     deck = pptx.Presentation(str(output))
+    titles = [s.shapes.title.text for s in deck.slides if s.shapes.title]
+    assert titles.count("Census tie-out: Scenario B") == 1
+    assert titles.index("Census tie-out: Scenario B") == titles.index("Notes") - 1
     slide = next(
         s
         for s in deck.slides
-        if s.shapes.title and s.shapes.title.text == "Census tie-out"
+        if s.shapes.title and s.shapes.title.text == "Census tie-out: Scenario B"
     )
     footer = slide.shapes[-1]
     body = [
@@ -370,3 +425,12 @@ def test_pptx_tie_out_slide_fits_and_wraps(tmp_path: Path) -> None:
     assert (len(cells.rows), len(cells.columns)) == (len(tie_out.rows) + 1, 5)
     assert cells.cell(6, 0).text == "Employer match"
     assert cells.cell(6, 3).text == tie_out_difference(tie_out.rows[5])
+
+
+def test_pptx_without_the_current_plan_has_no_tie_out_slide(tmp_path: Path) -> None:
+    pptx = pytest.importorskip("pptx")
+    output = render_report(
+        _brief(_section("scenario-a")), tmp_path / "report.pptx", "pptx"
+    )
+    titles = [s.shapes.title.text for s in pptx.Presentation(str(output)).slides]
+    assert not any(title.startswith("Census tie-out") for title in titles)

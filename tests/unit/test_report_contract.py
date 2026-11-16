@@ -3,24 +3,42 @@
 from datetime import datetime, timezone
 
 from planalign_api.models.report import (
+    ReportPlanDesign,
     ReportProvenance,
-    ReportYearMetrics,
+    ReportScenario,
+    ReportYear,
     ScenarioReport,
 )
-from planalign_api.services.report_service import _render_html
+from planalign_api.services.report_render import render_html
+
+
+def _design(text: str) -> ReportPlanDesign:
+    return ReportPlanDesign(
+        eligibility=text, auto_enrollment=text, escalation=text, match=text, core=text
+    )
 
 
 def test_report_html_contains_metrics_and_traceability_footer():
     report = ScenarioReport(
-        title="Baseline report",
+        title="Baseline <report>",
         generated_at=datetime.now(timezone.utc),
-        years=[
-            ReportYearMetrics(
-                year=2025,
-                headcount=100,
-                average_compensation=75000,
-                participation_rate=62.5,
-                employer_cost=125000,
+        anchor_scenario_id="scenario",
+        scenarios=[
+            ReportScenario(
+                scenario_id="scenario",
+                name="Baseline",
+                is_anchor=True,
+                design=_design("Immediate."),
+                years=[
+                    ReportYear(
+                        year=2025,
+                        employer_cost=125000,
+                        cost_pct_of_capped_pay=4.25,
+                        participation_rate=62.5,
+                        average_deferral_rate=None,
+                    )
+                ],
+                total_employer_cost=125000,
             )
         ],
         provenance=[
@@ -36,10 +54,12 @@ def test_report_html_contains_metrics_and_traceability_footer():
         ],
     )
 
-    html = _render_html(report, None)
+    html = render_html(report, None)
 
     assert "2025" in html
-    assert "$75,000" in html
+    assert "$125,000" in html and "4.25%" in html and "62.5%" in html
+    assert "—" in html  # unavailable deferral renders as a dash, not 0
+    assert "Baseline &lt;report&gt;" in html  # user text is escaped
     assert "scenario / config " + "a" * 12 in html
-    assert html.count("data:image/png;base64,") == 4
+    assert html.count("data:image/png;base64,") == 1
     assert "display:grid" not in html
