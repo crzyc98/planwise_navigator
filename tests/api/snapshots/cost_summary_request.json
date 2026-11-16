@@ -1,0 +1,187 @@
+{
+  "view": {
+    "anchor_scenario_id": "base",
+    "cohort": "new_hires",
+    "first_simulation_year": 2025,
+    "cost_view": "net",
+    "breakdown": "total",
+    "vesting_schedule": "graded_5_year",
+    "forfeiture_policy": "offset_employer_contributions",
+    "grandfather_cutoff_year": null
+  },
+  "scenarios": [
+    {
+      "scenario_id": "base",
+      "run_id": "run-base",
+      "years": [
+        {
+          "notes": {
+            "forfeiture_offset": "No prior plan year within the simulation horizon.",
+            "net_employer_cost": "Gross only — No prior plan year within the simulation horizon.",
+            "employer_cost_vs_anchor": "This is the anchor scenario."
+          },
+          "employer_cost": 100000,
+          "employer_cost_vs_anchor": null,
+          "cost_pct_of_capped_pay": 5.263157894736842,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": null,
+          "reallocated_to_participants": null,
+          "net_employer_cost": null,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": 2000000,
+          "total_compensation_vs_anchor": null,
+          "year": 2025,
+          "has_data": true
+        },
+        {
+          "notes": {
+            "employer_cost_vs_anchor": "This is the anchor scenario."
+          },
+          "employer_cost": 120000,
+          "employer_cost_vs_anchor": null,
+          "cost_pct_of_capped_pay": 6,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": 4000,
+          "reallocated_to_participants": null,
+          "net_employer_cost": 116000,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": 2100000,
+          "total_compensation_vs_anchor": null,
+          "year": 2026,
+          "has_data": true
+        },
+        {
+          "notes": {
+            "employer_cost_vs_anchor": "This is the anchor scenario."
+          },
+          "employer_cost": 140000,
+          "employer_cost_vs_anchor": null,
+          "cost_pct_of_capped_pay": 6.666666666666667,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": 5000,
+          "reallocated_to_participants": null,
+          "net_employer_cost": 135000,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": 2200000,
+          "total_compensation_vs_anchor": null,
+          "year": 2027,
+          "has_data": true
+        }
+      ],
+      "totals": {
+        "notes": {
+          "employer_cost_vs_anchor": "This is the anchor scenario.",
+          "cost_pct_vs_anchor_pp": "This is the anchor scenario.",
+          "net_employer_cost_vs_anchor": "This is the anchor scenario.",
+          "total_compensation_vs_anchor": "This is the anchor scenario."
+        },
+        "employer_cost": 360000,
+        "employer_cost_vs_anchor": null,
+        "cost_pct_of_capped_pay": 6,
+        "cost_pct_vs_anchor_pp": null,
+        "employer_match": null,
+        "employer_core": null,
+        "forfeiture_offset": 9000,
+        "reallocated_to_participants": null,
+        "net_employer_cost": 351000,
+        "net_employer_cost_vs_anchor": null,
+        "total_compensation": 6300000,
+        "total_compensation_vs_anchor": null
+      }
+    },
+    {
+      "scenario_id": "rich",
+      "run_id": "run-rich",
+      "years": [
+        {
+          "notes": {
+            "employer_cost": "No employees in cohort",
+            "employer_cost_vs_anchor": "No employees in cohort",
+            "cost_pct_of_capped_pay": "No employees in cohort",
+            "cost_pct_vs_anchor_pp": "No employees in cohort",
+            "employer_match": "No employees in cohort",
+            "employer_core": "No employees in cohort",
+            "forfeiture_offset": "No prior plan year within the simulation horizon.",
+            "reallocated_to_participants": "No employees in cohort",
+            "net_employer_cost": "Gross only — No cost data for this year",
+            "net_employer_cost_vs_anchor": "No employees in cohort",
+            "total_compensation": "No employees in cohort",
+            "total_compensation_vs_anchor": "No employees in cohort"
+          },
+          "employer_cost": null,
+          "employer_cost_vs_anchor": null,
+          "cost_pct_of_capped_pay": null,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": null,
+          "reallocated_to_participants": null,
+          "net_employer_cost": null,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": null,
+          "total_compensation_vs_anchor": null,
+          "year": 2025,
+          "has_data": false
+        },
+        {
+          "notes": {
+            "forfeiture_offset": "No prior plan year within the simulation horizon.",
+            "net_employer_cost": "Gross only — No prior plan year within the simulation horizon."
+          },
+          "employer_cost": 180000,
+          "employer_cost_vs_anchor": 60000,
+          "cost_pct_of_capped_pay": 9,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": null,
+          "reallocated_to_participants": null,
+          "net_employer_cost": null,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": 2100000,
+          "total_compensation_vs_anchor": null,
+          "year": 2026,
+          "has_data": true
+        },
+        {
+          "notes": {},
+          "employer_cost": 200000,
+          "employer_cost_vs_anchor": 60000,
+          "cost_pct_of_capped_pay": 9.30232558139535,
+          "cost_pct_vs_anchor_pp": null,
+          "employer_match": null,
+          "employer_core": null,
+          "forfeiture_offset": 7500,
+          "reallocated_to_participants": null,
+          "net_employer_cost": 192500,
+          "net_employer_cost_vs_anchor": null,
+          "total_compensation": 2250000,
+          "total_compensation_vs_anchor": null,
+          "year": 2027,
+          "has_data": true
+        }
+      ],
+      "totals": {
+        "notes": {},
+        "employer_cost": 380000,
+        "employer_cost_vs_anchor": 20000,
+        "cost_pct_of_capped_pay": 9.156626506024097,
+        "cost_pct_vs_anchor_pp": 3.1566265060240966,
+        "employer_match": null,
+        "employer_core": null,
+        "forfeiture_offset": 7500,
+        "reallocated_to_participants": null,
+        "net_employer_cost": 372500,
+        "net_employer_cost_vs_anchor": 21500,
+        "total_compensation": 4350000,
+        "total_compensation_vs_anchor": -1950000
+      }
+    }
+  ]
+}

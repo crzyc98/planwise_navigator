@@ -544,6 +544,28 @@ export async function downloadComparisonExport(
   saveBrowserDownload(await response.blob(), filename);
 }
 
+export type CostSummaryExportRequest = Schemas['CostSummaryExportRequest'];
+export type CostSummaryFiguresPayload = Schemas['CostSummaryFigures'];
+export type CostSummaryView = Schemas['CostSummaryView'];
+
+/** The Cost Comparison tables, as the page shows them, in a small workbook. */
+export async function downloadComparisonSummary(
+  workspaceId: string,
+  request: CostSummaryExportRequest,
+): Promise<void> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/summary-export`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    },
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const filename = filenameFromContentDisposition(response, 'cost_comparison_summary.xlsx');
+  saveBrowserDownload(await response.blob(), filename);
+}
+
 export async function downloadScenarioReport(
   workspaceId: string,
   scenarioId: string,

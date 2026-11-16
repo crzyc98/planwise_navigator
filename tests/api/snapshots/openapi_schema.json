@@ -5535,6 +5535,508 @@
         "title": "CostEstimateRow",
         "type": "object"
       },
+      "CostSummaryExportRequest": {
+        "properties": {
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/CostSummaryScenario"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "view": {
+            "$ref": "#/components/schemas/CostSummaryView"
+          }
+        },
+        "required": [
+          "view",
+          "scenarios"
+        ],
+        "title": "CostSummaryExportRequest",
+        "type": "object"
+      },
+      "CostSummaryFigures": {
+        "description": "One row of figures. Null means unavailable; ``notes`` says why.",
+        "properties": {
+          "cost_pct_of_capped_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)",
+            "title": "Cost Pct Of Capped Pay"
+          },
+          "cost_pct_vs_anchor_pp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Difference from the anchor, in percentage points",
+            "title": "Cost Pct Vs Anchor Pp"
+          },
+          "employer_core": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Core"
+          },
+          "employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer match + core (grandfathered when selected)",
+            "title": "Employer Cost"
+          },
+          "employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Cost Vs Anchor"
+          },
+          "employer_match": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Match"
+          },
+          "forfeiture_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forfeiture Offset"
+          },
+          "net_employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost"
+          },
+          "net_employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost Vs Anchor"
+          },
+          "notes": {
+            "additionalProperties": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "description": "Why a figure is blank, keyed by field name",
+            "propertyNames": {
+              "enum": [
+                "employer_cost",
+                "employer_cost_vs_anchor",
+                "cost_pct_of_capped_pay",
+                "cost_pct_vs_anchor_pp",
+                "employer_match",
+                "employer_core",
+                "forfeiture_offset",
+                "reallocated_to_participants",
+                "net_employer_cost",
+                "net_employer_cost_vs_anchor",
+                "total_compensation",
+                "total_compensation_vs_anchor"
+              ]
+            },
+            "title": "Notes",
+            "type": "object"
+          },
+          "reallocated_to_participants": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reallocated To Participants"
+          },
+          "total_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation"
+          },
+          "total_compensation_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation Vs Anchor"
+          }
+        },
+        "title": "CostSummaryFigures",
+        "type": "object"
+      },
+      "CostSummaryScenario": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected run the page loaded; a newer run makes the export stale",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CostSummaryFigures"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/CostSummaryYear"
+            },
+            "maxItems": 100,
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "years",
+          "totals"
+        ],
+        "title": "CostSummaryScenario",
+        "type": "object"
+      },
+      "CostSummaryView": {
+        "description": "The page settings the figures were derived under.",
+        "properties": {
+          "anchor_scenario_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Anchor Scenario Id",
+            "type": "string"
+          },
+          "breakdown": {
+            "default": "total",
+            "enum": [
+              "total",
+              "split"
+            ],
+            "title": "Breakdown",
+            "type": "string"
+          },
+          "cohort": {
+            "default": "all",
+            "enum": [
+              "all",
+              "new_hires",
+              "baseline"
+            ],
+            "title": "Cohort",
+            "type": "string"
+          },
+          "cost_view": {
+            "default": "gross",
+            "enum": [
+              "gross",
+              "net"
+            ],
+            "title": "Cost View",
+            "type": "string"
+          },
+          "first_simulation_year": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Simulation Year"
+          },
+          "forfeiture_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForfeiturePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grandfather_cutoff_year": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when existing employees are grandfathered on the anchor design",
+            "title": "Grandfather Cutoff Year"
+          },
+          "vesting_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VestingScheduleType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "anchor_scenario_id"
+        ],
+        "title": "CostSummaryView",
+        "type": "object"
+      },
+      "CostSummaryYear": {
+        "properties": {
+          "cost_pct_of_capped_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost / IRS-capped prorated pay, in percent (4.5 = 4.5%)",
+            "title": "Cost Pct Of Capped Pay"
+          },
+          "cost_pct_vs_anchor_pp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Difference from the anchor, in percentage points",
+            "title": "Cost Pct Vs Anchor Pp"
+          },
+          "employer_core": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Core"
+          },
+          "employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer match + core (grandfathered when selected)",
+            "title": "Employer Cost"
+          },
+          "employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Cost Vs Anchor"
+          },
+          "employer_match": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Match"
+          },
+          "forfeiture_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forfeiture Offset"
+          },
+          "has_data": {
+            "default": true,
+            "description": "False when the selected cohort has no employees this year",
+            "title": "Has Data",
+            "type": "boolean"
+          },
+          "net_employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost"
+          },
+          "net_employer_cost_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Employer Cost Vs Anchor"
+          },
+          "notes": {
+            "additionalProperties": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "description": "Why a figure is blank, keyed by field name",
+            "propertyNames": {
+              "enum": [
+                "employer_cost",
+                "employer_cost_vs_anchor",
+                "cost_pct_of_capped_pay",
+                "cost_pct_vs_anchor_pp",
+                "employer_match",
+                "employer_core",
+                "forfeiture_offset",
+                "reallocated_to_participants",
+                "net_employer_cost",
+                "net_employer_cost_vs_anchor",
+                "total_compensation",
+                "total_compensation_vs_anchor"
+              ]
+            },
+            "title": "Notes",
+            "type": "object"
+          },
+          "reallocated_to_participants": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reallocated To Participants"
+          },
+          "total_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation"
+          },
+          "total_compensation_vs_anchor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Compensation Vs Anchor"
+          },
+          "year": {
+            "maximum": 2200.0,
+            "minimum": 1900.0,
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "CostSummaryYear",
+        "type": "object"
+      },
       "CrossCitation": {
         "additionalProperties": false,
         "properties": {
@@ -6015,6 +6517,18 @@
             "title": "Resolved First Simulation Year",
             "type": "integer"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run these figures were read from (the scenario's selected result run), so an export can name the run it was built from",
+            "title": "Run Id"
+          },
           "scenario_id": {
             "description": "Scenario identifier",
             "title": "Scenario Id",
@@ -6107,6 +6621,7 @@
         "required": [
           "scenario_id",
           "scenario_name",
+          "run_id",
           "resolved_first_simulation_year",
           "opt_out_by_year",
           "total_eligible",
@@ -23831,6 +24346,58 @@
           }
         },
         "summary": "Compare Scenario Integrity",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/compare/summary-export": {
+      "post": {
+        "description": "Download the Cost Comparison page's tables as a small workbook.\n\nThe page posts the figures it renders; the server adds scenario names, view\nlabels and run provenance, and rejects figures from a superseded run.",
+        "operationId": "export_comparison_summary_api_workspaces__workspace_id__analytics_compare_summary_export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostSummaryExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "The Cost Comparison tables for the posted view."
+          },
+          "409": {
+            "description": "A scenario has a newer run than the page loaded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Comparison Summary",
         "tags": [
           "Analytics"
         ]
