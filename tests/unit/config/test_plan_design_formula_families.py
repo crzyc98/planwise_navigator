@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
+from planalign_orchestrator.config.plan_design import validate_points_min_service
 from pydantic import ValidationError
 
 from tests.fixtures.invariant_simulation import _simulation_config
@@ -194,3 +196,118 @@ def test_explicit_integration_requires_a_level_value() -> None:
     configured.plan_design_parameters = {configured.plan_design_id: payload}
     with pytest.raises(ValueError, match=r"integration_level_value.*explicit"):
         configured.validated_plan_design_parameters()
+
+
+def _points_core_payload(**core_fields: object) -> dict:
+    payload = relation_contract_payload()["age_design"]
+    payload["employer_core"].update(
+        family="points_based",
+        points_schedule=[{"min_points": 0, "max_points": None, "rate": 3.0}],
+        **core_fields,
+    )
+    return payload
+
+
+def test_points_min_service_round_trips_to_dbt_payload() -> None:
+    configured = _config()
+    configured.plan_design_parameters = {
+        configured.plan_design_id: _points_core_payload(
+            points_min_service_years=3, points_pre_service_rate=1.0
+        )
+    }
+    payload = configured.validated_plan_design_parameters().to_dbt_payload()
+    core = payload[configured.plan_design_id]["employer_core"]
+    assert core["points_min_service_years"] == 3
+    assert core["points_pre_service_rate"] == pytest.approx(1.0)
+
+
+def test_unset_points_min_service_is_omitted_from_dbt_payload() -> None:
+    configured = _config()
+    configured.plan_design_parameters = {
+        configured.plan_design_id: _points_core_payload()
+    }
+    payload = configured.validated_plan_design_parameters().to_dbt_payload()
+    core = payload[configured.plan_design_id]["employer_core"]
+    assert "points_min_service_years" not in core
+    assert "points_pre_service_rate" not in core
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"points_min_service_years": 3}, {"points_pre_service_rate": 1.0}],
+)
+def test_points_min_service_requires_both_fields(fields: dict) -> None:
+    configured = _config()
+    configured.plan_design_parameters = {
+        configured.plan_design_id: _points_core_payload(**fields)
+    }
+    with pytest.raises(ValueError, match="must be set together"):
+        configured.validated_plan_design_parameters()
+
+
+@pytest.mark.parametrize(
+    ("min_years", "rate", "message"),
+    [
+        (0, 1.0, "whole number"),
+        (2.5, 1.0, "whole number"),
+        ("three", 1.0, "whole number"),
+        (3, 150, "percent from 0 to 100"),
+        (3, "1", "percent from 0 to 100"),
+    ],
+)
+def test_points_min_service_rejects_out_of_range_values(
+    min_years: object, rate: object, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        validate_points_min_service("points_based", min_years, rate)
+
+
+def test_points_min_service_rejected_for_other_core_families() -> None:
+    payload = relation_contract_payload()["age_design"]
+    payload["employer_core"].update(
+        points_min_service_years=3, points_pre_service_rate=1.0
+    )
+    configured = _config()
+    configured.plan_design_parameters = {configured.plan_design_id: payload}
+    with pytest.raises(ValueError, match="only allowed with the points_based"):
+        configured.validated_plan_design_parameters()
+
+
+def test_points_min_service_inherits_from_studio_dc_plan() -> None:
+    configured = apply_single_design_formula(_config(), "deferral_based", "flat")
+    configured.dc_plan = {
+        "core_integration_enabled": False,
+        "core_status": "points_based",
+        "core_points_schedule": [
+            {"min_points": 0, "max_points": None, "contribution_rate": 0.03}
+        ],
+        "core_points_min_service_years": 3,
+        "core_points_pre_service_rate": 1.0,
+    }
+    core = configured.plan_design_parameters.root[
+        configured.plan_design_id
+    ].employer_core
+    core.family = None
+    core.points_schedule = []
+
+    inherited = (
+        configured.validated_plan_design_parameters()
+        .root[configured.plan_design_id]
+        .employer_core
+    )
+    assert inherited.family == "points_based"
+    assert inherited.points_min_service_years == 3
+    assert inherited.points_pre_service_rate == pytest.approx(1.0)
+
+
+def test_studio_dc_plan_rejects_half_set_points_min_service() -> None:
+    from planalign_orchestrator.config import SimulationConfig
+
+    raw = _config().model_dump(mode="json")
+    raw["dc_plan"] = {
+        "core_status": "points_based",
+        "core_points_min_service_years": 3,
+        "core_points_pre_service_rate": None,
+    }
+    with pytest.raises(ValidationError, match="must be set together"):
+        SimulationConfig.model_validate(raw)

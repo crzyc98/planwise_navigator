@@ -186,7 +186,7 @@ const formatVariable = (key: string, value: unknown) => {
 const percentagePointPaths = new Set([
   ...['target_compensation_growth', 'merit_budget', 'cola_rate', 'promotion_increase', 'promotion_distribution_range', 'promotion_budget'].map(key => `compensation.${key}_percent`),
   'new_hire.compensation_variance_percent', 'dc_plan.default_deferral_percent', 'dc_plan.core_contribution_rate_percent',
-  'dc_plan.escalation_rate_percent', 'dc_plan.escalation_cap_percent',
+  'dc_plan.escalation_rate_percent', 'dc_plan.escalation_cap_percent', 'dc_plan.core_points_pre_service_rate',
 ]);
 const decimalRatePaths = new Set([
   'dc_plan.reenrollment_sweep_decline_probability',

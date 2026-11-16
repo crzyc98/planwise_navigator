@@ -197,6 +197,8 @@ class CoreParameterSet(BaseModel):
     graded_schedule: list[CoreServiceBand] = Field(default_factory=list)
     age_schedule: list[CoreAgeBand] = Field(default_factory=list)
     points_schedule: list[CorePointsBand] = Field(default_factory=list)
+    points_min_service_years: int | None = Field(default=None, ge=1)
+    points_pre_service_rate: float | None = Field(default=None, ge=0.0, le=100.0)
     integration_enabled: bool | None = None
     integration_level_mode: (
         Literal["ss_wage_base", "explicit", "percent_of_ss_wage_base", "fixed_dollar"]
@@ -215,6 +217,9 @@ class CoreParameterSet(BaseModel):
             raise ValueError(
                 "integration_level_value is required for an explicit, percent, or fixed integration level"
             )
+        validate_points_min_service(
+            self.family, self.points_min_service_years, self.points_pre_service_rate
+        )
         return self
 
 
@@ -277,10 +282,43 @@ class PlanDesignParametersMap(RootModel[dict[str, PlanDesignParameters]]):
 
     def to_dbt_payload(self) -> dict[str, object]:
         """Return a JSON-compatible payload ordered by design identifier."""
-        return {
-            design_id: self.root[design_id].model_dump(mode="json")
-            for design_id in self.design_ids()
-        }
+        payload: dict[str, object] = {}
+        for design_id in self.design_ids():
+            design = self.root[design_id].model_dump(mode="json")
+            # Omit the unset optional keys so existing config fingerprints hold.
+            core = design["employer_core"]
+            for key in POINTS_MIN_SERVICE_FIELDS:
+                if core.get(key) is None:
+                    core.pop(key, None)
+            payload[design_id] = design
+        return payload
+
+
+POINTS_MIN_SERVICE_FIELDS = ("points_min_service_years", "points_pre_service_rate")
+
+
+def validate_points_min_service(
+    family: str | None, min_years: object, pre_service_rate: object
+) -> None:
+    """Require the points-core service minimum and its rate together, points only."""
+    if min_years is None and pre_service_rate is None:
+        return
+    if min_years is None or pre_service_rate is None:
+        raise ValueError(
+            "points_min_service_years and points_pre_service_rate must be set together"
+        )
+    if family is not None and family != "points_based":
+        raise ValueError(
+            "points_min_service_years is only allowed with the points_based core"
+        )
+    if type(min_years) is not int or min_years < 1:
+        raise ValueError("points_min_service_years must be a whole number of 1 or more")
+    if (
+        isinstance(pre_service_rate, bool)
+        or not isinstance(pre_service_rate, (int, float))
+        or not 0 <= pre_service_rate <= 100
+    ):
+        raise ValueError("points_pre_service_rate must be a percent from 0 to 100")
 
 
 def _validate_nonoverlapping_match_tiers(tiers: list[MatchTier], label: str) -> None:

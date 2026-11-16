@@ -48,9 +48,11 @@ from .performance import (
 from .ensemble import EnsembleSettings
 from .contribution_sources import ContributionSourceSettings
 from .plan_design import (
+    POINTS_MIN_SERVICE_FIELDS,
     PlanDesignAssignmentSettings,
     PlanDesignParametersMap,
     check_identifier,
+    validate_points_min_service,
 )
 
 
@@ -66,9 +68,39 @@ def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]
             "graded_schedule": dc_plan.get("core_graded_schedule", []),
             "points_schedule": dc_plan.get("core_points_schedule", []),
             "age_schedule": dc_plan.get("core_age_schedule", []),
+            "points_min_service_years": dc_plan.get("core_points_min_service_years"),
+            "points_pre_service_rate": dc_plan.get("core_points_pre_service_rate"),
             "integration": normalize_dc_plan_integration(dc_plan),
         }
     return core if isinstance(core, dict) and "integration" in core else None
+
+
+def _validate_core_points_min_service(core: Any, dc_plan: Any) -> None:
+    """Check the optional points-core service minimum in YAML and Studio shapes."""
+    if isinstance(core, dict):
+        validate_points_min_service(
+            core.get("status"),
+            core.get("points_min_service_years"),
+            core.get("points_pre_service_rate"),
+        )
+    if isinstance(dc_plan, dict):
+        validate_points_min_service(
+            dc_plan.get("core_status"),
+            dc_plan.get("core_points_min_service_years"),
+            dc_plan.get("core_points_pre_service_rate"),
+        )
+
+
+def _inherit_points_min_service(
+    core_payload: Dict[str, Any], inherited_core: Dict[str, Any]
+) -> None:
+    """Carry a global points-core service minimum into a points design."""
+    if core_payload.get("family") != "points_based":
+        return
+    if any(core_payload.get(key) is not None for key in POINTS_MIN_SERVICE_FIELDS):
+        return
+    for key in POINTS_MIN_SERVICE_FIELDS:
+        core_payload[key] = inherited_core.get(key)
 
 
 def _per_design_core_schedule(
@@ -202,6 +234,7 @@ class SimulationConfig(BaseModel):
         dc_plan = getattr(self, "dc_plan", None)
         if isinstance(dc_plan, dict) and dc_plan.get("core_status") == "age_banded":
             validate_core_age_schedule(dc_plan.get("core_age_schedule", []))
+        _validate_core_points_min_service(core, dc_plan)
         integration_core = _core_integration_config(core, dc_plan)
         if integration_core is not None:
             validate_core_integration(
@@ -281,6 +314,7 @@ class SimulationConfig(BaseModel):
                 schedule_field, schedule = inherited_schedule
                 if not core_payload.get(schedule_field):
                     core_payload[schedule_field] = schedule
+            _inherit_points_min_service(core_payload, inherited_core)
             core_payload["integration_enabled"] = (
                 core_payload.get("integration_enabled")
                 if core_payload.get("integration_enabled") is not None

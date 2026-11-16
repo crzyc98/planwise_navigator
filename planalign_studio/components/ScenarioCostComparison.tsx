@@ -240,7 +240,10 @@ const derivePlanSummary = (config: Record<string, any> | null) => {
   } else if (dc.core_status === 'graded_by_service') {
     core = `Graded by service, ${rateRange(dc.core_graded_schedule ?? [])} of eligible compensation.`;
   } else if (dc.core_status === 'points_based') {
-    core = `Points-based, ${rateRange(dc.core_points_schedule ?? [])} of eligible compensation.`;
+    const minService = dc.core_points_min_service_years != null
+      ? ` ${dc.core_points_pre_service_rate ?? '--'}% until ${dc.core_points_min_service_years} years of service.`
+      : '';
+    core = `Points-based, ${rateRange(dc.core_points_schedule ?? [])} of eligible compensation.${minService}`;
   } else if (dc.core_status === 'age_banded') {
     core = `Age-banded, ${rateRange(dc.core_age_schedule ?? [])} of eligible compensation.`;
   } else {

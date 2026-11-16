@@ -180,6 +180,8 @@ def _maximal_config():
         "core_points_schedule": [
             {"min_points": 0, "max_points": 50, "contribution_rate": 0.03}
         ],
+        "core_points_min_service_years": 3,
+        "core_points_pre_service_rate": 1.0,
         "core_age_schedule": [{"min_age": 0, "max_age": 50, "contribution_rate": 0.03}],
         "core_integration_enabled": True,
     }

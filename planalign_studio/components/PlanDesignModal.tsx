@@ -279,6 +279,11 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                   <div className="bg-surface-subtle rounded-lg border border-border p-3">
                     <p className="text-xs font-medium text-ink-muted mb-2">Points Core Schedule</p>
                     <p className="text-[10px] text-ink-muted mb-2">Points = FLOOR(age) + FLOOR(tenure)</p>
+                    {dc.core_points_min_service_years != null && (
+                      <p className="text-xs text-ink-muted mb-2">
+                        {dc.core_points_pre_service_rate ?? '--'}% until {dc.core_points_min_service_years} years of service, then:
+                      </p>
+                    )}
                     <div className="space-y-1">
                       {corePointsSchedule.map((t: any, i: number) => (
                         <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">

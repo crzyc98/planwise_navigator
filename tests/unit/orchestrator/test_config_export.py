@@ -1466,6 +1466,61 @@ class TestExportCoreContributionVars:
         pts = result["employer_core_points_schedule"]
         assert pts[0]["rate"] == pytest.approx(1.5)
         assert pts[1]["rate"] == pytest.approx(4.0)
+        assert "employer_core_points_min_service_years" not in result
+        assert "employer_core_points_pre_service_rate" not in result
+
+    def test_dc_plan_core_points_min_service(self):
+        cfg = _make_config()
+        cfg.dc_plan = {
+            "core_status": "points_based",
+            "core_points_schedule": [
+                {"min_points": 0, "max_points": None, "contribution_rate": 0.03},
+            ],
+            "core_points_min_service_years": 3,
+            "core_points_pre_service_rate": 1.0,
+        }
+        result = _export_core_contribution_vars(cfg)
+        assert result["employer_core_points_min_service_years"] == 3
+        assert result["employer_core_points_pre_service_rate"] == pytest.approx(1.0)
+        nested = result["employer_core_contribution"]
+        assert nested["points_min_service_years"] == 3
+        assert nested["points_pre_service_rate"] == pytest.approx(1.0)
+
+    def test_core_contribution_points_min_service_from_yaml(self):
+        cfg = _make_config()
+        cfg.employer_core_contribution = {
+            "status": "points_based",
+            "points_schedule": [{"min_points": 0, "max_points": None, "rate": 3.0}],
+            "points_min_service_years": 3,
+            "points_pre_service_rate": 1.0,
+            "eligibility": {},
+        }
+        if hasattr(cfg, "dc_plan"):
+            delattr(cfg, "dc_plan")
+        result = _export_core_contribution_vars(cfg)
+        assert result["employer_core_points_min_service_years"] == 3
+        assert result["employer_core_points_pre_service_rate"] == pytest.approx(1.0)
+
+    def test_dc_plan_null_turns_off_yaml_points_min_service(self):
+        cfg = _make_config()
+        cfg.employer_core_contribution = {
+            "status": "points_based",
+            "points_schedule": [{"min_points": 0, "max_points": None, "rate": 3.0}],
+            "points_min_service_years": 3,
+            "points_pre_service_rate": 1.0,
+            "eligibility": {},
+        }
+        cfg.dc_plan = {
+            "core_status": "points_based",
+            "core_points_min_service_years": None,
+            "core_points_pre_service_rate": None,
+        }
+        result = _export_core_contribution_vars(cfg)
+        assert "employer_core_points_min_service_years" not in result
+        assert "employer_core_points_pre_service_rate" not in result
+        nested = result["employer_core_contribution"]
+        assert "points_min_service_years" not in nested
+        assert "points_pre_service_rate" not in nested
 
     def test_dc_plan_core_eligibility_overrides(self):
         cfg = _make_config()

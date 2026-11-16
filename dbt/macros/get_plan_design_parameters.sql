@@ -26,11 +26,14 @@ SELECT
   CAST(NULL AS BOOLEAN) AS core_integration_enabled,
   CAST(NULL AS VARCHAR) AS core_integration_level_mode,
   CAST(NULL AS INTEGER) AS core_integration_level_value,
-  CAST(NULL AS DECIMAL(10,6)) AS core_integration_disparity_rate
+  CAST(NULL AS DECIMAL(10,6)) AS core_integration_disparity_rate,
+  CAST(NULL AS INTEGER) AS core_points_min_service_years,
+  CAST(NULL AS DECIMAL(10,6)) AS core_points_pre_service_rate
 WHERE FALSE
 {%- else -%}
 {%- for design_id, parameters in plan_design_parameters | dictsort %}
 {% set sweep = parameters['auto_enrollment'].get('reenrollment_sweep', {}) %}
+{% set core = parameters['employer_core'] %}
 SELECT
   '{{ design_id | replace("'", "''") }}'::VARCHAR AS plan_design_id,
   '{{ parameters['match'].get('family', 'deferral_based') }}'::VARCHAR AS match_formula_family,
@@ -55,7 +58,9 @@ SELECT
   {{ parameters['employer_core'].get('integration_enabled', false) | lower }}::BOOLEAN AS core_integration_enabled,
   '{{ parameters['employer_core'].get('integration_level_mode', 'ss_wage_base') }}'::VARCHAR AS core_integration_level_mode,
   {{ parameters['employer_core'].get('integration_level_value') if parameters['employer_core'].get('integration_level_value') is not none else 'NULL' }}::INTEGER AS core_integration_level_value,
-  {{ parameters['employer_core'].get('integration_disparity_rate', 0.0) }}::DECIMAL(10,6) AS core_integration_disparity_rate
+  {{ parameters['employer_core'].get('integration_disparity_rate', 0.0) }}::DECIMAL(10,6) AS core_integration_disparity_rate,
+  {{ core.get('points_min_service_years') if core.get('points_min_service_years') is not none else 'NULL' }}::INTEGER AS core_points_min_service_years,
+  {{ core.get('points_pre_service_rate') / 100.0 if core.get('points_pre_service_rate') is not none else 'NULL' }}::DECIMAL(10,6) AS core_points_pre_service_rate
 {% if not loop.last %}UNION ALL{% endif %}
 {%- endfor -%}
 {%- endif -%}

@@ -183,6 +183,16 @@ function applyMatch(variables: Variables, form: FormData): FormData {
   };
 }
 
+// Points-core service minimum; the pre-service rate is a percent, like the band rates.
+function pointsMinService(variables: Variables): Partial<FormData> {
+  if (!('employer_core_points_min_service_years' in variables)) return {};
+  const years = variables.employer_core_points_min_service_years;
+  const rate = variables.employer_core_points_pre_service_rate;
+  if (typeof years !== 'number') return { dcCorePointsMinServiceEnabled: false };
+  return { dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: years,
+    ...(typeof rate === 'number' ? { dcCorePointsPreServiceRate: rate } : {}) };
+}
+
 function applyCoreSchedules(variables: Variables, form: FormData): FormData {
   return {
     ...form,
@@ -193,6 +203,7 @@ function applyCoreSchedules(variables: Variables, form: FormData): FormData {
     ...(rows<Variables>(variables.employer_core_points_schedule) ? { dcCorePointsSchedule: rows<Variables>(variables.employer_core_points_schedule)!.map(tier => ({
       minPoints: tier.min_points, maxPoints: tier.max_points, rate: tier.rate,
     })) as FormData['dcCorePointsSchedule'] } : {}),
+    ...pointsMinService(variables),
     ...(rows<Variables>(variables.employer_core_age_schedule) ? { dcCoreAgeSchedule: rows<Variables>(variables.employer_core_age_schedule)!.map(tier => ({
       minAge: tier.min_age, maxAge: tier.max_age, rate: tier.rate,
     })) as FormData['dcCoreAgeSchedule'] } : {}),
