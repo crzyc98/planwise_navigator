@@ -2,6 +2,8 @@
 
 import logging
 import math
+from dataclasses import dataclass
+from pathlib import Path
 from decimal import Decimal
 from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple
 
@@ -51,6 +53,17 @@ Population = Literal[
     "active_eligible",
     "terminated_eligible",
 ]
+
+
+@dataclass(frozen=True)
+class EmployerCostSummary:
+    """By-year contributions and employer-cost totals for one result database."""
+
+    contribution_by_year: List[ContributionYearSummary]
+    total_employer_cost: float
+    total_capped_compensation: float
+    employer_cost_pct_of_capped_compensation: float
+
 
 _CONTRIBUTOR_COMPENSATION_SQL = (
     "COALESCE(SUM(prorated_annual_compensation) FILTER (WHERE {condition}), 0)"
@@ -594,6 +607,34 @@ class AnalyticsService:
             forfeiture_policy=forfeiture_policy,
             scenarios=series,
             warnings=warnings,
+        )
+
+    def get_employer_cost_summary(
+        self, database_path: Path, workspace_id: str, scenario_id: str
+    ) -> EmployerCostSummary:
+        """Cost Comparison's default view, read from an already-resolved database.
+
+        The same by-year rows and totals ``get_dc_plan_analytics`` returns with
+        its default arguments (all employees, gross of forfeitures), without the
+        distribution and escalation queries. Raises on an unreadable database.
+        """
+        import duckdb
+
+        with duckdb.connect(str(database_path), read_only=True) as conn:
+            first_simulation_year = self._resolve_first_simulation_year(
+                conn, workspace_id, scenario_id
+            )
+            by_year = self._get_contribution_by_year(
+                conn, first_simulation_year=first_simulation_year
+            )
+        totals = self._compute_grand_totals(by_year)
+        return EmployerCostSummary(
+            contribution_by_year=by_year,
+            total_employer_cost=totals["total_employer_cost"],
+            total_capped_compensation=totals["total_capped_compensation"],
+            employer_cost_pct_of_capped_compensation=round(
+                totals["employer_cost_pct_of_capped_compensation"], 2
+            ),
         )
 
     def get_dc_plan_analytics(

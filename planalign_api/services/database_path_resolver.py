@@ -367,6 +367,18 @@ class DatabasePathResolver:
         )
 
 
+def is_selected_result(resolved: ResolvedDatabasePath, scenario_status: str) -> bool:
+    """Whether ``resolved`` is the scenario's own result.
+
+    A managed run's database always is. A legacy scenario-, workspace- or
+    project-level database counts only once the scenario itself completed, so a
+    never-run scenario does not borrow a shared database's figures.
+    """
+    return resolved.exists and (
+        resolved.source == "run" or scenario_status == "completed"
+    )
+
+
 def create_api_database_path_resolver(
     storage: WorkspaceStorageProtocol,
 ) -> DatabasePathResolver:

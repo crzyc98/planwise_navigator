@@ -16,7 +16,10 @@ class Band(APIModel):
 
     band_id: int = Field(..., ge=1, description="Unique identifier for the band")
     band_label: str = Field(
-        ..., max_length=50, description="Human-readable label (e.g., '25-34', '< 25')"
+        ...,
+        max_length=50,
+        pattern=r"^[^']*$",
+        description="Human-readable label (e.g., '25-34', '< 25')",
     )
     min_value: int = Field(..., ge=0, description="Lower bound (inclusive)")
     max_value: int = Field(..., gt=0, description="Upper bound (exclusive)")

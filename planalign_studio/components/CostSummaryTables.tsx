@@ -12,6 +12,7 @@ import {
   type ScenarioSummary,
   type SummaryYear,
 } from './costSummary';
+import { describeDifference, formatCostBand, formatDifference, type CostBandView, type SeedRangeRow } from './seedRanges';
 
 const VALUE_CELL = 'px-6 py-4 whitespace-nowrap text-right text-sm';
 const SUB_CELL = 'px-6 py-2 whitespace-nowrap text-right text-xs';
@@ -80,6 +81,17 @@ interface CostMatrixProps {
   netActive: boolean;
   policyReducesCost: boolean;
   grandfatherLoading: boolean;
+  /** P10–P90 seed bands for gross cost; undefined when hidden or not run. */
+  seedRangeFor?: (scenarioId: string) => SeedRangeRow | undefined;
+}
+
+function SeedBand({ band, className = '' }: Readonly<{ band: CostBandView | null | undefined; className?: string }>) {
+  if (!band) return null;
+  return (
+    <div className={`text-[10px] text-ink-subtle ${className}`} title={`P10–P90 across ${band.n_seeds} seeds`}>
+      {formatCostBand(band)}
+    </div>
+  );
 }
 
 function MissingYear({ year, cohort, small }: Readonly<{ year: SummaryYear; cohort: DCPlanCohort; small?: boolean }>) {
@@ -95,6 +107,8 @@ function MissingYear({ year, cohort, small }: Readonly<{ year: SummaryYear; coho
 function GrossRow({ scenario, props }: Readonly<{ scenario: ScenarioSummary; props: CostMatrixProps }>) {
   const { totals } = scenario;
   const unavailable = props.grandfatherLoading ? 'loading…' : 'unavailable';
+  const seedRange = props.seedRangeFor?.(scenario.scenario_id);
+  const delta = totals.employer_cost_vs_anchor;
   return (
     <tr className={`hover:bg-surface-subtle transition-colors ${scenario.is_anchor ? 'bg-info-surface/30' : ''}`}>
       <NameCell name={props.names[scenario.scenario_id] ?? scenario.scenario_id} isAnchor={scenario.is_anchor} />
@@ -110,14 +124,21 @@ function GrossRow({ scenario, props }: Readonly<{ scenario: ScenarioSummary; pro
         return (
           <td key={year.year} className={`${VALUE_CELL} text-ink-muted font-mono`}>
             {formatCurrency(year.employer_cost)}
+            <SeedBand band={seedRange?.years.get(year.year)} />
           </td>
         );
       })}
       <td className={`${VALUE_CELL} text-ink font-bold font-mono ${TOTAL_CELL}`}>
         {totals.employer_cost === null ? unavailable : formatCurrency(totals.employer_cost)}
+        {totals.employer_cost !== null && <SeedBand band={seedRange?.total} className="font-normal" />}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right">
-        <Variance value={totals.employer_cost_vs_anchor} text={formatSigned} />
+        <Variance value={delta} text={formatSigned} />
+        {!scenario.is_anchor && delta !== null && seedRange?.difference && (
+          <div className="mt-1.5 text-[10px] text-ink-subtle font-mono" title={describeDifference(delta, seedRange.difference)}>
+            {formatDifference(seedRange.difference)}
+          </div>
+        )}
       </td>
     </tr>
   );

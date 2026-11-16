@@ -68,3 +68,12 @@ def test_studio_reload_watches_evidence_pack_sources() -> None:
 
     assert '"planalign_evidence"' in source
     assert '"planalign_ensemble"' in source
+
+
+def test_vite_proxy_sends_the_api_its_own_host() -> None:
+    # The API's Host allowlist relies on the proxy rewriting Host to its target.
+    source = (
+        Path(__file__).parents[3] / "planalign_studio" / "vite.config.ts"
+    ).read_text()
+
+    assert source.count("changeOrigin: true") == 2
