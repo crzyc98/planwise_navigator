@@ -87,7 +87,7 @@ class AutoEnrollmentSettings(BaseModel):
     """Auto-enrollment configuration."""
 
     enabled: bool = True
-    scope: Optional[str] = None
+    scope: Optional[Literal["all_eligible_employees", "new_hires_only"]] = None
     hire_date_cutoff: Optional[str] = None
     window_days: int = 45
     default_deferral_rate: float = Field(default=0.06, ge=0, le=1)

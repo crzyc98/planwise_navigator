@@ -2394,6 +2394,73 @@ export async function getEnsembleAttribution(
   return handleResponse<EnsembleAttributionRow[]>(response);
 }
 
+export type EnsembleCostRanges = Schemas['EnsembleCostRanges'];
+export type ScenarioCostRange = Schemas['ScenarioCostRange'];
+
+/** Seed ranges for Cost Comparison: each scenario's latest finished ensemble, paired with the anchor. */
+export async function getEnsembleCostRanges(
+  workspaceId: string,
+  scenarioIds: string[],
+  anchorScenarioId: string
+): Promise<EnsembleCostRanges> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), anchor: anchorScenarioId });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/ensembles/cost-ranges?${params}`
+  );
+  return handleResponse<EnsembleCostRanges>(response);
+}
+
+// Ensemble jobs: run a seed ensemble for one scenario from Studio.
+
+export type EnsembleEstimate = Schemas['EnsembleEstimate'];
+
+export type EnsembleJob = Schemas['EnsembleJob'];
+
+export type EnsembleJobStatus = EnsembleJob['status'];
+
+const ensembleScenarioBase = (workspaceId: string, scenarioId: string) =>
+  `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/ensembles`;
+
+const ensembleJobsBase = (workspaceId: string) =>
+  `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/ensembles`;
+
+/** Seeds, run count, time and disk an ensemble would take; starts nothing. */
+export async function estimateEnsemble(
+  workspaceId: string,
+  scenarioId: string,
+  seedCount: number
+): Promise<EnsembleEstimate> {
+  const response = await fetchWithAuth(`${ensembleScenarioBase(workspaceId, scenarioId)}/estimate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seed_count: seedCount }),
+  });
+  return handleResponse<EnsembleEstimate>(response);
+}
+
+/** Queue a seed ensemble; returns immediately (202). */
+export async function startEnsemble(workspaceId: string, scenarioId: string, seedCount: number): Promise<EnsembleJob> {
+  const response = await fetchWithAuth(ensembleScenarioBase(workspaceId, scenarioId), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seed_count: seedCount }),
+  });
+  return handleResponse<EnsembleJob>(response);
+}
+
+/** A workspace's ensemble jobs, newest first. */
+export async function listEnsembleJobs(workspaceId: string): Promise<EnsembleJob[]> {
+  const response = await fetchWithAuth(ensembleJobsBase(workspaceId));
+  return handleResponse<EnsembleJob[]>(response);
+}
+
+export async function cancelEnsembleJob(workspaceId: string, jobId: string): Promise<EnsembleJob> {
+  const response = await fetchWithAuth(`${ensembleJobsBase(workspaceId)}/${encodeURIComponent(jobId)}/cancel`, {
+    method: 'POST',
+  });
+  return handleResponse<EnsembleJob>(response);
+}
+
 // ---------------------------------------------------------------------------
 // Parameter fit & backtest (#588) -- fit simulation parameters from census
 // history, score them against held-out years, apply a pack to a new scenario.

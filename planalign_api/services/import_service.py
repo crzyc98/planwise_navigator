@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
 import duckdb
@@ -26,6 +26,14 @@ from ..models.imports import (
 from .mapping_engine import MappingEngine
 
 logger = logging.getLogger(__name__)
+
+
+def _after_last_data_dir(stored: str) -> tuple[str, ...]:
+    """Path parts after the last ``data`` directory of a stored path, if any."""
+    pure = PureWindowsPath(stored) if "\\" in stored else PurePosixPath(stored)
+    parts = pure.parts
+    indexes = [i for i, part in enumerate(parts) if part == "data"]
+    return parts[indexes[-1] + 1 :] if indexes else ()
 
 
 def _utcnow() -> datetime:
@@ -399,6 +407,34 @@ class ImportService:
                 return pf
         return None
 
+    def resolve_parquet_path(
+        self, workspace_id: str, pf: ParquetFile, *, reroot: bool = True
+    ) -> Optional[Path]:
+        """Return the record's ``.parquet`` file if it is inside the workspace ``data/``.
+
+        Records written by older versions or carried in a workspace export hold
+        an absolute path, possibly from another machine (POSIX or Windows).
+        With ``reroot``, a path outside this workspace is retried as the part
+        after its last ``data`` component, which is where an exported archive
+        puts the file. Every candidate is resolved, following symlinks, before
+        the containment check. Returns ``None`` when nothing qualifies.
+        """
+        data_dir = (self._ws_path(workspace_id) / "data").resolve()
+        candidates = [data_dir / pf.storage_path]  # an absolute path replaces data_dir
+        if reroot:
+            tail = _after_last_data_dir(pf.storage_path)
+            if tail:
+                candidates.append(data_dir.joinpath(*tail))
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if (
+                resolved.suffix.lower() == ".parquet"
+                and resolved.is_relative_to(data_dir)
+                and resolved.is_file()
+            ):
+                return resolved
+        return None
+
     def delete_parquet_file(
         self, workspace_id: str, file_id: str, user: str = "system"
     ) -> bool:
@@ -406,8 +442,10 @@ class ImportService:
         target = next((f for f in files if f.file_id == file_id), None)
         if target is None:
             return False
-        storage = Path(target.storage_path)
-        if storage.exists():
+        # No re-rooting: a stale record must never delete a different file
+        # that happens to share its name, such as the active census.
+        storage = self.resolve_parquet_path(workspace_id, target, reroot=False)
+        if storage is not None:
             storage.unlink()
         remaining = [
             json.loads(f.model_dump_json()) for f in files if f.file_id != file_id

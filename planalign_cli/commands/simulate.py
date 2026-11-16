@@ -120,6 +120,12 @@ def run_simulation(
         "--threshold",
         help="Repeatable ensemble threshold in metric:value form",
     ),
+    parallel: Optional[int] = typer.Option(
+        None,
+        "--parallel",
+        min=1,
+        help="Ensemble seed worker processes (default: sized from CPU and memory)",
+    ),
 ):
     """
     Run multi-year workforce simulation with Rich progress tracking.
@@ -154,6 +160,7 @@ def run_simulation(
 
         if seeds is not None or seed_list is not None or threshold or attribution:
             _run_ensemble_simulation(
+                parallel=parallel,
                 start_year=start_year,
                 end_year=end_year,
                 config_path=config_path,
@@ -170,6 +177,8 @@ def run_simulation(
                 dry_run=dry_run,
             )
             return
+        if parallel is not None:
+            raise ValueError("--parallel only applies to an ensemble (--seeds)")
 
         if verbose:
             console.print(f"📁 Config: {config_path}")
@@ -526,6 +535,7 @@ def default(
     min_seeds: int = typer.Option(10, "--min-seeds", min=1),
     discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
     threshold: Optional[list[str]] = typer.Option(None, "--threshold"),
+    parallel: Optional[int] = typer.Option(None, "--parallel", min=1),
 ):
     """Default simulate command."""
     run_simulation(
@@ -546,6 +556,7 @@ def default(
         min_seeds=min_seeds,
         discard_seed_dbs=discard_seed_dbs,
         threshold=threshold,
+        parallel=parallel,
     )
 
 
@@ -565,6 +576,7 @@ def _run_ensemble_simulation(
     discard_seed_dbs: bool,
     threshold: Optional[list[str]],
     dry_run: bool,
+    parallel: Optional[int] = None,
 ) -> None:
     """Build, disclose, and execute an isolated ensemble instead of one run."""
     from planalign_ensemble.models import EnsembleSpec
@@ -595,13 +607,14 @@ def _run_ensemble_simulation(
         EnsembleSpec,
     )
     plan = plan_ensemble(spec, output_root=_ensemble_output_root(database))
-    budget = resolve_worker_count(None, len(plan.seeds))
+    budget = resolve_worker_count(parallel, len(plan.seeds))
     print_ensemble_plan(console, plan, budget)
     if dry_run:
         console.print("[dim]Dry run: no seed workers were started.[/dim]")
         return
     result = run_ensemble(
         plan,
+        parallel=parallel,
         config=config,
         on_event=EnsembleProgressReporter(console, total_seeds=len(plan.seeds)),
     )

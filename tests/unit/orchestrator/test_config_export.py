@@ -255,11 +255,19 @@ class TestExportEnrollmentVars:
         result = _export_enrollment_vars(cfg)
         assert result["auto_enrollment_scope"] == "new_hires_only"
 
-    def test_dc_plan_scope_mapping_unknown_passthrough(self):
+    def test_dc_plan_scope_accepts_dbt_spelling(self):
         cfg = _make_config()
-        cfg.dc_plan = {"auto_enroll_scope": "custom_scope"}
+        cfg.dc_plan = {"auto_enroll_scope": "all_eligible_employees"}
         result = _export_enrollment_vars(cfg)
-        assert result["auto_enrollment_scope"] == "custom_scope"
+        assert result["auto_enrollment_scope"] == "all_eligible_employees"
+
+    @pytest.mark.parametrize("scope", ["custom_scope", "new_hires_only' OR '1'='1"])
+    def test_dc_plan_scope_rejects_unknown_values(self, scope):
+        # dbt only branches on the two known scopes; anything else enrolled nobody.
+        cfg = _make_config()
+        cfg.dc_plan = {"auto_enroll_scope": scope}
+        with pytest.raises(ValueError, match="auto_enroll_scope"):
+            _export_enrollment_vars(cfg)
 
     def test_dc_plan_opt_out_rate_overrides(self):
         cfg = _make_config()

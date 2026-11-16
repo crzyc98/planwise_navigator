@@ -81,7 +81,6 @@
 
 -- Debug: Current match configuration
 -- Match Status: {{ employer_match_status }}
--- Template: {{ match_template }}
 -- Match cap: {{ match_cap_percent * 100 }}% of compensation
 -- Deferral-based Tiers: {{ match_tiers | length }} defined
 -- Service-based Tiers: {{ employer_match_graded_schedule | length }} defined
@@ -406,7 +405,7 @@ tiered_match AS (
                 ELSE 0
             END
         ) AS match_amount,
-        '{{ match_template }}' AS formula_type,
+        '{{ match_template | replace("'", "''") }}' AS formula_type,
         NULL::INT AS applied_points
     FROM employee_contributions ec
     -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single

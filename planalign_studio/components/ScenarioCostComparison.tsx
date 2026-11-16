@@ -32,6 +32,8 @@ import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
 import CostBreakdownTooltip from './CostBreakdownTooltip';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
+import { buildSeedRangeView, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
+import { useEnsembleCostRanges } from '../hooks/useEnsembleCostRanges';
 import {
   buildCostSummary,
   runIdsFromAnalytics,
@@ -491,6 +493,18 @@ export default function ScenarioCostComparison() {
     });
     return Array.from(allYears).sort((a, b) => a - b);
   }, [comparisonData]);
+
+  // -------------------------------------------------------------------------
+  // Derived Data: Seed ranges beside gross employer cost
+  // -------------------------------------------------------------------------
+  const loadedScenarioIds = useMemo(
+    () => (comparisonData?.analytics ?? []).map(a => a.scenario_id),
+    [comparisonData]
+  );
+  const ensembleRanges = useEnsembleCostRanges(activeWorkspace?.id, loadedScenarioIds, anchorScenarioId);
+  const seedRanges = useMemo(() => buildSeedRangeView(ensembleRanges), [ensembleRanges]);
+  const seedRangesHidden = seedRangeHiddenReason(cohort, grandfatherExisting);
+  const seedRangeFor = (id: string) => (seedRangesHidden === null ? seedRanges.rows.get(id) : undefined);
 
   useEffect(() => {
     if (grandfatherCutoffYear === null && anchorAnalytics) {
@@ -1844,8 +1858,19 @@ export default function ScenarioCostComparison() {
                   netActive={netActive}
                   policyReducesCost={policyReducesCost}
                   grandfatherLoading={grandfatherLoading}
+                  seedRangeFor={seedRangeFor}
                 />
               </div>
+              {(seedRanges.rows.size > 0 || seedRanges.notes.length > 0) && (
+                <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted space-y-1">
+                  <p>{seedRangesHidden ?? SEED_RANGE_FOOTNOTE}</p>
+                  {seedRangesHidden === null && seedRanges.notes.map(note => (
+                    <p key={note.scenarioId}>
+                      <strong>{comparisonData.scenario_names[note.scenarioId] ?? note.scenarioId}:</strong> {note.reason}
+                    </p>
+                  ))}
+                </div>
+              )}
               {netActive && (
                 <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted">
                   Offsets apply the year after the terminations that generated them, under
