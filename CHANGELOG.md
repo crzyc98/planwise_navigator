@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-16
+
 ### Added
 
 - Cost Comparison can export the comparison report as PDF or PowerPoint for the scenarios and anchor on the page, and the Overview report button now offers the same two formats. If the server can't create a report because a component isn't installed, Studio says which one.
