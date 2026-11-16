@@ -18,6 +18,7 @@ from planalign_api.routers import simulations
 from planalign_api.services import report_service
 from planalign_api.services.census_tie_out import CensusTieOutService
 from planalign_api.services.current_result import publish_current_result
+from planalign_api.services.report_pptx import FOOTER_TOP
 from planalign_api.services.report_render import (
     render_html,
     render_report,
@@ -386,45 +387,90 @@ def _all_gaps(tie_out: CensusTieOut) -> CensusTieOut:
     return tie_out.model_copy(update={"rows": rows})
 
 
-def test_pptx_tie_out_slide_fits_and_wraps(tmp_path: Path) -> None:
+def _deck_titles(deck) -> list[str]:
+    return [
+        next(shape.text_frame.text for shape in slide.shapes if shape.name == "title")
+        for slide in deck.slides
+    ]
+
+
+def test_pptx_tie_out_is_a_native_table_that_fits(tmp_path: Path) -> None:
     pptx = pytest.importorskip("pptx")
-    pytest.importorskip("pptx.enum.text")
     _build_tied_run(tmp_path / "run", OVER_MATCH)
     tie_out = _all_gaps(_tie_out(tmp_path / "run"))
     report = _brief(
         _section("scenario-a"), _section("scenario-b", tie_out, anchor=False)
     )
-    output = render_report(report, tmp_path / "report.pptx", "pptx")
-
-    deck = pptx.Presentation(str(output))
-    titles = [s.shapes.title.text for s in deck.slides if s.shapes.title]
-    assert titles.count("Census tie-out: Scenario B") == 1
-    assert titles.index("Census tie-out: Scenario B") == titles.index("Notes") - 1
-    slide = next(
-        s
-        for s in deck.slides
-        if s.shapes.title and s.shapes.title.text == "Census tie-out: Scenario B"
+    deck = pptx.Presentation(
+        str(render_report(report, tmp_path / "report.pptx", "pptx"))
     )
-    footer = slide.shapes[-1]
+
+    titles = _deck_titles(deck)
+    title = "Census tie-out: Scenario B"
+    assert title in titles
+    assert titles.index("Notes") - 1 == max(
+        i for i, t in enumerate(titles) if t.startswith(title)
+    )
+    slides = [s for s, t in zip(deck.slides, titles) if t.startswith(title)]
+    shapes = [shape for slide in slides for shape in slide.shapes]
+    tables = [s for s in shapes if s.name == "table:census-tie-out"]
+    footer = pptx.util.Inches(FOOTER_TOP)
+    for shape in shapes:
+        assert shape.left >= 0 and shape.left + shape.width <= deck.slide_width
+        if shape.has_table:
+            assert shape.top + shape.height <= footer
+    header = [cell.text for cell in tables[0].table.rows[0].cells]
+    assert header == ["Metric", "Census 2024", "Simulated 2025", "Difference", "Status"]
     body = [
-        shape for shape in slide.shapes if shape not in (slide.shapes.title, footer)
+        [c.text for c in row.cells] for t in tables for row in list(t.table.rows)[1:]
     ]
-    assert len(body) == 3  # source note, table, gap messages
-    for shape in body:
-        assert shape.left >= 0 and shape.top >= 0
-        assert shape.left + shape.width <= deck.slide_width
-        assert shape.top + shape.height <= footer.top
-    note, table, gaps = body
-    for frame in (note.text_frame, gaps.text_frame):
-        assert frame.word_wrap
-        assert frame.auto_size == pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-    assert note.text_frame.text == tie_out.source_note
-    assert len(gaps.text_frame.paragraphs) == len(tie_out.rows)
-    assert all(p.font.size.pt == 9 for p in gaps.text_frame.paragraphs)
-    cells = table.table
-    assert (len(cells.rows), len(cells.columns)) == (len(tie_out.rows) + 1, 5)
-    assert cells.cell(6, 0).text == "Employer match"
-    assert cells.cell(6, 3).text == tie_out_difference(tie_out.rows[5])
+    assert len(body) == len(tie_out.rows)
+    for cells, row in zip(body, tie_out.rows):
+        assert cells == [
+            f"{row.label}: {row.message}",
+            tie_out_value(row, row.census_value),
+            tie_out_value(row, row.simulated_value),
+            tie_out_difference(row),
+            "Gap",
+        ]
+    notes = [s.text_frame.text for s in shapes if s.has_text_frame]
+    assert tie_out.source_note in notes
+
+
+def test_pptx_tie_out_ties_show_the_metric_alone(tmp_path: Path) -> None:
+    pptx = pytest.importorskip("pptx")
+    _build_tied_run(tmp_path / "run")
+    tie_out = _tie_out(tmp_path / "run")
+    deck = pptx.Presentation(
+        str(
+            render_report(
+                _brief(_section("scenario-a", tie_out)), tmp_path / "r.pptx", "pptx"
+            )
+        )
+    )
+    table = next(
+        shape.table
+        for slide in deck.slides
+        for shape in slide.shapes
+        if shape.name == "table:census-tie-out"
+    )
+    labels = [row.cells[0].text for row in list(table.rows)[1:]]
+    assert labels == [row.label for row in tie_out.rows]
+
+
+def test_pptx_unavailable_tie_out_states_the_reason(tmp_path: Path) -> None:
+    pptx = pytest.importorskip("pptx")
+    tie_out = _tie_out(tmp_path)
+    deck = pptx.Presentation(
+        str(
+            render_report(
+                _brief(_section("scenario-a", tie_out)), tmp_path / "r.pptx", "pptx"
+            )
+        )
+    )
+    slide = deck.slides[_deck_titles(deck).index("Census tie-out: Scenario A")]
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+    assert tie_out.unavailable_reason in texts
 
 
 def test_pptx_without_the_current_plan_has_no_tie_out_slide(tmp_path: Path) -> None:
@@ -432,5 +478,5 @@ def test_pptx_without_the_current_plan_has_no_tie_out_slide(tmp_path: Path) -> N
     output = render_report(
         _brief(_section("scenario-a")), tmp_path / "report.pptx", "pptx"
     )
-    titles = [s.shapes.title.text for s in pptx.Presentation(str(output)).slides]
+    titles = _deck_titles(pptx.Presentation(str(output)))
     assert not any(title.startswith("Census tie-out") for title in titles)
