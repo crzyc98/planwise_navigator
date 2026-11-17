@@ -107,6 +107,14 @@ Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/p
 | PYSEC-2026-3923 | sqlparse 0.5.5 | 0.6.0 | Quadratic-CPU DoS in `ReindentFilter` on attacker-controlled SQL near the grouping-token cap. All SQL processed here is first-party dbt project code (see the sqlparse `MAX_GROUPING_TOKENS` auto-patch in `planalign_orchestrator`), not attacker-controlled. dbt-core 1.12.6 permits the fix; review it with the other sqlparse advisories. |
 | PYSEC-2024-48, PYSEC-2026-2120, PYSEC-2026-2121 | black 23.9.1 | 26.3.1 | Regex/formatting DoS issues in black's own source-processing. Dev/CI tooling only. dbt-core 1.12.6 now permits `pathspec>=1.0`, removing the earlier resolver conflict. Review the Black upgrade and its formatting impact separately. |
 
+### Approved Studio Dependency Exceptions
+
+Temporary `npm audit` exceptions for `planalign_studio`, listed in `planalign_studio/scripts/audit-dependencies.mjs`. Any other high or critical advisory fails CI, and so does an exception past its review date. Owner: crzyc98.
+
+| Advisory | Package | Fix version | Review by | Exposure assessment |
+|---|---|---|---|---|
+| GHSA-fc5q-39xc-vjpf | picomatch <=4.0.7 | none yet | 2026-12-15 | ReDoS on crafted extglob patterns. picomatch runs only in Node build and test tooling (`vite`, `tinyglobby`, `fdir`, `vitest`) on first-party glob patterns from our own config. It isn't in the browser bundle and never sees user input. Remove the exception once a patched picomatch ships. |
+
 ## Scope
 
 In scope: the `planalign_*` Python packages, the dbt project, the Studio frontend, and the CLI.
