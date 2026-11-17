@@ -53,6 +53,7 @@ from planalign_orchestrator.calibration_runner import (
     JobLevelRange,
     PerYearCompensationResult,
 )
+from planalign_orchestrator.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -961,6 +962,14 @@ class AutoCalibrator:
         )
 
 
+# Shown to the analyst as-is (409), so it names the Studio setting.
+SHARED_PAY_SCALE_REQUIRED = (
+    "Raises and hire pay together needs one pay scale for staff and hires. "
+    "Turn on 'Use these ranges for existing staff too' under New Hire Strategy, "
+    "re-run the scenario, then calibrate."
+)
+
+
 class HorizonSearch:
     """Runs the horizon solver on real evaluations, averaged across seeds."""
 
@@ -1103,7 +1112,7 @@ class HorizonSearch:
         calibrator = self.calibrator
         config = calibrator._runner._config
         if not config.new_hire.get("shared_pay_scale"):
-            raise ValueError("Horizon search requires the shared pay scale")
+            raise ConfigurationError(SHARED_PAY_SCALE_REQUIRED)
         outcome = solve_horizon(self._evaluate, self._start(), self._limits())
         report = self._report(outcome)
         best = outcome.best

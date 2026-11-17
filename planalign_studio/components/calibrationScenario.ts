@@ -1,4 +1,4 @@
-import { ApiError, type AutoCalibrationOutcome } from '../services/api';
+import { ApiError, type AutoCalibrationOutcome, type Scenario } from '../services/api';
 
 /** Prefer the exact Baseline name; accept capitalization/spacing differences. */
 export function baselineScenarioId(scenarios: { id: string; name: string }[]): string | null {
@@ -17,6 +17,14 @@ export type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
 /** Horizon search when the scenario is on the shared pay scale it needs (#1075). */
 export function defaultSearchMode(newHire: { shared_pay_scale?: unknown } | null | undefined): SolveMode {
   return newHire?.shared_pay_scale === true ? 'horizon' : 'new_hire_scale';
+}
+
+type StudioConfig = Scenario['config_overrides'];
+
+/** A scenario's overrides with the shared pay scale turned on; every other setting is kept. */
+export function withSharedPayScale(overrides: StudioConfig | null | undefined): StudioConfig {
+  const newHire = (overrides?.new_hire ?? {}) as Record<string, unknown>;
+  return { ...overrides, new_hire: { ...newHire, shared_pay_scale: true } };
 }
 
 export type GrowthMetric = 'active_average' | 'payroll_per_head';

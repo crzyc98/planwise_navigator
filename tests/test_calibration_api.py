@@ -8,6 +8,7 @@ CalibrationRunner mocked, so no dbt build runs.
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 import sys
 from pathlib import Path
 
@@ -668,3 +669,38 @@ def test_merge_candidate_salary_growth(rate) -> None:
         "other": "preserved",
     }
     assert original["new_hire"]["salary_growth_rate"] == 0.03
+
+
+@pytest.mark.parametrize("shared", [None, False])
+def test_horizon_without_shared_pay_scale_returns_409_before_lookup(
+    client, shared
+) -> None:
+    # Saved workspaces keep the shared pay scale off (#1075). Refuse before the
+    # matching-run lookup, so the analyst isn't sent to re-run first.
+    class _OldWorkspaceStorage:
+        def get_workspace(self, workspace_id):
+            return SimpleNamespace(base_config={})
+
+        def get_merged_config(self, workspace_id, scenario_id):
+            return {"new_hire": {"shared_pay_scale": shared}}
+
+    client.app.dependency_overrides[calibration_router.get_storage] = (
+        lambda: _OldWorkspaceStorage()
+    )
+    try:
+        resp = client.post(
+            "/api/calibration/optimize",
+            json={
+                "workspace_id": "ws",
+                "scenario_id": "baseline",
+                "settings": {
+                    "target_workforce_growth": 0.03,
+                    "target_comp_growth": 0.04,
+                    "search_mode": "horizon",
+                },
+            },
+        )
+        assert resp.status_code == 409
+        assert "existing staff too" in resp.json()["detail"]
+    finally:
+        client.app.dependency_overrides.clear()
