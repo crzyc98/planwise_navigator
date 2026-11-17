@@ -25,13 +25,13 @@ def test_deep_diff_is_sorted_atomic_and_cosmetic_free() -> None:
     configs = {
         "a": {
             "name": "A",
-            "simulation": {"growth": 0.03, "seed": 1},
+            "simulation": {"name": "A", "growth": 0.03, "seed": 1},
             "tiers": [{"rate": 0.5}],
             "only_a": True,
         },
         "b": {
             "name": "B",
-            "simulation": {"growth": 0.05, "seed": 1},
+            "simulation": {"name": "B", "growth": 0.05, "seed": 1},
             "tiers": [{"rate": 1.0}],
             "only_b": True,
         },
@@ -40,6 +40,7 @@ def test_deep_diff_is_sorted_atomic_and_cosmetic_free() -> None:
     paths = [item.path for item in result.differences]
     assert paths == sorted(paths)
     assert "name" not in paths
+    assert "simulation.name" not in paths
     assert "tiers" in paths
     assert {item.status for item in result.differences} == {
         "changed",

@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
+  ArrowLeftRight,
   CheckCircle,
   Loader2,
 } from 'lucide-react';
@@ -25,10 +26,13 @@ import {
   ConfigDelta,
   ConfigDiffResponse,
   DCPlanMetrics,
+  getScenario,
   getScenarioConfigDiff,
   Scenario,
+  updateScenario,
   WorkforceMetrics,
 } from '../services/api';
+import { applyDeltaToOverrides, canApplyDelta } from './applyConfigDelta';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
 import { splitConfigDeltas, UNRECORDED_NOTE } from './configDiff';
@@ -171,23 +175,83 @@ function MetricPanel({
   );
 }
 
-function ConfigDeltaRow({ delta }: Readonly<{ delta: ConfigDelta }>) {
+type Side = 'a' | 'b';
+
+interface ApplyState {
+  status: 'saving' | 'done' | 'error';
+  to: Side;
+  message?: string;
+}
+
+interface ConfigDeltaRowProps {
+  delta: ConfigDelta;
+  names: Record<Side, string>;
+  apply?: ApplyState;
+  /** Another copy is saving; one at a time so saves can't overwrite each other. */
+  locked: boolean;
+  onApply?: (delta: ConfigDelta, to: Side) => void;
+}
+
+function ApplyButton({ from, to, names, disabled, onClick }: Readonly<{
+  from: Side;
+  to: Side;
+  names: Record<Side, string>;
+  disabled: boolean;
+  onClick: () => void;
+}>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={`Save ${names[from]}'s value into ${names[to]}. Rerun ${names[to]} to see the effect.`}
+      className="mt-1 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-brand-ink hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {to === 'a' && '← '}Use in {names[to]}{to === 'b' && ' →'}
+    </button>
+  );
+}
+
+function ApplyStatus({ apply, names }: Readonly<{ apply: ApplyState; names: Record<Side, string> }>) {
+  if (apply.status === 'saving') return <span className="text-xs text-ink-muted">Saving to {names[apply.to]}…</span>;
+  if (apply.status === 'error') return <span className="text-xs text-danger-ink">{apply.message ?? 'Unable to save.'}</span>;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-success-surface px-2 py-0.5 text-xs font-medium text-success-ink">
+      <ArrowLeftRight size={12} />Saved to {names[apply.to]} · rerun to see it
+    </span>
+  );
+}
+
+function ConfigDeltaRow({ delta, names, apply, locked, onApply }: Readonly<ConfigDeltaRowProps>) {
   const statusLabel = {
     changed: 'Changed',
     only_a: 'Only in A',
     only_b: 'Only in B',
   }[delta.status];
+  const canCopy = onApply !== undefined && delta.status === 'changed' && canApplyDelta(delta.path);
+  const valueCell = (side: Side) => {
+    const other: Side = side === 'a' ? 'b' : 'a';
+    return (
+      <td className="px-4 py-3 text-sm text-ink-muted">
+        <div>{displayConfigValue(delta[side])}</div>
+        {canCopy && (
+          <ApplyButton from={side} to={other} names={names} disabled={locked} onClick={() => onApply(delta, other)} />
+        )}
+      </td>
+    );
+  };
   return (
     <tr className="border-t border-border align-top">
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-ink">{friendlyLabel(delta.path)}</span>
           <span className="rounded-full bg-info-surface px-2 py-0.5 text-xs font-medium text-info-ink">{statusLabel}</span>
+          {apply && <ApplyStatus apply={apply} names={names} />}
         </div>
         <code className="text-xs text-ink-muted">{delta.path}</code>
       </td>
-      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.a)}</td>
-      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.b)}</td>
+      {valueCell('a')}
+      {valueCell('b')}
     </tr>
   );
 }
@@ -203,6 +267,13 @@ export default function ScenarioDiff() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedScenarios, setSelectedScenarios] = useState<Scenario[]>([]);
+  const [applyStates, setApplyStates] = useState<Record<string, ApplyState>>({});
+  const pairKey = `${scenarioA}|${scenarioB}`;
+  const currentPair = useRef(pairKey);
+  useEffect(() => {
+    currentPair.current = pairKey;
+    setApplyStates({});
+  }, [pairKey]);
 
   const queryError = useMemo(() => {
     if (!scenarioA || !scenarioB) return 'Select exactly two scenarios with successful results to open a diff.';
@@ -255,6 +326,38 @@ export default function ScenarioDiff() {
 
   const nameA = configDiff.scenario_names[scenarioA] ?? scenarioA;
   const nameB = configDiff.scenario_names[scenarioB] ?? scenarioB;
+  const names: Record<Side, string> = { a: nameA, b: nameB };
+  const workspaceId = activeWorkspace.id;
+
+  async function applyDelta(delta: ConfigDelta, to: Side): Promise<void> {
+    const targetId = to === 'a' ? scenarioA : scenarioB;
+    const value = to === 'a' ? delta.b : delta.a;
+    const pair = pairKey;
+    const setState = (state: ApplyState) => {
+      // Drop results that land after the user moved to another pair.
+      if (currentPair.current === pair) setApplyStates(prev => ({ ...prev, [delta.path]: state }));
+    };
+    setState({ status: 'saving', to });
+    try {
+      // Read the saved overrides fresh: they may have changed since the run.
+      const target = await getScenario(workspaceId, targetId);
+      if (target.status === 'running') throw new Error(`${names[to]} is running. Copy the setting after it finishes.`);
+      const next = applyDeltaToOverrides(target.config_overrides ?? {}, delta.path, value);
+      if (!next) throw new Error('This setting cannot be copied between scenarios.');
+      await updateScenario(workspaceId, targetId, { config_overrides: next });
+      setState({ status: 'done', to });
+    } catch (caught) {
+      setState({ status: 'error', to, message: caught instanceof Error ? caught.message : 'Unable to save.' });
+    }
+  }
+  const saving = Object.values(applyStates).some(state => state.status === 'saving');
+  const renderRow = (delta: ConfigDelta) => (
+    <ConfigDeltaRow key={delta.path} delta={delta} names={names} apply={applyStates[delta.path]} locked={saving} onApply={(row, to) => { void applyDelta(row, to); }} />
+  );
+  // One run didn't record these, so the other's value is unknown: nothing to copy.
+  const renderUnrecordedRow = (delta: ConfigDelta) => (
+    <ConfigDeltaRow key={delta.path} delta={delta} names={names} locked />
+  );
   const { changed, unrecorded } = splitConfigDeltas(configDiff.differences);
   const provenanceA = configDiff.provenance[scenarioA];
   const provenanceB = configDiff.provenance[scenarioB];
@@ -290,19 +393,19 @@ export default function ScenarioDiff() {
 
       <section className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm">
         <div className="flex items-center justify-between px-5 py-4">
-          <div><h2 className="font-semibold text-ink">Configuration changes</h2><p className="text-sm text-ink-muted">Effective settings used by the workspace and scenario overrides</p></div>
+          <div><h2 className="font-semibold text-ink">Configuration changes</h2><p className="text-sm text-ink-muted">Settings each result ran with. Use the buttons to copy one setting to the other scenario; rerun it to see the effect.</p></div>
           <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{changed.length} changed</span>
         </div>
         {changed.length === 0 ? (
           <div className="flex items-center gap-2 border-t border-border px-5 py-5 text-ink-muted"><CheckCircle className="text-success-ink" />No effective settings differ.</div>
         ) : (
-          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{changed.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{changed.map(renderRow)}</tbody></table></div>
         )}
         {unrecorded.length > 0 && (
           <details className="border-t border-border px-5 py-3">
             <summary className="cursor-pointer text-sm font-medium text-ink-muted">{unrecorded.length} setting{unrecorded.length === 1 ? '' : 's'} recorded in only one run's config</summary>
             <p className="mt-2 text-sm text-ink-muted">{UNRECORDED_NOTE}</p>
-            <div className="mt-3 overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{unrecorded.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+            <div className="mt-3 overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{unrecorded.map(renderUnrecordedRow)}</tbody></table></div>
           </details>
         )}
         <div className="border-t border-border px-5 py-3 text-sm text-ink-muted">

@@ -57,6 +57,18 @@ const CHECK_WORDS: Record<UnevaluatedCheck['check'], string> = {
 };
 
 /**
+/** Pay settings the engine reads as compensation.<name> (decimal) and Studio saves as <name>_percent. */
+export const COMPENSATION_PERCENT_FIELDS = [
+  'cola_rate',
+  'merit_budget',
+  'raise_budget',
+  'raise_coverage',
+  'promotion_increase',
+  'promotion_budget',
+  'promotion_distribution_range',
+] as const;
+
+/**
  * Settings recorded twice under different paths (#1178). Each maps to one
  * canonical path so both copies render identical text and collapse into one
  * line. `scale` converts the value to the canonical path's units.
@@ -64,7 +76,7 @@ const CHECK_WORDS: Record<UnevaluatedCheck['check'], string> = {
 const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number }> = [
   // The engine reads compensation.<name>; Studio writes <name>_percent.
   {
-    pattern: /^compensation\.(cola_rate|merit_budget|raise_budget|raise_coverage|promotion_increase|promotion_budget|promotion_distribution_range)$/,
+    pattern: new RegExp(`^compensation\\.(${COMPENSATION_PERCENT_FIELDS.join('|')})$`),
     replace: 'compensation.$1_percent',
     scale: 100,
   },
@@ -124,6 +136,9 @@ function trimNumber(value: number): string {
   return String(Number(value.toFixed(2)));
 }
 
+/** `_percent` keys Studio saves as decimals (0.75 = 75%), not whole percents. */
+const DECIMAL_PERCENT_KEYS = new Set(['max_voluntary_deferral_percent', 'match_cap_percent']);
+
 /** A config value in plain words, or null when it can't be shown inline. */
 export function formatSetting(path: string, value: unknown): string | null {
   if (value === null || value === undefined) return 'not set';
@@ -131,6 +146,7 @@ export function formatSetting(path: string, value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (typeof value !== 'number') return null;
   const key = path.split('.').at(-1) ?? path;
+  if (DECIMAL_PERCENT_KEYS.has(key)) return `${trimNumber(value * 100)}%`;
   if (key.endsWith('_percent')) return `${trimNumber(value)}%`;
   if (/(_rate|_pct|_probability)$/.test(key) && Math.abs(value) <= 1) {
     return `${trimNumber(value * 100)}%`;

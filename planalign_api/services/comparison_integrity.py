@@ -111,6 +111,9 @@ CONFIG_GROUP_PREFIXES: dict[str, ConfigGroup] = {
     "enrollment": "employee_behavior",
     "enrollment.auto_enrollment": "plan_design",
     "enrollment.auto_enrollment.opt_out_rates": "employee_behavior",
+    "enrollment.auto_enrollment.voluntary_enrollment_rate": "employee_behavior",
+    "enrollment.auto_enrollment.new_hire_opt_out_rate": "employee_behavior",
+    "enrollment.auto_enrollment.deferral_spread_max_lift": "employee_behavior",
     "enrollment.auto_enrollment.reenrollment_sweep.decline_probability": (
         "employee_behavior"
     ),

@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 _MISSING = object()
 _COSMETIC_PATHS = {
     "name",
+    "simulation.name",
     "description",
     "scenario_id",
     "plan_design_id",
