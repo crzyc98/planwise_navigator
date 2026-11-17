@@ -32,7 +32,9 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    -- #1226: marks acquired-group hires; NULL on every other event
+    acquisition_id
   FROM {{ ref('int_hiring_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -57,7 +59,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_eligibility_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -81,7 +84,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_termination_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -106,7 +110,8 @@ WITH all_events AS (
     nht.age_band,
     nht.tenure_band,
     nht.termination_rate AS event_probability,
-    nht.event_category  -- E021 FIX: Use source event_category instead of hardcoded 'termination'
+    nht.event_category,  -- E021 FIX: Use source event_category instead of hardcoded 'termination'
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_new_hire_termination_events') }} nht
   WHERE nht.simulation_year = {{ simulation_year }}
 
@@ -130,7 +135,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_promotion_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -154,7 +160,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_merit_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -178,7 +185,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_enrollment_events') }}
   WHERE scenario_id = '{{ sid }}'
     AND simulation_year = {{ simulation_year }}
@@ -203,7 +211,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_deferral_rate_escalation_events') }}
   WHERE simulation_year = {{ simulation_year }}
   UNION ALL
@@ -226,7 +235,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_reenrollment_sweep_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -252,7 +262,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_deferral_change_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
@@ -279,7 +290,8 @@ WITH all_events AS (
     age_band,
     tenure_band,
     event_probability,
-    event_category
+    event_category,
+    NULL::VARCHAR AS acquisition_id
   FROM {{ ref('int_deferral_match_response_events') }}
   WHERE simulation_year = {{ simulation_year }}
 ),
@@ -328,6 +340,7 @@ final_events AS (
     tenure_band,
     event_probability,
     event_category,
+    acquisition_id,
     -- Add event sequencing for conflict resolution
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year

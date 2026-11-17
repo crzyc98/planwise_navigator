@@ -32,5 +32,7 @@ SELECT
   created_at,
   parameter_scenario_id,
   parameter_source,
-  data_quality_flag
+  data_quality_flag,
+  -- #1226: acquisition that a hire came from; NULL for organic hires and other events
+  CAST(acquisition_id AS VARCHAR) AS acquisition_id
 FROM {{ ref('int_current_year_events') }}

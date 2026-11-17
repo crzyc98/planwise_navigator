@@ -26,6 +26,7 @@ def render_hiring(year: int, seed: int = 42, legacy: bool = False) -> str:
         subsystem_seed=lambda name: seed,
         assign_age_band=lambda column: "'age_band'",
         assign_tenure_band=lambda column: "'tenure_band'",
+        acquisitions_joining=lambda year: [],
     )
     macro = env.from_string(
         (DBT / "macros/events/distributed_hire_date.sql").read_text()

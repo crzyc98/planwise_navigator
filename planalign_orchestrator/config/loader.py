@@ -245,6 +245,21 @@ class SimulationConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def validate_acquisitions_placement(self) -> "SimulationConfig":
+        """Reject a top-level ``acquisitions`` key, which would be ignored.
+
+        Effective dates are not checked against the simulated years here:
+        calibration and validate-change reload a scenario over a shorter
+        range, and a run that misses an acquisition warns instead
+        (``warn_unreached_acquisitions``).
+        """
+        if "acquisitions" in (self.model_extra or {}):
+            raise ValueError(
+                "acquisitions belongs under workforce: (workforce.acquisitions)"
+            )
+        return self
+
+    @model_validator(mode="after")
     def validate_voluntary_cap(self) -> "SimulationConfig":
         """Validate AE floors after per-design and Studio settings are available."""
         from .export import validate_enrollment_cap

@@ -8,6 +8,10 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
+{# A prior year written before #1226 has no acquisition_id; the column is added
+   only after this query is built, so read NULL from it until then. #}
+{% set prior_has_acquisition_id = is_incremental()
+   and 'acquisition_id' in (adapter.get_columns_in_relation(this) | map(attribute='name') | map('lower') | list) %}
 
 -- Workforce-only state. Enrollment, deferral, eligibility, and benefit values
 -- remain owned by their dedicated accumulators/calculations.
@@ -24,7 +28,8 @@ WITH prior_workforce AS (
     level_id,
     CAST(NULL AS TIMESTAMP) AS termination_date,
     'active' AS employment_status,
-    scheduled_hours_per_week
+    scheduled_hours_per_week,
+    {{ 'acquisition_id' if prior_has_acquisition_id else 'CAST(NULL AS VARCHAR) AS acquisition_id' }}
   FROM {{ this }}
   WHERE scenario_id = '{{ scenario_id }}'
     AND simulation_year = {{ simulation_year - 1 }}
@@ -41,7 +46,8 @@ WITH prior_workforce AS (
     CAST(NULL AS INTEGER) AS level_id,
     CAST(NULL AS TIMESTAMP) AS termination_date,
     CAST(NULL AS VARCHAR) AS employment_status,
-    CAST(NULL AS DECIMAL(5,2)) AS scheduled_hours_per_week
+    CAST(NULL AS DECIMAL(5,2)) AS scheduled_hours_per_week,
+    CAST(NULL AS VARCHAR) AS acquisition_id
   WHERE FALSE
   {% endif %}
 ),
@@ -59,7 +65,8 @@ base_workforce AS (
     baseline.level_id,
     CAST(baseline.termination_date AS TIMESTAMP) AS termination_date,
     baseline.employment_status,
-    census.scheduled_hours_per_week
+    census.scheduled_hours_per_week,
+    CAST(NULL AS VARCHAR) AS acquisition_id
   FROM {{ ref('int_baseline_workforce') }} baseline
   LEFT JOIN {{ ref('stg_census_data') }} census
     ON baseline.employee_id = census.employee_id
@@ -79,8 +86,10 @@ current_year_events AS (
     compensation_amount,
     previous_compensation,
     employee_age,
+    employee_tenure,
     level_id,
-    event_category
+    event_category,
+    acquisition_id
   FROM {{ ref('fct_yearly_events') }}
   WHERE scenario_id = '{{ scenario_id }}'
     AND simulation_year = {{ simulation_year }}
@@ -98,6 +107,9 @@ employee_events AS (
     MAX(CASE WHEN event_type = 'hire' THEN employee_age END) AS hire_age,
     MAX(CASE WHEN event_type = 'hire' THEN employee_ssn END) AS hire_ssn,
     MAX(CASE WHEN event_type = 'hire' THEN level_id END) AS hire_level_id,
+    -- #1226: acquired members carry prior service and their acquisition id
+    MAX(CASE WHEN event_type = 'hire' THEN employee_tenure END) AS hire_tenure,
+    MAX(CASE WHEN event_type = 'hire' THEN acquisition_id END) AS hire_acquisition_id,
     COUNT(CASE WHEN event_type = 'hire' THEN 1 END) > 0 AS is_new_hire,
     MAX(CASE WHEN event_type = 'promotion' THEN compensation_amount END) AS promotion_salary,
     MAX(CASE WHEN event_type = 'promotion' THEN level_id END) AS promotion_level_id,
@@ -134,7 +146,8 @@ existing_workforce AS (
       ELSE b.employment_status END AS employment_status,
     e.termination_reason,
     FALSE AS is_new_hire,
-    b.scheduled_hours_per_week
+    b.scheduled_hours_per_week,
+    b.acquisition_id
   FROM base_workforce b
   LEFT JOIN employee_events e ON b.employee_id = e.employee_id
 ),
@@ -148,7 +161,7 @@ new_hires AS (
     e.hire_date AS employee_hire_date,
     e.hire_salary AS employee_gross_compensation,
     e.hire_age AS current_age,
-    0 AS current_tenure,
+    CAST(COALESCE(e.hire_tenure, 0) AS INTEGER) AS current_tenure,
     CAST(e.hire_level_id AS INTEGER) AS level_id,
     CASE WHEN e.is_new_hire_termination OR e.has_termination
       THEN CAST(e.termination_date AS TIMESTAMP) END AS termination_date,
@@ -156,7 +169,8 @@ new_hires AS (
       THEN {{ status_terminated() }} ELSE {{ status_active() }} END AS employment_status,
     e.termination_reason,
     TRUE AS is_new_hire,
-    hiring.scheduled_hours_per_week
+    hiring.scheduled_hours_per_week,
+    e.hire_acquisition_id AS acquisition_id
   FROM employee_events e
   LEFT JOIN {{ ref('int_hiring_events') }} hiring
     ON e.employee_id = hiring.employee_id
@@ -352,6 +366,10 @@ SELECT
   CASE
     WHEN w.employment_status = {{ status_terminated() }}
       AND w.termination_date IS NOT NULL
+      AND w.acquisition_id IS NOT NULL
+      THEN {{ carried_tenure_at('w.employee_hire_date', 'w.current_tenure', simulation_year, 'w.termination_date') }}
+    WHEN w.employment_status = {{ status_terminated() }}
+      AND w.termination_date IS NOT NULL
       THEN {{ calculate_tenure('w.employee_hire_date', "MAKE_DATE(" ~ simulation_year ~ ", 12, 31)", 'w.termination_date') }}
     ELSE w.current_tenure
   END AS current_tenure,
@@ -359,7 +377,8 @@ SELECT
   {{ assign_age_band('w.current_age') }} AS age_band,
   {{ assign_tenure_band('w.current_tenure') }} AS tenure_band,
   {{ simulation_year }}::INTEGER AS simulation_year,
-  w.scheduled_hours_per_week
+  w.scheduled_hours_per_week,
+  CAST(w.acquisition_id AS VARCHAR) AS acquisition_id
 FROM deduplicated_workforce w
 LEFT JOIN prorated_compensation p ON w.employee_id = p.employee_id
 INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment

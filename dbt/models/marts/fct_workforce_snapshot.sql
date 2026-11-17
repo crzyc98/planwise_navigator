@@ -49,7 +49,8 @@ workforce AS (
     termination_reason,
     detailed_status_code,
     simulation_year,
-    scheduled_hours_per_week
+    scheduled_hours_per_week,
+    acquisition_id
   FROM {{ ref('int_workforce_state_accumulator') }}
   WHERE scenario_id = '{{ scenario_id }}'
     AND simulation_year = {{ simulation_year }}
@@ -498,7 +499,9 @@ SELECT
   '{{ scenario_id }}'::VARCHAR AS scenario_id,
   plan_design_id,
   CURRENT_TIMESTAMP AS snapshot_created_at,
-  CAST(last_escalation_date AS TIMESTAMP) AS last_escalation_date
+  CAST(last_escalation_date AS TIMESTAMP) AS last_escalation_date,
+  -- #1226: acquisition a member joined with; NULL for everyone else
+  CAST(acquisition_id AS VARCHAR) AS acquisition_id
 FROM composed
 CROSS JOIN irs_limits
 CROSS JOIN LATERAL ({{ contribution_source_allocation() }}) source_allocation

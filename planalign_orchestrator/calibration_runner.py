@@ -34,6 +34,7 @@ from planalign_orchestrator.pipeline.enrollment_projection import (
     EnrollmentDecisionProjection,
 )
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
+from planalign_orchestrator.pipeline_orchestrator import warn_unreached_acquisitions
 from planalign_orchestrator.run_metadata import check_and_record_run
 from planalign_orchestrator.utils import DatabaseConnectionManager
 from planalign_orchestrator.workforce_state_projection import WorkforceStateProjection
@@ -347,6 +348,9 @@ class CalibrationRunner:
     def run_calibration(self) -> List[PerYearCompensationResult]:
         """Validate, guard, build the comp subgraph per year, return results."""
         verify_dc_prerequisites(self.database_path)
+        warn_unreached_acquisitions(
+            self._config, self.run.start_year, self.run.end_year
+        )
         self._ensure_projection_tables()
         self._record_run_provenance()
         self.baseline_costs = self._read_baseline_costs()
@@ -698,6 +702,8 @@ class CalibrationRunner:
             SELECT
                 AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'new_hire_active'
+                      -- acquired members (#1226) carry experienced pay
+                      AND acquisition_id IS NULL
                 ) AS new_hire_avg,
                 AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'continuous_active'

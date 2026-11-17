@@ -116,13 +116,20 @@ def _setup(config: SimulationConfig) -> Dict[str, Any]:
 def _bridge_config(
     config: SimulationConfig, census_path: Path, start_year: int, end_year: int
 ) -> SimulationConfig:
-    """The config for the bridge years: same settings, the given census."""
+    """The config for the bridge years: same settings, the given census.
+
+    Acquisitions are scenario events, so they never enter the shared bridge
+    census (#1226).
+    """
     simulation = config.simulation.model_copy(
         update={"start_year": start_year, "end_year": end_year}
     )
+    workforce = config.workforce.model_copy(update={"acquisitions": []})
     setup = _setup(config)
     setup["census_parquet_path"] = str(census_path.resolve())
-    return config.model_copy(update={"simulation": simulation, "setup": setup})
+    return config.model_copy(
+        update={"simulation": simulation, "workforce": workforce, "setup": setup}
+    )
 
 
 def _simulate(

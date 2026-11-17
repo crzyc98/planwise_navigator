@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
@@ -19,6 +19,17 @@ class WorkforceProjectionResult:
     scenario_id: str
     plan_design_id: str
     employee_count: int
+
+
+def _acquisition_column(connection: Any) -> str:
+    """Select acquisition_id, or NULL from an accumulator built before #1226."""
+    present = connection.execute(
+        "SELECT COUNT(*) > 0 FROM information_schema.columns "
+        "WHERE table_schema = 'main' "
+        "AND table_name = 'int_workforce_state_accumulator' "
+        "AND column_name = 'acquisition_id'"
+    ).fetchone()[0]
+    return "acquisition_id" if present else "CAST(NULL AS VARCHAR) AS acquisition_id"
 
 
 class WorkforceStateProjection:
@@ -42,6 +53,7 @@ class WorkforceStateProjection:
         "employment_status": "VARCHAR",
         "termination_date": "TIMESTAMP",
         "scheduled_hours_per_week": "DECIMAL(5, 2)",
+        "acquisition_id": "VARCHAR",
     }
 
     def __init__(self, db_manager: DatabaseConnectionManager) -> None:
@@ -106,7 +118,8 @@ class WorkforceStateProjection:
                       level_id,
                       employment_status,
                       termination_date,
-                      scheduled_hours_per_week
+                      scheduled_hours_per_week,
+                      {_acquisition_column(connection)}
                     FROM int_workforce_state_accumulator
                     WHERE scenario_id = ?
                       {"AND plan_design_id = ?" if plan_design_id is not None else ""}

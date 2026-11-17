@@ -206,7 +206,9 @@ class StageValidator:
 
         def _ev_chk(conn):
             hires = conn.execute(
-                "SELECT COUNT(*) FROM int_hiring_events WHERE simulation_year = ?",
+                # Acquired members (#1226) are not organic hiring demand.
+                "SELECT COUNT(*) FROM int_hiring_events "
+                "WHERE simulation_year = ? AND acquisition_id IS NULL",
                 [year],
             ).fetchone()[0]
             demand = conn.execute(

@@ -56,6 +56,8 @@ format_violations AS (
       WHEN REGEXP_MATCHES(employee_id, '^NH_\d{4}_[a-f0-9]{8}_\d{6}$') THEN 'VALID'
       -- Legacy new hire: NH_YYYY_NNNNNN
       WHEN REGEXP_MATCHES(employee_id, '^NH_\d{4}_\d{6}$') THEN 'VALID'
+      -- Acquired-group member (#1226): ACQ_<acquisition id>_NNNNNN
+      WHEN REGEXP_MATCHES(employee_id, '^ACQ_[A-Za-z0-9][A-Za-z0-9-]{0,31}_\d{6}$') THEN 'VALID'
       ELSE 'INVALID'
     END AS format_status
   FROM all_employee_ids

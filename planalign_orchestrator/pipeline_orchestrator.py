@@ -90,6 +90,30 @@ class PipelineStageError(RuntimeError):
     pass
 
 
+def warn_unreached_acquisitions(
+    config: SimulationConfig, start_year: int, end_year: int
+) -> List[str]:
+    """Warn about acquisitions whose join year this run does not simulate.
+
+    Config loading accepts any effective date, because calibration and
+    validate-change reload a scenario over a shorter range, so say it loudly.
+    """
+    skipped = [
+        f"{item.id} ({item.effective_date.isoformat()})"
+        for item in config.workforce.acquisitions
+        if not start_year <= item.effective_date.year <= end_year
+    ]
+    if skipped:
+        logger.warning(
+            "ACQUISITIONS NOT APPLIED: %s fall outside the simulated years %d-%d "
+            "and will not join in this run",
+            ", ".join(skipped),
+            start_year,
+            end_year,
+        )
+    return skipped
+
+
 class PipelineOrchestrator:
     def __init__(
         self,
@@ -296,6 +320,10 @@ class PipelineOrchestrator:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
         validate_seed_coverage(end)
+        # A resumed run already simulated the configured years before ``start``.
+        warn_unreached_acquisitions(
+            self.config, min(start, self.config.simulation.start_year), end
+        )
         authoritative_run_id: Optional[str] = None
 
         if self._initialization_callback is not None:
