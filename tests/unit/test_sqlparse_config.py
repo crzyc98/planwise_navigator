@@ -7,6 +7,11 @@ These tests verify the sqlparse configuration module works correctly
 for setting MAX_GROUPING_TOKENS to handle large SQL models.
 """
 
+from collections.abc import Iterator
+
+import pytest
+import sqlparse.engine.grouping
+
 from planalign_orchestrator.sqlparse_config import (
     DEFAULT_MAX_GROUPING_TOKENS,
     configure_sqlparse,
@@ -15,6 +20,19 @@ from planalign_orchestrator.sqlparse_config import (
     is_configured,
     is_pth_installed,
 )
+
+
+@pytest.fixture(autouse=True)
+def _configured_sqlparse() -> Iterator[None]:
+    """Start each test from the configured limit and restore what was there.
+
+    An in-process dbt run resets the limit to None (unlimited), so a dbt test
+    earlier in the same worker would otherwise leak into these tests.
+    """
+    original = sqlparse.engine.grouping.MAX_GROUPING_TOKENS
+    configure_sqlparse()
+    yield
+    sqlparse.engine.grouping.MAX_GROUPING_TOKENS = original
 
 
 class TestConfigureSqlparse:

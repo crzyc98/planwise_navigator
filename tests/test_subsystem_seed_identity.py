@@ -33,7 +33,7 @@ def test_default_subsystem_seed_refactor_is_output_identical(
     """Default fallback must reproduce pre-refactor event and snapshot state exactly."""
     candidate_project = _copy_project(tmp_path / "candidate-project")
     baseline_project = _copy_project(tmp_path / "baseline-project")
-    assert _restore_pre_refactor_seed_calls(baseline_project) == 10
+    assert _restore_pre_refactor_seed_calls(baseline_project) == 11
 
     baseline_db = _run_project(
         baseline_project, tmp_path / "baseline.duckdb", invariant_census_parquet
