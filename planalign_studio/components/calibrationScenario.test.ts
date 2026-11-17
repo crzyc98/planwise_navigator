@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, costSummary, defaultSearchMode, withSharedPayScale, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -119,6 +119,18 @@ describe('calibration scenario defaults', () => {
     expect(defaultSearchMode({ shared_pay_scale: false })).toBe('new_hire_scale');
     expect(defaultSearchMode({})).toBe('new_hire_scale');
     expect(defaultSearchMode(undefined)).toBe('new_hire_scale');
+  });
+
+  it("turns the shared pay scale on and keeps the scenario's other settings", () => {
+    const overrides = {
+      simulation: { start_year: 2026 },
+      new_hire: { job_level_compensation: [{ level: 1 }], hire_pay_ratio: null },
+    };
+    expect(withSharedPayScale(overrides)).toEqual({
+      simulation: { start_year: 2026 },
+      new_hire: { job_level_compensation: [{ level: 1 }], hire_pay_ratio: null, shared_pay_scale: true },
+    });
+    expect(withSharedPayScale(undefined)).toEqual({ new_hire: { shared_pay_scale: true } });
   });
 
   it('recognizes only the no-matching-run 409 as offering a scenario run', () => {

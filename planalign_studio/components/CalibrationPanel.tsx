@@ -17,8 +17,10 @@ import {
   PerYearCompensationResult,
   ApiError,
   getWorkspace,
+  getScenario,
   getScenarioConfig,
   listScenarios,
+  updateScenario,
   startSimulation,
   getSimulationStatus,
   analyzeCompensation,
@@ -31,7 +33,7 @@ import {
 import { extractCensusPath } from './config/ConfigContext';
 import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, type SearchLimits, type GrowthMetric, type SolveMode } from './calibrationScenario';
+import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, withSharedPayScale, type SearchLimits, type GrowthMetric, type SolveMode } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -280,6 +282,8 @@ export default function CalibrationPanel() {
   // the analyst's choice stands until another scenario is picked.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const modeChosenFor = useRef<string | null>(null);
+  // The scenario's shared pay scale, which horizon search needs; null until loaded.
+  const [payScale, setPayScale] = useState<{ shared: boolean; hasRanges: boolean } | null>(null);
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
   const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('payroll_per_head');
   const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
@@ -297,6 +301,7 @@ export default function CalibrationPanel() {
   const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: MAX_NEW_HIRE_SCALE, salaryGrowthMaxPct: 8 });
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
   const horizonSearch = searchMode === 'horizon';
+  const needsSharedPayScale = horizonSearch && payScale?.shared === false;
   const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
 
   // Use an actual scenario from the active workspace; prefer Baseline.
@@ -382,6 +387,7 @@ export default function CalibrationPanel() {
     setAutoError(null);
     setMissingRun(false);
     setScenarioHorizon(null);
+    setPayScale(null);
     if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
@@ -389,6 +395,10 @@ export default function CalibrationPanel() {
       const compensation = (cfg?.compensation ?? {}) as Record<string, number>;
       const wf = (cfg?.workforce ?? {}) as Record<string, number>;
       const newHire = cfg?.new_hire ?? {};
+      setPayScale({
+        shared: newHire.shared_pay_scale === true,
+        hasRanges: Array.isArray(newHire.job_level_compensation) && newHire.job_level_compensation.length > 0,
+      });
       const scenarioKey = `${activeWorkspace.id}/${selectedScenarioId}`;
       if (modeChosenFor.current !== scenarioKey) {
         modeChosenFor.current = scenarioKey;
@@ -731,6 +741,26 @@ export default function CalibrationPanel() {
     }
     await runAutoCalibrate();
   };
+  // Saved workspaces keep the shared pay scale off (#1075). Turn it on for this
+  // scenario only, then run it: calibration needs a run under the new setting.
+  const turnOnSharedPayScaleThenCalibrate = async () => {
+    if (!activeWorkspace?.id || !selectedScenarioId || autoLoading) return;
+    setAutoLoading(true);
+    setAutoError(null);
+    setMissingRun(false);
+    try {
+      const scenario = await getScenario(activeWorkspace.id, selectedScenarioId);
+      await updateScenario(activeWorkspace.id, selectedScenarioId, {
+        config_overrides: withSharedPayScale(scenario.config_overrides),
+      });
+    } catch (e) {
+      setAutoError(`Could not update the scenario: ${errorText(e)}`);
+      setAutoLoading(false);
+      return;
+    }
+    setPayScale(previous => previous && { ...previous, shared: true });
+    await runScenarioThenCalibrate();
+  };
   const horizonMismatch = !!scenarioHorizon
     && (scenarioHorizon.start !== startYear || scenarioHorizon.end !== endYear);
 
@@ -919,6 +949,27 @@ export default function CalibrationPanel() {
               );
             })}
           </div>
+          {needsSharedPayScale && payScale && (
+            <div role="alert" className="rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
+              <p className="font-semibold">This scenario doesn't use one pay scale for staff and hires</p>
+              <p>
+                Raises and hire pay together needs it. Turning it on pays existing staff from the
+                same job-level ranges as hires, so this scenario's results will change. Other
+                scenarios are left alone. You can also pick another option above.
+              </p>
+              {payScale.hasRanges ? (
+                <button type="button" disabled={autoLoading} onClick={() => void turnOnSharedPayScaleThenCalibrate()}
+                  className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
+                  Turn it on, re-run the scenario, then calibrate
+                </button>
+              ) : (
+                <p className="mt-1">
+                  Set Job Level Compensation Ranges under New Hire Strategy first, then tick
+                  "Use these ranges for existing staff too".
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Step 3: Fixed inputs ──────────────────────────────────── */}
@@ -1398,8 +1449,8 @@ export default function CalibrationPanel() {
             <div className="flex flex-wrap items-end gap-4">
               <button
                 onClick={() => void runAutoCalibrate()}
-                disabled={autoLoading || !targetReady || endYear <= startYear || limitsError !== null}
-                title={limitsError ?? (!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined)}
+                disabled={autoLoading || !targetReady || endYear <= startYear || limitsError !== null || needsSharedPayScale}
+                title={needsSharedPayScale ? 'Turn on the shared pay scale in Step 2 first' : limitsError ?? (!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined)}
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
@@ -1452,7 +1503,7 @@ export default function CalibrationPanel() {
               ) : (
                 <>
                   <p>Calibration needs a completed run of the selected scenario as it's configured now.</p>
-                  <button type="button" disabled={autoLoading} onClick={() => void runScenarioThenCalibrate()}
+                  <button type="button" disabled={autoLoading || needsSharedPayScale} onClick={() => void runScenarioThenCalibrate()}
                     className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
                     Run scenario as-is, then calibrate
                   </button>

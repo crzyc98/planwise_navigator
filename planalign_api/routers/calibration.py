@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 
 from planalign_orchestrator.calibration_optimizer import (
+    SHARED_PAY_SCALE_REQUIRED,
     AutoCalibrationSettings,
 )
 from planalign_orchestrator.calibration_runner import (
@@ -563,6 +564,23 @@ def run_calibration(
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
 
+def _require_shared_pay_scale(
+    request: AutoCalibrationRequest, storage: WorkspaceStorage
+) -> None:
+    """Refuse horizon search up front when the scenario lacks the shared pay scale.
+
+    Checked before the matching-run lookup, so an analyst isn't sent to re-run a
+    scenario that would still fail. The worker keeps the same check as a backstop.
+    """
+    if request.settings.search_mode != "horizon" or not request.workspace_id:
+        return
+    config = _effective_workspace_config(
+        request.workspace_id, request.scenario_id, storage
+    )
+    if not (config.get("new_hire") or {}).get("shared_pay_scale"):
+        raise HTTPException(status_code=409, detail=SHARED_PAY_SCALE_REQUIRED)
+
+
 @router.post(
     "/calibration/optimize", response_model=CalibrationStartResponse, status_code=202
 )
@@ -575,6 +593,7 @@ def optimize_calibration(
     The search runs several fast comp-only builds (typically 3-6); expect a
     few minutes for a multi-year range.
     """
+    _require_shared_pay_scale(request, storage)
     target = _materialize_target(request, storage) if request.workspace_id else None
     start_year = target.context.start_year if target else request.start_year
     end_year = target.context.end_year if target else request.end_year

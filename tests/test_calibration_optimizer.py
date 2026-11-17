@@ -24,6 +24,7 @@ from planalign_orchestrator.calibration_runner import (
     CalibrationRun,
     PerYearCompensationResult,
 )
+from planalign_orchestrator.exceptions import ConfigurationError
 
 pytestmark = [pytest.mark.fast]
 
@@ -753,3 +754,17 @@ def test_result_keeps_the_inputs_it_was_given(tmp_path) -> None:
     assert outcome.settings == settings
     assert outcome.starting_params.workforce_growth_rate == pytest.approx(0.03)
     assert outcome.starting_params.job_level_compensation is None
+
+
+def test_horizon_without_shared_pay_scale_names_the_setting(tmp_path) -> None:
+    # Saved workspaces keep the shared pay scale off (#1075); the analyst gets
+    # a 409 that says what to turn on, not an opaque job failure.
+    settings = AutoCalibrationSettings(
+        target_workforce_growth=0.03,
+        target_comp_growth=0.04,
+        search_mode="horizon",
+    )
+    optimizer = _make_optimizer(tmp_path, settings)
+
+    with pytest.raises(ConfigurationError, match="existing staff too"):
+        optimizer.optimize()
