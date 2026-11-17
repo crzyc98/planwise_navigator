@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A scenario can add acquired groups under `workforce.acquisitions`, each with an id, a headcount and an effective date (#1226). A run whose years do not include that date warns and leaves the group out. On that date the group joins on top of organic hiring, made to look like the sponsor's active staff (age, service, level, pay and hours), and never takes new-hire turnover. Members carry an `acquisition_id` in `fct_yearly_events` and `fct_workforce_snapshot`. Scenarios without acquisitions produce the same results as before. In this first version members get no termination, raise or promotion in the year they join, and their starting pay is copied from before that year's raises, so they trail continuing staff by one raise. They enter the plan as new entrants until #1227 adds the options, and Studio support is #1228.
 
+### Changed
+
+- The calibration page now opens on a short form: set employee growth and average pay growth, then Calibrate. It always solves raises and hire pay together, and holds the scenario's termination rates and new-hire ages as they are, showing them read-only. Scenario choice, other solve modes, age and termination edits, and search limits move to a collapsed Advanced settings section. Applying a result no longer copies one scenario's termination rates and new-hire ages onto every scenario unless you changed them under Advanced settings.
+
 ### Fixed
 
 - Calibrating an older workspace with "Raises and hire pay together" no longer fails with a bare error ID. That mode needs one pay scale for staff and hires, which older workspaces keep off. Studio now warns about this in the calibration panel and offers to turn it on for the scenario, re-run the scenario, and calibrate in one step. The calibration service also explains which setting to turn on.

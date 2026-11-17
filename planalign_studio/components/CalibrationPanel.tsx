@@ -33,7 +33,7 @@ import {
 import { extractCensusPath } from './config/ConfigContext';
 import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, withSharedPayScale, type SearchLimits, type GrowthMetric, type SolveMode } from './calibrationScenario';
+import { baselineScenarioId, changedTerminationRates, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, withSharedPayScale, type SearchLimits, type GrowthMetric, type SolveMode, type TerminationRates } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -67,9 +67,9 @@ interface SliderConfig {
   step: number;
 }
 
-const SLIDERS: SliderConfig[] = [
-  { key: 'target_growth_pct', label: 'Target Salary Growth', hint: 'the goal calibration solves for', min: 0, max: 0.1, step: 0.005 },
-  { key: 'workforce_growth_rate', label: 'Workforce Growth', hint: 'deterministic headcount driver — sizes hiring', min: -0.05, max: 0.1, step: 0.005 },
+const WORKFORCE_GROWTH_SLIDER: SliderConfig = { key: 'workforce_growth_rate', label: 'Employee Growth', hint: 'headcount change each year', min: -0.05, max: 0.1, step: 0.005 };
+const PAY_GROWTH_SLIDER: SliderConfig = { key: 'target_growth_pct', label: 'Average Pay Growth', hint: 'the target calibration solves for', min: 0, max: 0.1, step: 0.005 };
+const POLICY_SLIDERS: SliderConfig[] = [
   { key: 'cola_rate', label: 'COLA', min: 0, max: 0.1, step: 0.005 },
   { key: 'merit_budget', label: 'Merit', min: 0, max: 0.1, step: 0.005 },
 ];
@@ -77,11 +77,9 @@ const SLIDERS: SliderConfig[] = [
 // A set budget travels in the merit field with COLA at zero; see CompensationSettings.
 const RAISE_BUDGET_SLIDER: SliderConfig = { key: 'merit_budget', label: 'Raise Budget', min: 0, max: 0.1, step: 0.005 };
 
-const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
-const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
 
 /**
- * The top-level calibration decision (Step 2): which lever we solve to hit the
+ * What calibration solves for (Advanced settings): which lever we solve to hit the
  * growth target. The chosen mode is held in `searchMode`; the other lever is
  * held fixed, and controls that only apply to the other mode are hidden.
  */
@@ -122,6 +120,9 @@ const DEFAULT_AGE_DIST: AgeRow[] = [
   { age: 45, weight: 0.08 },
   { age: 50, weight: 0.02 },
 ];
+
+// Config schema defaults (planalign_orchestrator/config/workforce.py).
+const DEFAULT_TERMINATION: TerminationRates = { total: 0.12, newHire: 0.25 };
 
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
 const PAY_PER_HEAD_ASSUMPTION =
@@ -177,29 +178,6 @@ function confidenceBadge(confidence: string) {
   );
 }
 
-/** Numbered step heading with a short instruction line for the analyst. */
-function StepHeader({
-  n,
-  title,
-  children,
-}: {
-  n: number;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-green text-sm font-semibold text-ink-inverse">
-        {n}
-      </span>
-      <div>
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
-        <p className="text-sm text-ink-muted">{children}</p>
-      </div>
-    </div>
-  );
-}
-
 /** A single labeled percentage slider used across steps. */
 function SliderRow({
   s,
@@ -244,8 +222,8 @@ export default function CalibrationPanel() {
     // Core termination rates (decimals) — deterministic workforce-dynamics
     // inputs; defaults match the config schema. Loaded from the workspace
     // base_config when a workspace is active.
-    total_termination_rate: 0.12,
-    new_hire_termination_rate: 0.25,
+    total_termination_rate: DEFAULT_TERMINATION.total,
+    new_hire_termination_rate: DEFAULT_TERMINATION.newHire,
   });
   const [results, setResults] = useState<PerYearCompensationResult[]>([]);
 
@@ -278,10 +256,14 @@ export default function CalibrationPanel() {
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.5);
   const [maxIterations, setMaxIterations] = useState(20);
-  // Each scenario opens on its default mode (see defaultSearchMode); after that
-  // the analyst's choice stands until another scenario is picked.
-  const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
+  // Every scenario opens on raises and hire pay together; other modes live
+  // under Advanced, and the choice resets when another scenario is picked.
+  const [searchMode, setSearchMode] = useState<SolveMode>('horizon');
   const modeChosenFor = useRef<string | null>(null);
+  // The selected scenario's own termination rates and age mix (null = seed
+  // default). Calibration sends neither unless Advanced changes them.
+  const [scenarioTerm, setScenarioTerm] = useState<TerminationRates | null>(null);
+  const [scenarioAgeDist, setScenarioAgeDist] = useState<AgeRow[] | null>(null);
   // The scenario's shared pay scale, which horizon search needs; null until loaded.
   const [payScale, setPayScale] = useState<{ shared: boolean; hasRanges: boolean } | null>(null);
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
@@ -388,6 +370,8 @@ export default function CalibrationPanel() {
     setMissingRun(false);
     setScenarioHorizon(null);
     setPayScale(null);
+    setScenarioTerm(null);
+    setScenarioAgeDist(null);
     if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
@@ -402,7 +386,7 @@ export default function CalibrationPanel() {
       const scenarioKey = `${activeWorkspace.id}/${selectedScenarioId}`;
       if (modeChosenFor.current !== scenarioKey) {
         modeChosenFor.current = scenarioKey;
-        setSearchMode(defaultSearchMode(newHire));
+        setSearchMode('horizon');
       }
       if (simulation.start_year != null) setStartYear(simulation.start_year);
       if (simulation.end_year != null) setEndYear(simulation.end_year);
@@ -433,16 +417,17 @@ export default function CalibrationPanel() {
           simulation.target_growth_rate ?? prev.workforce_growth_rate,
         cola_rate: configuredCola ?? prev.cola_rate,
         merit_budget: configuredMerit ?? prev.merit_budget,
-        total_termination_rate: wf.total_termination_rate ?? prev.total_termination_rate,
-        new_hire_termination_rate:
-          wf.new_hire_termination_rate ?? prev.new_hire_termination_rate,
+        total_termination_rate: wf.total_termination_rate ?? DEFAULT_TERMINATION.total,
+        new_hire_termination_rate: wf.new_hire_termination_rate ?? DEFAULT_TERMINATION.newHire,
       }));
-      if (Array.isArray(newHire.age_distribution)) {
-        setAgeDist(newHire.age_distribution);
-        setAgeDistMode('custom');
-      } else {
-        setAgeDistMode('default');
-      }
+      setScenarioTerm({
+        total: wf.total_termination_rate ?? DEFAULT_TERMINATION.total,
+        newHire: wf.new_hire_termination_rate ?? DEFAULT_TERMINATION.newHire,
+      });
+      const scenarioAges: AgeRow[] | null = Array.isArray(newHire.age_distribution) ? newHire.age_distribution : null;
+      setScenarioAgeDist(scenarioAges);
+      setAgeDist(scenarioAges ?? DEFAULT_AGE_DIST);
+      setAgeDistMode('default');
       if (!solvingNewHireRanges && Array.isArray(newHire.job_level_compensation)) {
         setBaseRanges(newHire.job_level_compensation);
         setScaleFactor(1);
@@ -539,6 +524,7 @@ export default function CalibrationPanel() {
   const handleAgeDistModeChange = async (mode: 'default' | 'census' | 'custom') => {
     setAgeDistMode(mode);
     setAgeDistError(null);
+    if (mode === 'default') setAgeDist(scenarioAgeDist ?? DEFAULT_AGE_DIST);
     if (mode !== 'census') return;
     if (!activeWorkspace?.id || !censusPath) {
       setAgeDistError('This workspace has no census file uploaded yet.');
@@ -662,9 +648,11 @@ export default function CalibrationPanel() {
           // In scale mode the optimizer injects the ranges itself.
           job_level_compensation:
             searchMode === 'levers' && jobRanges.length > 0 ? jobRanges : null,
-          // Core termination rates are held fixed across the search.
-          total_termination_rate: values.total_termination_rate,
-          new_hire_termination_rate: values.new_hire_termination_rate,
+          // Held fixed; sent only when changed under Advanced.
+          ...changedTerminationRates(
+            { total: values.total_termination_rate, newHire: values.new_hire_termination_rate },
+            scenarioTerm,
+          ),
         },
       }, setActiveRunId);
       const outcome = response.outcome;
@@ -796,6 +784,13 @@ export default function CalibrationPanel() {
     }
   };
 
+  const selectedScenario = scenarios.find(scenario => scenario.id === selectedScenarioId);
+  const termEdited = changedTerminationRates(
+    { total: values.total_termination_rate, newHire: values.new_hire_termination_rate },
+    scenarioTerm,
+  ).total_termination_rate !== null;
+  const shownAgeDist = ageDistEnabled ? ageDist : scenarioAgeDist ?? DEFAULT_AGE_DIST;
+
   const showsPayPerHead = results.some(row => row.active_avg_compensation !== null);
   const cost = costSummary(autoOutcome?.cost_estimate ?? []);
   const targetLine =
@@ -810,38 +805,404 @@ export default function CalibrationPanel() {
         <h1 className="text-2xl font-bold text-ink">Compensation Calibration</h1>
       </div>
       <p className="text-ink-muted">
-        Tune compensation policy and read per-year growth in minutes — exact vs. a
-        full simulation, without rebuilding the retirement-plan stack.
+        Set how fast headcount and average pay should grow. Calibration finds the raises
+        and hire pay that get you there, then you apply them to the workspace.
       </p>
 
-      {/* Step-by-step calibration workflow */}
-      <div className="space-y-6">
+      <div className="bg-surface-raised rounded-lg shadow p-6 space-y-5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted">
+          <Database size={16} className="text-ink-subtle" />
+          <span>Workspace: <span className="font-medium text-ink">{activeWorkspace?.name ?? '—'}</span></span>
+          <span className="text-ink-subtle">|</span>
+          <span>Scenario: <span className="font-medium text-ink">{selectedScenario?.name ?? '—'}</span></span>
+          <span className="text-ink-subtle">|</span>
+          <span>{startYear}–{endYear}</span>
+          {!censusPath && targetReady && (
+            <>
+              <span className="text-ink-subtle">|</span>
+              <span className="text-warning-ink">No census uploaded</span>
+            </>
+          )}
+        </div>
+        {scenarioListError ? (
+          <p role="alert" className="text-sm text-danger-ink">Could not load scenarios: {scenarioListError}</p>
+        ) : !activeWorkspace ? (
+          <p className="text-sm text-ink-muted">Select a workspace to calibrate a scenario.</p>
+        ) : !scenariosLoaded ? (
+          <p className="text-sm text-ink-muted">Loading scenarios…</p>
+        ) : scenarios.length === 0 ? (
+          <p className="text-sm text-ink-muted">Create and run a scenario in this workspace before calibrating.</p>
+        ) : targetError ? (
+          <p role="alert" className="text-sm text-danger-ink">Could not load scenario settings: {targetError}</p>
+        ) : !selectedScenarioId ? (
+          <p className="text-sm text-ink-muted">No scenario is named Baseline. Pick one under Advanced settings below.</p>
+        ) : !targetReady && (
+          <p className="text-sm text-ink-muted">Loading scenario settings…</p>
+        )}
 
-        {/* ── Step 1: Growth targets & scope ────────────────────────── */}
-        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
-          <StepHeader n={1} title="Set your growth targets and scope">
-            Confirm the workspace and year range, then set the two growth drivers:
-            Workforce Growth sizes hiring deterministically, and Target Salary Growth
-            is the goal calibration ultimately solves for.
-          </StepHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <SliderRow s={WORKFORCE_GROWTH_SLIDER} value={values.workforce_growth_rate}
+            onChange={(v) => setValue('workforce_growth_rate', v)} />
+          <SliderRow s={PAY_GROWTH_SLIDER} value={values.target_growth_pct}
+            onChange={(v) => setValue('target_growth_pct', v)} />
+        </div>
 
-          {/* Active workspace, exact target config, and authoritative census. */}
-          <div className="flex items-center gap-2 text-sm text-ink-muted">
-            <Database size={16} className="text-ink-subtle" />
-            <span>
-              Workspace: <span className="font-medium text-ink">{activeWorkspace?.name ?? '—'}</span>
-            </span>
-            <span className="text-ink-subtle">|</span>
-            <span>
-              Census:{' '}
-              {censusPath ? (
-                <span className="font-mono text-xs text-ink-muted">{censusPath}</span>
+        {targetReady && (
+          <div className="rounded-md border border-border p-4 space-y-2 text-sm">
+            <p className="font-medium text-ink">
+              Held at {selectedScenario?.name ?? 'the scenario'}'s settings
+              {(termEdited || ageDistEnabled) && <span className="ml-2 text-xs font-normal text-warning-ink">changed under Advanced settings</span>}
+            </p>
+            <p className="text-ink-muted">
+              Termination: {pct(values.total_termination_rate)} experienced, {pct(values.new_hire_termination_rate)} new hires
+              {termEdited && ' (changed)'}
+            </p>
+            <p className="text-ink-muted">
+              New-hire ages{ageDistEnabled ? ' (changed)' : scenarioAgeDist ? '' : ' (standard mix)'}:{' '}
+              {shownAgeDist.map(row => `${row.age}: ${pct(row.weight)}`).join(', ')}
+            </p>
+            {!horizonSearch && (
+              <p className="text-warning-ink">
+                Solving {solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'} instead of raises and hire pay together (changed under Advanced settings).
+              </p>
+            )}
+          </div>
+        )}
+
+        {needsSharedPayScale && payScale && (
+          <div role="alert" className="rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
+            <p className="font-semibold">This scenario doesn't use one pay scale for staff and hires</p>
+            <p>
+              Calibration needs it to solve raises and hire pay together. Turning it on pays
+              existing staff from the same job-level ranges as hires, so this scenario's results
+              will change. Other scenarios are left alone.
+            </p>
+            {payScale.hasRanges ? (
+              <button type="button" disabled={autoLoading} onClick={() => void turnOnSharedPayScaleThenCalibrate()}
+                className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
+                Turn it on, re-run the scenario, then calibrate
+              </button>
+            ) : (
+              <p className="mt-1">
+                Set Job Level Compensation Ranges under New Hire Strategy first, then tick
+                "Use these ranges for existing staff too".
+              </p>
+            )}
+          </div>
+        )}
+
+        {limitsError && <p role="alert" className="text-xs text-danger-ink">{limitsError} Check Advanced settings.</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => void runAutoCalibrate()}
+            disabled={autoLoading || !targetReady || endYear <= startYear || limitsError !== null || needsSharedPayScale}
+            title={needsSharedPayScale ? 'Turn on the shared pay scale first' : limitsError ?? (!targetReady ? 'Wait for the scenario settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined)}
+            className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
+          >
+            {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+            {runProgress ? 'Running scenario…' : autoLoading ? 'Calibrating…' : 'Calibrate'}
+          </button>
+          {autoLoading && (
+            <button
+              type="button"
+              onClick={() => void handleCancelCalibration()}
+              disabled={!activeRunId || cancelling}
+              className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-surface-raised px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
+            >
+              <X size={16} />
+              {cancelling ? 'Cancelling…' : 'Cancel'}
+            </button>
+          )}
+          <span className="text-xs text-ink-muted">
+            {horizonSearch ? 'Each setting runs three times, so expect 15 minutes or more.' : 'Typically 3–6 runs (a few minutes).'}
+          </span>
+        </div>
+        <div>
+          {autoCancelled && (
+            <p role="status" className="mt-3 text-sm text-ink-muted">Calibration cancelled.</p>
+          )}
+          {runProgress && (
+            <p role="status" className="mt-3 text-sm text-info-ink">{runProgress}</p>
+          )}
+          {autoError && missingRun ? (
+            <div role="alert" className="mt-3 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
+              <p className="font-semibold">This scenario hasn't been run with its current settings</p>
+              {horizonMismatch && scenarioHorizon ? (
+                <p>
+                  Calibration years ({startYear}–{endYear}) differ from the scenario's
+                  ({scenarioHorizon.start}–{scenarioHorizon.end}). Match them, or change the
+                  scenario's years, so a run can be calibrated against.
+                </p>
               ) : (
-                <span className="text-warning-ink">none uploaded</span>
+                <>
+                  <p>Calibration needs a completed run of the selected scenario as it's configured now.</p>
+                  <button type="button" disabled={autoLoading || needsSharedPayScale} onClick={() => void runScenarioThenCalibrate()}
+                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
+                    Run scenario as-is, then calibrate
+                  </button>
+                </>
               )}
-            </span>
+            </div>
+          ) : autoError && (
+            <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
+              <p className="font-semibold">No calibration result is available to apply</p>
+              <p>{autoError}</p>
+              {recoverableRunId && (
+                <button type="button" disabled={autoLoading} onClick={() => void runAutoCalibrate(recoverableRunId)}
+                  className="mt-2 underline font-medium disabled:opacity-50">
+                  Retrieve result
+                </button>
+              )}
+            </div>
+          )}
+          {autoOutcome && (
+            <div className="mt-3">
+              <p className={`text-xs font-medium ${autoOutcome.status === 'converged' ? 'text-success-ink' : autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
+                {autoOutcome.message}
+              </p>
+              {autoOutcome.reason && (
+                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' || autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
+                  {autoOutcome.reason}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-info-ink">
+                Horizon {autoOutcome.start_year}–{autoOutcome.end_year}; maximum annual error{' '}
+                {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
+              </p>
+              <p className="mt-1 text-xs text-info-ink">
+                {usesRaiseBudget
+                  ? <>Best config: raise budget {pct(autoOutcome.best_params.merit_budget ?? 0)}</>
+                  : <>Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit {pct(autoOutcome.best_params.merit_budget ?? 0)}</>}
+                {autoOutcome.best_salary_growth_rate != null && (
+                  <>, Starting-pay growth: {(autoOutcome.best_salary_growth_rate * 100).toFixed(1)}%/yr</>
+                )}
+                {autoOutcome.best_scale != null && (
+                  <>, new-hire range scale {autoOutcome.best_scale.toFixed(2)}×</>
+                )}{' '}
+                — controls updated; use “Apply to Workspace” to persist, then run the
+                full simulation.
+              </p>
+              {autoOutcome.horizon && (
+                <ul className="mt-1 list-disc pl-4 text-xs text-ink-muted">
+                  {horizonSummaryLines(autoOutcome.horizon).map(line => <li key={line}>{line}</li>)}
+                </ul>
+              )}
+              {searchLimitNotes(autoOutcome.best_scale, autoOutcome.best_salary_growth_rate, runLimits).map(note => (
+                <p key={note} className="mt-1 text-xs font-medium text-info-ink">
+                  {note} Raise the limit and rerun to see if it was holding the result back.
+                </p>
+              ))}
+              <details className="mt-1 text-xs text-info-ink">
+                <summary className="cursor-pointer">Inputs this result used</summary>
+                <ul className="mt-1 list-disc pl-4">
+                  <li>
+                    Raises started at COLA {pct(autoOutcome.starting_params.cola_rate ?? 0)}, merit{' '}
+                    {pct(autoOutcome.starting_params.merit_budget ?? 0)}.
+                  </li>
+                  {searchInputLines(autoOutcome.settings).map(line => <li key={line}>{line}</li>)}
+                </ul>
+                <button type="button" disabled={autoLoading} onClick={() => loadSavedInputs(autoOutcome)}
+                  className="mt-1 underline disabled:opacity-50">
+                  Load these inputs to rerun
+                </button>
+              </details>
+              <table className="mt-2 text-xs w-full max-w-lg">
+                <thead className="text-info-ink">
+                  <tr>
+                    <th className="text-left">Run</th>
+                    {!usesRaiseBudget && <th className="text-right">COLA</th>}
+                    <th className="text-right">{usesRaiseBudget ? 'Raise Budget' : 'Merit'}</th>
+                    <th className="text-right">Scale</th>
+                    <th className="text-right">Starting-Pay Growth</th>
+                    <th className="text-right">Comp Growth</th>
+                    <th className="text-right">Worst annual error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {autoOutcome.iterations.map((it) => (
+                    <tr key={it.iteration} className="border-t border-info-border">
+                      <td>{it.iteration}</td>
+                      {!usesRaiseBudget && <td className="text-right">{pct(it.cola_rate)}</td>}
+                      <td className="text-right">{pct(it.merit_budget)}</td>
+                      <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
+                      <td className="text-right">{it.salary_growth_rate != null ? pct(it.salary_growth_rate) : '—'}</td>
+                      <td className="text-right">{it.achieved_growth_pct.toFixed(2)}%</td>
+                      <td className="text-right">{it.max_abs_error_pct.toFixed(2)}pp</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+          {cost && (
+            <div className="rounded-md border border-border p-3 text-sm">
+              <div className="mb-1 font-medium text-ink">Cost of these changes</div>
+              <table className="w-full text-xs text-ink-muted">
+                <thead>
+                  <tr>
+                    <th className="text-left font-medium">Measure</th>
+                    <th className="text-right font-medium">Current settings</th>
+                    <th className="text-right font-medium">After calibration</th>
+                    <th className="text-right font-medium">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: `Total pay, ${cost.lastYear}`, values: cost.pay },
+                    { label: `Employer contributions, ${cost.lastYear} (estimate)`, values: cost.cost },
+                    { label: `Employer contributions, ${cost.firstYear}–${cost.lastYear} (estimate)`, values: cost.horizonCost },
+                  ].map(({ label, values }) => (
+                    <tr key={label} className="border-t border-border">
+                      <td className="py-1">{label}</td>
+                      <td className="text-right">{compactMoney(values[0])}</td>
+                      <td className="text-right">{compactMoney(values[1])}</td>
+                      <td className="text-right">{values[1] >= values[0] ? '+' : '−'}{compactMoney(Math.abs(values[1] - values[0]))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-ink-muted">
+                Estimate: employer contributions stay the same share of pay as the current run. In testing this was within 1% of a full run. Run the scenario after applying for the exact cost.
+              </p>
+            </div>
+          )}
+
+          {/* Apply the calibrated levers to the workspace base config AND every
+              scenario's overrides (which otherwise shadow the base). */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleApplyToWorkspace}
+                disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
+                title={results.length === 0 ? 'Calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
+                className="inline-flex items-center gap-2 rounded bg-brand-green px-4 py-2 text-ink-inverse font-medium hover:bg-brand-dark disabled:opacity-50"
+              >
+                {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
+                {applyStatus === 'applying'
+                  ? 'Applying…'
+                  : applyStatus === 'applied'
+                  ? 'Applied ✓'
+                  : 'Apply to Workspace + Scenarios'}
+              </button>
+              {applyStatus === 'applied' && (
+                <span className="text-xs text-ink-muted">
+                  {applySummary ?? 'Applied.'} Run the full simulation to make it official.
+                </span>
+              )}
+              {applyStatus === 'error' && applyError && (
+                <span className="text-xs text-danger-ink">{applyError}</span>
+              )}
+            </div>
+            <p className="text-xs text-ink-muted">
+              Writes the solved raises and hire pay and both growth targets into the workspace
+              and every scenario, leaving their other settings alone. Termination rates and
+              new-hire ages are written only if you changed them under Advanced settings.
+            </p>
+          </div>
+      </div>
+
+      {results.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-surface-raised rounded-lg shadow p-4">
+              <h2 className="font-semibold text-ink mb-2">{showsPayPerHead ? 'Pay per Head' : 'Average Compensation'}</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={results}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => money(v)} />
+                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                  <Line
+                    type="monotone"
+                    dataKey="avg_compensation"
+                    name={showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}
+                    stroke={chartTheme.semantic.primary}
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-surface-raised rounded-lg shadow p-4">
+              <h2 className="font-semibold text-ink mb-2">YoY Growth vs. Target</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={results}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => `${v?.toFixed(2)}%`} />
+                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                  {targetLine !== null && (
+                    <ReferenceLine
+                      y={targetLine}
+                      stroke={chartTheme.semantic.warning}
+                      strokeDasharray="4 4"
+                      label={{ value: `Target ${targetLine.toFixed(1)}%`, position: 'right' }}
+                    />
+                  )}
+                  <Bar dataKey="yoy_growth_pct" name="YoY Growth" fill={chartTheme.semantic.positive} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
+          {showsPayPerHead && (
+            <p className="text-xs text-ink-muted">{PAY_PER_HEAD_ASSUMPTION}</p>
+          )}
+
+          {/* Per-year table */}
+          <div className="bg-surface-raised rounded-lg shadow overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-surface-subtle text-ink-muted">
+                <tr>
+                  <th className="px-4 py-2 text-left">Year</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Growth' : 'Avg Growth'}</th>
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Avg</th>}
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Growth</th>}
+                  <th className="px-4 py-2 text-right">Δ vs Target</th>
+                  <th className="px-4 py-2 text-right">Headcount</th>
+                  <th className="px-4 py-2 text-right">HC Growth</th>
+                  <th className="px-4 py-2 text-right">Total Comp</th>
+                  <th className="px-4 py-2 text-right">Total Growth</th>
+                  <th className="px-4 py-2 text-right" title="New-hire vs existing average pay, on full-year-equivalent rates (not prorated)">NH Rate Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((r) => (
+                  <tr key={r.simulation_year} className="border-t">
+                    <td className="px-4 py-2">{r.simulation_year}</td>
+                    <td className="px-4 py-2 text-right">{money(r.avg_compensation)}</td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.yoy_growth_pct)}</td>
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{money(r.active_avg_compensation)}</td>}
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{growthPct(r.active_growth_pct)}</td>}
+                    <td className="px-4 py-2 text-right">
+                      {r.growth_delta_pct === null
+                        ? '—'
+                        : `${r.growth_delta_pct >= 0 ? '+' : ''}${r.growth_delta_pct.toFixed(1)}%`}
+                    </td>
+                    <td className="px-4 py-2 text-right">{r.headcount.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.headcount_growth_pct)}</td>
+                    <td className="px-4 py-2 text-right">{compactMoney(r.total_compensation)}</td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.total_comp_growth_pct)}</td>
+                    <td className="px-4 py-2 text-right">{money(r.new_hire_gap)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <details className="bg-surface-raised rounded-lg shadow p-6">
+        <summary className="cursor-pointer text-base font-semibold text-ink">Advanced settings</summary>
+        <div className="mt-4 space-y-4">
+          <p className="text-sm text-ink-muted">
+            Most calibrations don't need these. Changes here apply to the next calibration.
+          </p>
           <label className="block">
             <span className="text-sm font-medium text-ink-muted">Scenario to calibrate</span>
             <select
@@ -856,144 +1217,45 @@ export default function CalibrationPanel() {
               ))}
             </select>
           </label>
-          {scenarioListError ? (
-            <p role="alert" className="text-sm text-danger-ink">Could not load scenarios: {scenarioListError}</p>
-          ) : !activeWorkspace ? (
-            <p className="text-sm text-ink-muted">Select a workspace to calibrate a scenario.</p>
-          ) : !scenariosLoaded ? (
-            <p className="text-sm text-ink-muted">Loading scenarios…</p>
-          ) : scenarios.length === 0 ? (
-            <p className="text-sm text-ink-muted">Create and run a scenario in this workspace before calibrating.</p>
-          ) : targetError ? (
-            <p role="alert" className="text-sm text-danger-ink">Could not load scenario settings: {targetError}</p>
-          ) : (
-            <p className="text-sm text-ink-muted">
-              {selectedScenarioId && !targetReady ? 'Loading scenario settings…' : 'Choose a scenario with a completed simulation to calibrate.'}
-            </p>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="block">
-              <span className="text-sm font-medium text-ink-muted">Start Year</span>
-              <input
-                type="number"
-                value={startYear}
-                readOnly
-                className="mt-1 w-full rounded-md border border-border-strong bg-surface-subtle p-2 text-sm text-ink-muted shadow-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-ink-muted">End Year</span>
-              <input
-                type="number"
-                value={endYear}
-                readOnly
-                className="mt-1 w-full rounded-md border border-border-strong bg-surface-subtle p-2 text-sm text-ink-muted shadow-sm"
-              />
-            </label>
-          </div>
-          <p className="text-xs text-ink-muted">
-            {endYear >= startYear ? `${endYear - startYear + 1} years inclusive. ` : ''}
-            Settings come from the selected scenario. Calibration uses an isolated copy
-            only when a completed run matches its census, config, seed, and horizon; the
-            shared development database is never read.
-          </p>
-
-          {/* The two growth drivers: workforce growth (deterministic) and the
-              salary-growth target calibration solves for. */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
-            {SLIDERS.filter((s) => GROWTH_KEYS.has(s.key)).map((s) => (
-              <SliderRow
-                key={s.key}
-                s={s}
-                value={values[s.key]}
-                onChange={(v) => setValue(s.key, v)}
-              />
-            ))}
-          </div>
-          <div className="rounded-md bg-brand-green/5 border border-brand-green/20 px-3 py-2 text-xs text-brand-ink-strong">
-            <span className="font-semibold">Target Salary Growth is the objective.</span>{' '}
-            Calibration auto-tunes your chosen lever (Step 2) until per-year salary
-            growth lands on this target.
-          </div>
-        </div>
-
-        {/* ── Step 2: Choose what to solve for ──────────────────────── */}
-        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
-          <StepHeader n={2} title="Choose what calibration solves for">
-            Pick the lever calibration should adjust to hit your growth target. The
-            other lever is held fixed at whatever you set below, and the options that
-            don't apply are hidden.
-          </StepHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {SOLVE_MODES.map((m) => {
-              const selected = searchMode === m.key;
-              return (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setSearchMode(m.key)}
-                  disabled={autoLoading}
-                  className={`text-left rounded-lg border p-4 transition ${
-                    selected
-                      ? 'border-brand-green ring-2 ring-brand-green/30 bg-success-surface'
-                      : 'border-border hover:border-border-strong'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-ink">{m.title}</span>
-                    {selected && <Check size={16} className="text-brand-ink shrink-0" />}
-                  </div>
-                  <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
-                </button>
-              );
-            })}
-          </div>
-          {needsSharedPayScale && payScale && (
-            <div role="alert" className="rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
-              <p className="font-semibold">This scenario doesn't use one pay scale for staff and hires</p>
-              <p>
-                Raises and hire pay together needs it. Turning it on pays existing staff from the
-                same job-level ranges as hires, so this scenario's results will change. Other
-                scenarios are left alone. You can also pick another option above.
-              </p>
-              {payScale.hasRanges ? (
-                <button type="button" disabled={autoLoading} onClick={() => void turnOnSharedPayScaleThenCalibrate()}
-                  className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
-                  Turn it on, re-run the scenario, then calibrate
-                </button>
-              ) : (
-                <p className="mt-1">
-                  Set Job Level Compensation Ranges under New Hire Strategy first, then tick
-                  "Use these ranges for existing staff too".
-                </p>
-              )}
+          <div>
+            <p className="text-sm font-medium text-ink-muted mb-2">What calibration solves for</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {SOLVE_MODES.map((m) => {
+                const selected = searchMode === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setSearchMode(m.key)}
+                    disabled={autoLoading}
+                    className={`text-left rounded-lg border p-4 transition ${
+                      selected
+                        ? 'border-brand-green ring-2 ring-brand-green/30 bg-success-surface'
+                        : 'border-border hover:border-border-strong'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-ink">{m.title}</span>
+                      {selected && <Check size={16} className="text-brand-ink shrink-0" />}
+                    </div>
+                    <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
-
-        {/* ── Step 3: Fixed inputs ──────────────────────────────────── */}
-        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
-          <StepHeader n={3} title="Set the levers calibration holds fixed">
-            Provide the inputs calibration keeps constant — new-hire age mix, and
-            whichever of new-hire ranges / COLA &amp; merit you're not solving for.
-            Whatever Step 2 is solving for is filled in automatically.
-          </StepHeader>
+          </div>
 
           {/* Job Level Compensation Ranges. When calibration is solving these,
               the editor is collapsed to a label — the analyst shouldn't fill in
               something the solver derives. When held fixed, the full editor shows. */}
-          {horizonSearch ? (
-            <p className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 text-sm text-ink-muted">
-              This search uses the scenario's shared pay scale. Turn it on under New Hires and run the scenario before you start.
-            </p>
-          ) : solvingNewHireRanges ? (
+          {horizonSearch ? null : solvingNewHireRanges ? (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
               <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">Job Level Compensation Ranges — solved automatically.</span>{' '}
                 Calibration scales census-derived new-hire ranges to hit your target,
-                so there's nothing to set here. Switch Step 2 to “COLA &amp; merit” if you'd
+                so there's nothing to set here. Pick “COLA &amp; merit” above if you'd
                 rather set the ranges by hand.
               </div>
             </div>
@@ -1074,7 +1336,7 @@ export default function CalibrationPanel() {
                   onChange={() => handleAgeDistModeChange('default')}
                   className="accent-brand-green"
                 />
-                Scenario/seed defaults
+                Scenario setting
               </label>
               <label className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <input
@@ -1307,7 +1569,7 @@ export default function CalibrationPanel() {
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {(usesRaiseBudget ? [RAISE_BUDGET_SLIDER] : SLIDERS.filter((s) => POLICY_KEYS.has(s.key))).map((s) => (
+                {(usesRaiseBudget ? [RAISE_BUDGET_SLIDER] : POLICY_SLIDERS).map((s) => (
                   <SliderRow
                     key={s.key}
                     s={s}
@@ -1322,33 +1584,13 @@ export default function CalibrationPanel() {
               <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">COLA &amp; merit — solved automatically.</span>{' '}
-                Calibration finds the COLA and merit budget that hit your Target Salary
+                Calibration finds the COLA and merit budget that hit your Average Pay
                 Growth, so there's nothing to set here.
               </div>
             </div>
           )}
-        </div>
 
-        {/* ── Step 4: Auto-calibrate, then apply ────────────────────── */}
-        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
-          <StepHeader n={4} title="Auto-calibrate to your target, then apply">
-            {horizonSearch
-              ? 'Run the auto-calibration — it measures how growth responds to raises and hire pay, then solves them together on real comp-only simulations. Then apply the result to the workspace.'
-              : solvingNewHireRanges
-              ? 'Run the auto-calibration — it searches the new-hire salary scale across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'
-              : 'Run the auto-calibration — it searches COLA & merit across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'}
-          </StepHeader>
-
-        {/* Auto-Calibrate: the single run action. Iterated comp-only runs that
-            solve the chosen lever; workforce growth is deterministic. */}
-        <div className="rounded-md border border-info-border bg-info-surface p-4">
-          <div className="space-y-3">
-            <p className="text-xs text-info-ink">
-              Solving <span className="font-semibold">{horizonSearch ? 'raises and hire pay' : solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'}</span> to
-              hit Target Salary Growth ({pct(values.target_growth_pct)}) at Workforce Growth
-              ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
-              {horizonSearch ? 'Each setting runs three times, so expect 15 minutes or more.' : 'Typically 3–6 runs (a few minutes).'}
-            </p>
+          <div className="rounded-md border border-info-border bg-info-surface p-4 space-y-3">
             <label className="block text-sm text-info-ink">
               Average pay means
               <select
@@ -1445,28 +1687,7 @@ export default function CalibrationPanel() {
                 {searchInputLines(searchSettings(baseRanges)).map(line => <li key={line}>{line}</li>)}
               </ul>
             </div>
-            {limitsError && <p role="alert" className="text-xs text-danger-ink">{limitsError}</p>}
             <div className="flex flex-wrap items-end gap-4">
-              <button
-                onClick={() => void runAutoCalibrate()}
-                disabled={autoLoading || !targetReady || endYear <= startYear || limitsError !== null || needsSharedPayScale}
-                title={needsSharedPayScale ? 'Turn on the shared pay scale in Step 2 first' : limitsError ?? (!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined)}
-                className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
-              >
-                {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                {runProgress ? 'Running scenario…' : autoLoading ? 'Searching…' : 'Auto-Calibrate'}
-              </button>
-              {autoLoading && (
-                <button
-                  type="button"
-                  onClick={() => void handleCancelCalibration()}
-                  disabled={!activeRunId || cancelling}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-surface-raised px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
-                >
-                  <X size={16} />
-                  {cancelling ? 'Cancelling…' : 'Cancel'}
-                </button>
-              )}
               <label className="block">
                 <span className="text-xs font-medium text-info-ink">Tolerance (± pp)</span>
                 <input
@@ -1485,285 +1706,8 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
-          {autoCancelled && (
-            <p role="status" className="mt-3 text-sm text-ink-muted">Calibration cancelled.</p>
-          )}
-          {runProgress && (
-            <p role="status" className="mt-3 text-sm text-info-ink">{runProgress}</p>
-          )}
-          {autoError && missingRun ? (
-            <div role="alert" className="mt-3 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
-              <p className="font-semibold">This scenario hasn't been run with its current settings</p>
-              {horizonMismatch && scenarioHorizon ? (
-                <p>
-                  Calibration years ({startYear}–{endYear}) differ from the scenario's
-                  ({scenarioHorizon.start}–{scenarioHorizon.end}). Match them, or change the
-                  scenario's years, so a run can be calibrated against.
-                </p>
-              ) : (
-                <>
-                  <p>Calibration needs a completed run of the selected scenario as it's configured now.</p>
-                  <button type="button" disabled={autoLoading || needsSharedPayScale} onClick={() => void runScenarioThenCalibrate()}
-                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
-                    Run scenario as-is, then calibrate
-                  </button>
-                </>
-              )}
-            </div>
-          ) : autoError && (
-            <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
-              <p className="font-semibold">No calibration result is available to apply</p>
-              <p>{autoError}</p>
-              {recoverableRunId && (
-                <button type="button" disabled={autoLoading} onClick={() => void runAutoCalibrate(recoverableRunId)}
-                  className="mt-2 underline font-medium disabled:opacity-50">
-                  Retrieve result
-                </button>
-              )}
-            </div>
-          )}
-          {autoOutcome && (
-            <div className="mt-3">
-              <p className={`text-xs font-medium ${autoOutcome.status === 'converged' ? 'text-success-ink' : autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
-                {autoOutcome.message}
-              </p>
-              {autoOutcome.reason && (
-                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' || autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
-                  {autoOutcome.reason}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-info-ink">
-                Horizon {autoOutcome.start_year}–{autoOutcome.end_year}; maximum annual error{' '}
-                {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
-              </p>
-              <p className="mt-1 text-xs text-info-ink">
-                {usesRaiseBudget
-                  ? <>Best config: raise budget {pct(autoOutcome.best_params.merit_budget ?? 0)}</>
-                  : <>Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit {pct(autoOutcome.best_params.merit_budget ?? 0)}</>}
-                {autoOutcome.best_salary_growth_rate != null && (
-                  <>, Starting-pay growth: {(autoOutcome.best_salary_growth_rate * 100).toFixed(1)}%/yr</>
-                )}
-                {autoOutcome.best_scale != null && (
-                  <>, new-hire range scale {autoOutcome.best_scale.toFixed(2)}×</>
-                )}{' '}
-                — controls updated; use “Apply to Workspace” to persist, then run the
-                full simulation.
-              </p>
-              {autoOutcome.horizon && (
-                <ul className="mt-1 list-disc pl-4 text-xs text-ink-muted">
-                  {horizonSummaryLines(autoOutcome.horizon).map(line => <li key={line}>{line}</li>)}
-                </ul>
-              )}
-              {searchLimitNotes(autoOutcome.best_scale, autoOutcome.best_salary_growth_rate, runLimits).map(note => (
-                <p key={note} className="mt-1 text-xs font-medium text-info-ink">
-                  {note} Raise the limit and rerun to see if it was holding the result back.
-                </p>
-              ))}
-              <details className="mt-1 text-xs text-info-ink">
-                <summary className="cursor-pointer">Inputs this result used</summary>
-                <ul className="mt-1 list-disc pl-4">
-                  <li>
-                    Raises started at COLA {pct(autoOutcome.starting_params.cola_rate ?? 0)}, merit{' '}
-                    {pct(autoOutcome.starting_params.merit_budget ?? 0)}.
-                  </li>
-                  {searchInputLines(autoOutcome.settings).map(line => <li key={line}>{line}</li>)}
-                </ul>
-                <button type="button" disabled={autoLoading} onClick={() => loadSavedInputs(autoOutcome)}
-                  className="mt-1 underline disabled:opacity-50">
-                  Load these inputs to rerun
-                </button>
-              </details>
-              <table className="mt-2 text-xs w-full max-w-lg">
-                <thead className="text-info-ink">
-                  <tr>
-                    <th className="text-left">Run</th>
-                    {!usesRaiseBudget && <th className="text-right">COLA</th>}
-                    <th className="text-right">{usesRaiseBudget ? 'Raise Budget' : 'Merit'}</th>
-                    <th className="text-right">Scale</th>
-                    <th className="text-right">Starting-Pay Growth</th>
-                    <th className="text-right">Comp Growth</th>
-                    <th className="text-right">Worst annual error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {autoOutcome.iterations.map((it) => (
-                    <tr key={it.iteration} className="border-t border-info-border">
-                      <td>{it.iteration}</td>
-                      {!usesRaiseBudget && <td className="text-right">{pct(it.cola_rate)}</td>}
-                      <td className="text-right">{pct(it.merit_budget)}</td>
-                      <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
-                      <td className="text-right">{it.salary_growth_rate != null ? pct(it.salary_growth_rate) : '—'}</td>
-                      <td className="text-right">{it.achieved_growth_pct.toFixed(2)}%</td>
-                      <td className="text-right">{it.max_abs_error_pct.toFixed(2)}pp</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
-
-          {cost && (
-            <div className="rounded-md border border-border p-3 text-sm">
-              <div className="mb-1 font-medium text-ink">Cost of these changes</div>
-              <table className="w-full text-xs text-ink-muted">
-                <thead>
-                  <tr>
-                    <th className="text-left font-medium">Measure</th>
-                    <th className="text-right font-medium">Current settings</th>
-                    <th className="text-right font-medium">After calibration</th>
-                    <th className="text-right font-medium">Change</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { label: `Total pay, ${cost.lastYear}`, values: cost.pay },
-                    { label: `Employer contributions, ${cost.lastYear} (estimate)`, values: cost.cost },
-                    { label: `Employer contributions, ${cost.firstYear}–${cost.lastYear} (estimate)`, values: cost.horizonCost },
-                  ].map(({ label, values }) => (
-                    <tr key={label} className="border-t border-border">
-                      <td className="py-1">{label}</td>
-                      <td className="text-right">{compactMoney(values[0])}</td>
-                      <td className="text-right">{compactMoney(values[1])}</td>
-                      <td className="text-right">{values[1] >= values[0] ? '+' : '−'}{compactMoney(Math.abs(values[1] - values[0]))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-xs text-ink-muted">
-                Estimate: employer contributions stay the same share of pay as the current run. In testing this was within 1% of a full run. Run the scenario after applying for the exact cost.
-              </p>
-            </div>
-          )}
-
-          {/* Apply the calibrated levers to the workspace base config AND every
-              scenario's overrides (which otherwise shadow the base). */}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleApplyToWorkspace}
-                disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
-                title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
-                className="inline-flex items-center gap-2 rounded bg-brand-green px-4 py-2 text-ink-inverse font-medium hover:bg-brand-dark disabled:opacity-50"
-              >
-                {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
-                {applyStatus === 'applying'
-                  ? 'Applying…'
-                  : applyStatus === 'applied'
-                  ? 'Applied ✓'
-                  : 'Apply to Workspace + Scenarios'}
-              </button>
-              {applyStatus === 'applied' && (
-                <span className="text-xs text-ink-muted">
-                  {applySummary ?? 'Applied.'} Run the full simulation to make it official.
-                </span>
-              )}
-              {applyStatus === 'error' && applyError && (
-                <span className="text-xs text-danger-ink">{applyError}</span>
-              )}
-            </div>
-            <p className="text-xs text-ink-muted">
-              Writes the calibrated levers (COLA, merit, target/workforce growth, termination
-              rates, new-hire age &amp; ranges) into the workspace base config and every scenario's
-              overrides — leaving each scenario's other settings untouched.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {results.length > 0 && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-surface-raised rounded-lg shadow p-4">
-              <h2 className="font-semibold text-ink mb-2">{showsPayPerHead ? 'Pay per Head' : 'Average Compensation'}</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={results}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
-                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
-                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => money(v)} />
-                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
-                  <Line
-                    type="monotone"
-                    dataKey="avg_compensation"
-                    name={showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}
-                    stroke={chartTheme.semantic.primary}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-surface-raised rounded-lg shadow p-4">
-              <h2 className="font-semibold text-ink mb-2">YoY Growth vs. Target</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={results}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
-                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
-                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => `${v?.toFixed(2)}%`} />
-                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
-                  {targetLine !== null && (
-                    <ReferenceLine
-                      y={targetLine}
-                      stroke={chartTheme.semantic.warning}
-                      strokeDasharray="4 4"
-                      label={{ value: `Target ${targetLine.toFixed(1)}%`, position: 'right' }}
-                    />
-                  )}
-                  <Bar dataKey="yoy_growth_pct" name="YoY Growth" fill={chartTheme.semantic.positive} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {showsPayPerHead && (
-            <p className="text-xs text-ink-muted">{PAY_PER_HEAD_ASSUMPTION}</p>
-          )}
-
-          {/* Per-year table */}
-          <div className="bg-surface-raised rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-surface-subtle text-ink-muted">
-                <tr>
-                  <th className="px-4 py-2 text-left">Year</th>
-                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}</th>
-                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Growth' : 'Avg Growth'}</th>
-                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Avg</th>}
-                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Growth</th>}
-                  <th className="px-4 py-2 text-right">Δ vs Target</th>
-                  <th className="px-4 py-2 text-right">Headcount</th>
-                  <th className="px-4 py-2 text-right">HC Growth</th>
-                  <th className="px-4 py-2 text-right">Total Comp</th>
-                  <th className="px-4 py-2 text-right">Total Growth</th>
-                  <th className="px-4 py-2 text-right" title="New-hire vs existing average pay, on full-year-equivalent rates (not prorated)">NH Rate Gap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r) => (
-                  <tr key={r.simulation_year} className="border-t">
-                    <td className="px-4 py-2">{r.simulation_year}</td>
-                    <td className="px-4 py-2 text-right">{money(r.avg_compensation)}</td>
-                    <td className="px-4 py-2 text-right">{growthPct(r.yoy_growth_pct)}</td>
-                    {showsPayPerHead && <td className="px-4 py-2 text-right">{money(r.active_avg_compensation)}</td>}
-                    {showsPayPerHead && <td className="px-4 py-2 text-right">{growthPct(r.active_growth_pct)}</td>}
-                    <td className="px-4 py-2 text-right">
-                      {r.growth_delta_pct === null
-                        ? '—'
-                        : `${r.growth_delta_pct >= 0 ? '+' : ''}${r.growth_delta_pct.toFixed(1)}%`}
-                    </td>
-                    <td className="px-4 py-2 text-right">{r.headcount.toLocaleString()}</td>
-                    <td className="px-4 py-2 text-right">{growthPct(r.headcount_growth_pct)}</td>
-                    <td className="px-4 py-2 text-right">{compactMoney(r.total_compensation)}</td>
-                    <td className="px-4 py-2 text-right">{growthPct(r.total_comp_growth_pct)}</td>
-                    <td className="px-4 py-2 text-right">{money(r.new_hire_gap)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      </details>
     </div>
   );
 }

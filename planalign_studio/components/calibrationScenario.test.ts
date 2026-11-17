@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, defaultSearchMode, withSharedPayScale, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, changedTerminationRates, costSummary, withSharedPayScale, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -106,19 +106,26 @@ describe('calibration scenario defaults', () => {
     expect(html).toContain('Select a scenario');
     expect(html).not.toContain('Workspace baseline');
     expect(html).toMatch(/<option[^>]*disabled=""[^>]*>Select a scenario<\/option>/);
-    expect(html).toContain('Start new-hire scale at');
-    expect(html).toContain('New-hire scale limit');
-    expect(html).toContain('Starting-pay growth limit');
+    expect(html).toContain('Employee Growth');
+    expect(html).toContain('Average Pay Growth');
+    // Everything else sits in a collapsed Advanced section, on horizon search.
+    expect(html).toMatch(/<details[^>]*>\s*<summary[^>]*>Advanced settings<\/summary>/);
+    expect(html).not.toMatch(/<details[^>]*open/);
+    expect(html).toContain('Lowest raises (%)');
+    expect(html).not.toContain('Start new-hire scale at');
     const runButton = html.match(/<button\b[^>]*>.*?<\/button>/g)
-      ?.find(button => button.includes('Auto-Calibrate'));
+      ?.find(button => button.includes('Calibrate'));
     expect(runButton).toContain('disabled=""');
   });
 
-  it('opens on horizon search only when the scenario is on the shared pay scale', () => {
-    expect(defaultSearchMode({ shared_pay_scale: true })).toBe('horizon');
-    expect(defaultSearchMode({ shared_pay_scale: false })).toBe('new_hire_scale');
-    expect(defaultSearchMode({})).toBe('new_hire_scale');
-    expect(defaultSearchMode(undefined)).toBe('new_hire_scale');
+  it("sends termination rates only when they differ from the scenario's", () => {
+    const scenario = { total: 0.12, newHire: 0.25 };
+    expect(changedTerminationRates({ total: 0.12, newHire: 0.25 }, scenario))
+      .toEqual({ total_termination_rate: null, new_hire_termination_rate: null });
+    expect(changedTerminationRates({ total: 0.15, newHire: 0.25 }, scenario))
+      .toEqual({ total_termination_rate: 0.15, new_hire_termination_rate: 0.25 });
+    expect(changedTerminationRates({ total: 0.15, newHire: 0.3 }, null))
+      .toEqual({ total_termination_rate: null, new_hire_termination_rate: null });
   });
 
   it("turns the shared pay scale on and keeps the scenario's other settings", () => {
