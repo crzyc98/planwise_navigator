@@ -14,9 +14,22 @@ export function isMissingRunError(e: unknown): boolean {
 
 export type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
 
-/** Horizon search when the scenario is on the shared pay scale it needs (#1075). */
-export function defaultSearchMode(newHire: { shared_pay_scale?: unknown } | null | undefined): SolveMode {
-  return newHire?.shared_pay_scale === true ? 'horizon' : 'new_hire_scale';
+export interface TerminationRates {
+  total: number;
+  newHire: number;
+}
+
+/**
+ * Termination rates to send with a search. They go only when changed from the
+ * scenario's own, because Apply writes whatever was sent to every scenario.
+ */
+export function changedTerminationRates(current: TerminationRates, scenario: TerminationRates | null) {
+  const changed = scenario !== null
+    && (current.total !== scenario.total || current.newHire !== scenario.newHire);
+  return {
+    total_termination_rate: changed ? current.total : null,
+    new_hire_termination_rate: changed ? current.newHire : null,
+  };
 }
 
 type StudioConfig = Scenario['config_overrides'];
