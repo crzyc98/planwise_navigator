@@ -346,6 +346,9 @@ def test_snapshot_metric_matches_studio_active_query(tmp_path: Path) -> None:
                 (2026, "c", None, "continuous_active", 900, 900),
             ],
         )
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN acquisition_id VARCHAR"
+        )
         studio = _query_workforce_progression(
             conn, 2025, 2026, _population_filter("active")
         )
@@ -426,12 +429,16 @@ def test_payroll_per_head_rows_keep_the_active_figure_beside_them(tmp_path) -> N
     with duckdb.connect(str(database)) as conn:
         conn.execute(
             "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+            "acquisition_id VARCHAR, "
             "employment_status VARCHAR, detailed_status_code VARCHAR, "
             "prorated_annual_compensation DOUBLE, "
             "full_year_equivalent_compensation DOUBLE)"
         )
         conn.executemany(
-            "INSERT INTO fct_workforce_snapshot VALUES (?, ?, 'continuous_active', ?, ?)",
+            "INSERT INTO fct_workforce_snapshot (simulation_year, employment_status, "
+            "detailed_status_code, prorated_annual_compensation, "
+            "full_year_equivalent_compensation) "
+            "VALUES (?, ?, 'continuous_active', ?, ?)",
             [
                 (2025, "active", 100.0, 100.0),
                 (2026, "active", 110.0, 110.0),

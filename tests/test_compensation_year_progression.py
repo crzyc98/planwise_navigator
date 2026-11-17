@@ -45,7 +45,7 @@ def test_subsequent_year_compensation_advances_prior_state_once() -> None:
           40 AS scheduled_hours_per_week, 2026 AS decision_year,
           2025 AS source_simulation_year, 'default' AS scenario_id,
           'active' AS employment_status, 60000 AS current_compensation,
-          'default' AS plan_design_id""")
+          'default' AS plan_design_id, NULL::VARCHAR AS acquisition_id""")
     connection.execute("""CREATE TABLE enrollment_state AS SELECT
           'e1' AS employee_id, 2026 AS decision_year,
           'default' AS scenario_id, 'default' AS plan_design_id,

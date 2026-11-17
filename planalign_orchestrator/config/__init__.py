@@ -30,6 +30,7 @@ from .simulation import (
 
 # Workforce settings
 from .workforce import (
+    AcquisitionSettings,
     WorkforceSettings,
     OptOutRatesSettings,
     AutoEnrollmentSettings,
@@ -110,6 +111,7 @@ __all__ = [
     "CompensationSettings",
     "PromotionCompensationSettings",
     # Workforce
+    "AcquisitionSettings",
     "WorkforceSettings",
     "OptOutRatesSettings",
     "AutoEnrollmentSettings",

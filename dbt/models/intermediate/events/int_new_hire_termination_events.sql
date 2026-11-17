@@ -43,6 +43,8 @@ eligible_new_hires AS (
         DATEDIFF('day', nh.effective_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS days_until_year_end
     FROM {{ ref('int_hiring_events') }} nh
     WHERE nh.simulation_year = {{ simulation_year }}
+      -- #1226: acquired-group members never take new-hire turnover
+      AND nh.acquisition_id IS NULL
 ),
 
 -- Compute a guaranteed in-year candidate termination date when possible

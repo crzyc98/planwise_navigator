@@ -33,5 +33,7 @@ WHERE employment_status = 'terminated'
   AND termination_date IS NOT NULL
   AND employee_hire_date IS NOT NULL
   AND simulation_year = {{ var('simulation_year') }}
+  -- Acquired members (#1226) carry prior service, so hire date understates it
+  AND acquisition_id IS NULL
   -- Violation: actual tenure doesn't match expected formula
   AND current_tenure != FLOOR(DATEDIFF('day', employee_hire_date, termination_date) / 365.25)::INTEGER

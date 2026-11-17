@@ -103,6 +103,9 @@ models:
         data_type: varchar
       - name: scheduled_hours_per_week
         data_type: decimal(5,2)
+      - name: acquisition_id
+        description: "Acquisition the employee joined with; carried every year (#1226)"
+        data_type: varchar
 
   - name: int_employer_eligibility
     description: >
@@ -1477,8 +1480,14 @@ models:
     description: >
       Termination events for employees hired in the same simulation year.
       Applies higher turnover rates to new hires for realistic modeling.
+      Acquired-group members (#1226) are never selected.
     config:
       tags: ["event_sourcing"]
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "NOT starts_with(employee_id, 'ACQ_')"
+          name: "new_hire_terminations_exclude_acquired_members"
     columns:
       - name: employee_id
         description: Unique identifier for terminated new hire

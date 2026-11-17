@@ -3,8 +3,11 @@
   tags=['EVENT_GENERATION', 'E068A_EPHEMERAL']
 ) }}
 
+-- depends_on: {{ ref('int_acquisition_hire_events') }}
+
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', 2025) | int %}
+{% set acquisitions_join_this_year = acquisitions_joining(simulation_year) | length > 0 %}
 
 -- Generate hiring events based on centralized workforce needs calculations
 -- Refactored to use int_workforce_needs as single source of truth
@@ -163,27 +166,43 @@ new_hire_assignments AS (
     END AS scheduled_hours_per_week
 
   FROM hire_with_age hwa
+),
+
+hire_rows AS (
+  SELECT
+    nha.hire_sequence_num AS row_order,
+    nha.employee_id,
+    nha.employee_ssn,
+    'hire' AS event_type,
+    {{ simulation_year }} AS simulation_year,
+    nha.hire_date AS effective_date,
+    'New hire - Level ' || nha.level_id || ' employee at $' || CAST(ROUND(nha.compensation_amount, 0) AS VARCHAR) || ' annual compensation' AS event_details,
+    nha.compensation_amount,
+    NULL::DECIMAL(15,2) AS previous_compensation,
+    NULL::DECIMAL(5,4) AS employee_deferral_rate,
+    NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
+    nha.employee_age,
+    0.0 AS employee_tenure,
+    nha.level_id,
+    -- Age and tenure bands using centralized macros
+    {{ assign_age_band('nha.employee_age') }} AS age_band,
+    {{ assign_tenure_band('0') }} AS tenure_band,
+    1.0 AS event_probability,
+    'hire' AS event_category,
+    nha.scheduled_hours_per_week,
+    -- #1226: set only on acquired-group members; NULL marks an organic hire
+    NULL::VARCHAR AS acquisition_id
+  FROM new_hire_assignments nha
+  {% if acquisitions_join_this_year %}
+  UNION ALL BY NAME
+  -- Acquired groups join on top of organic hiring and sort after it.
+  SELECT
+    {{ 2 ** 40 }} + ROW_NUMBER() OVER (ORDER BY acquisition.employee_id) AS row_order,
+    acquisition.*
+  FROM {{ ref('int_acquisition_hire_events') }} acquisition
+  {% endif %}
 )
 
-SELECT
-  nha.employee_id,
-  nha.employee_ssn,
-  'hire' AS event_type,
-  {{ simulation_year }} AS simulation_year,
-  nha.hire_date AS effective_date,
-  'New hire - Level ' || nha.level_id || ' employee at $' || CAST(ROUND(nha.compensation_amount, 0) AS VARCHAR) || ' annual compensation' AS event_details,
-  nha.compensation_amount,
-  NULL::DECIMAL(15,2) AS previous_compensation,
-  NULL::DECIMAL(5,4) AS employee_deferral_rate,
-  NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
-  nha.employee_age,
-  0.0 AS employee_tenure,
-  nha.level_id,
-  -- Age and tenure bands using centralized macros
-  {{ assign_age_band('nha.employee_age') }} AS age_band,
-  {{ assign_tenure_band('0') }} AS tenure_band,
-  1.0 AS event_probability,
-  'hire' AS event_category,
-  nha.scheduled_hours_per_week
-FROM new_hire_assignments nha
-ORDER BY nha.hire_sequence_num
+SELECT * EXCLUDE (row_order)
+FROM hire_rows
+ORDER BY row_order

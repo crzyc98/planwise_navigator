@@ -260,6 +260,12 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             )
         if getattr(cfg.workforce, "part_time_new_hire_pct", None):
             dbt_vars["part_time_new_hire_pct"] = cfg.workforce.part_time_new_hire_pct
+        # Omitted when empty so configs without acquisitions keep their fingerprint.
+        if cfg.workforce.acquisitions:
+            dbt_vars["acquisitions"] = [
+                item.model_dump(mode="json", exclude={"name"})
+                for item in cfg.workforce.acquisitions
+            ]
 
     return dbt_vars
 

@@ -15,12 +15,16 @@ WITH prior_active AS (
 SELECT
   {{ simulation_year }} AS simulation_year,
   COUNT(*) AS total_active_workforce,
+  -- #1226: acquired members are experienced staff from the year after they
+  -- join, so they never count as prior-year hires at the new-hire rate.
   COUNT(*) FILTER (
     WHERE employee_hire_date < DATE '{{ simulation_year - 1 }}-01-01'
+      OR acquisition_id IS NOT NULL
   ) AS experienced_workforce,
   COUNT(*) FILTER (
     WHERE employee_hire_date >= DATE '{{ simulation_year - 1 }}-01-01'
       AND employee_hire_date < DATE '{{ simulation_year }}-01-01'
+      AND acquisition_id IS NULL
   ) AS current_year_hires,
   COALESCE(AVG(current_compensation), 50000) AS avg_compensation,
   COALESCE(SUM(current_compensation), 0) AS total_compensation,

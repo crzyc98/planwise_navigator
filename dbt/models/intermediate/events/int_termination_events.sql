@@ -39,7 +39,8 @@ active_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        'experienced' AS employee_type
+        'experienced' AS employee_type,
+        CAST(NULL AS VARCHAR) AS acquisition_id
     FROM {{ ref('int_baseline_workforce') }}
     WHERE simulation_year = {{ simulation_year }}
       AND employment_status = 'active'
@@ -53,7 +54,8 @@ active_workforce AS (
         current_age,
         current_tenure,
         level_id,
-        'experienced' AS employee_type
+        'experienced' AS employee_type,
+        acquisition_id
     FROM {{ ref('int_active_employees_prev_year_snapshot') }}
     WHERE simulation_year = {{ simulation_year }}
       AND employment_status = 'active'
@@ -105,10 +107,17 @@ final_experienced_terminations AS (
         -- E020 FIX: Calculate tenure at termination date, not year end
         -- E021 FIX: Use same year-aware hash for consistent date
         -- E022 FIX: Use hire_date-constrained termination date
-        {{ calculate_tenure(
+        -- #1226: acquired members keep the prior service they joined with
+        CASE
+          WHEN w.acquisition_id IS NOT NULL THEN {{ carried_tenure_at(
+            'w.employee_hire_date', 'w.current_tenure', simulation_year,
+            generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', subsystem_seed('termination'))
+          ) }}
+          ELSE {{ calculate_tenure(
             'w.employee_hire_date',
             generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', subsystem_seed('termination'))
-        ) }} AS current_tenure,
+          ) }}
+        END AS current_tenure,
         w.level_id,
         w.age_band,
         w.tenure_band,

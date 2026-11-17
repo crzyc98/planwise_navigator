@@ -8,6 +8,7 @@ E058: Match-responsive deferral adjustments.
 from __future__ import annotations
 
 import warnings
+from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Literal, Optional
 
@@ -18,6 +19,24 @@ from .participant_behavior import (
     DeferralChangeMultiplierBand,
     DeferralChangeMultiplierBands,
 )
+
+
+class AcquisitionSettings(BaseModel):
+    """A group that joins on a date, on top of organic hiring (#1226).
+
+    Members are sampled from the sponsor's active staff at the start of the
+    join year and get employee ids ``ACQ_<id>_<seq>``, so the id must be safe
+    inside an employee id and a SQL string.
+    """
+
+    id: str = Field(
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,31}$",
+        description="Short unique id: letters, digits and hyphens, up to 32",
+    )
+    name: Optional[str] = Field(default=None, description="Display name")
+    # 99,999 keeps each acquisition inside its own member SSN block.
+    headcount: int = Field(gt=0, le=99_999, strict=True)
+    effective_date: date
 
 
 class WorkforceSettings(BaseModel):
@@ -31,6 +50,23 @@ class WorkforceSettings(BaseModel):
         le=1,
         description="Fraction of new simulation hires assigned a 20 hrs/week part-time schedule",
     )
+    acquisitions: List[AcquisitionSettings] = Field(
+        default_factory=list,
+        max_length=99,
+        description="Acquired groups added on top of organic hiring",
+    )
+
+    @field_validator("acquisitions")
+    @classmethod
+    def validate_unique_acquisition_ids(
+        cls, value: List[AcquisitionSettings]
+    ) -> List[AcquisitionSettings]:
+        """Reject duplicate ids, which would produce colliding employee ids."""
+        ids = [acquisition.id for acquisition in value]
+        duplicates = sorted({item for item in ids if ids.count(item) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate acquisition ids: {', '.join(duplicates)}")
+        return value
 
 
 # =============================================================================

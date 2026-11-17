@@ -99,12 +99,14 @@ def _simulation_config(census_parquet: Path) -> SimulationConfig:
     return config
 
 
-def _execute(database: Path, census_parquet: Path) -> SimulationRun:
+def _execute(
+    database: Path, census_parquet: Path, config: SimulationConfig | None = None
+) -> SimulationRun:
     try:
         with _database_environment(database):
             orchestrator = build_orchestrator(
                 ConstructionSpec(
-                    config=_simulation_config(census_parquet),
+                    config=config or _simulation_config(census_parquet),
                     database=database,
                     dbt_artifacts_dir=database.parent / "dbt",
                     threads=1,

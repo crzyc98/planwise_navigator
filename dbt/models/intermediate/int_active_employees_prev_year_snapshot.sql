@@ -29,6 +29,7 @@ SELECT
     enrollment.enrollment_date
   ) AS employee_enrollment_date,
   workforce.scheduled_hours_per_week,
+  workforce.acquisition_id,
   CASE
     WHEN COALESCE(
       enrollment.authoritative_enrollment_date,
