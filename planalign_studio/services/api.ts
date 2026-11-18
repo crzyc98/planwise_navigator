@@ -932,6 +932,8 @@ export type DataQualitySample = Schemas['DataQualitySample'];
 
 export type DataQualityWarning = Schemas['DataQualityWarning'];
 
+export type CensusHourlyRateSummary = Schemas['CensusHourlyRateSummary'];
+
 export type FileUploadResponse = Schemas['FileUploadResponse'];
 
 export type FileValidationResponse = Schemas['FileValidationResponse'];

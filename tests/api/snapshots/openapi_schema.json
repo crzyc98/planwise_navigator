@@ -3632,6 +3632,69 @@
         "title": "CensusDeferralRateBucket",
         "type": "object"
       },
+      "CensusHourlyRateSummary": {
+        "description": "Import report on census hourly rates (#1230).",
+        "properties": {
+          "blank": {
+            "description": "Rows with no hourly column filled: not hourly",
+            "title": "Blank",
+            "type": "integer"
+          },
+          "by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Rows with a usable rate, by column used",
+            "title": "By Source",
+            "type": "object"
+          },
+          "columns_present": {
+            "description": "Hourly columns found, highest precedence first",
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns Present",
+            "type": "array"
+          },
+          "maximum_rate": {
+            "description": "Highest plausible hourly rate",
+            "title": "Maximum Rate",
+            "type": "number"
+          },
+          "minimum_rate": {
+            "description": "Lowest plausible hourly rate",
+            "title": "Minimum Rate",
+            "type": "number"
+          },
+          "multiple_columns": {
+            "description": "Rows with more than one hourly column; precedence decided",
+            "title": "Multiple Columns",
+            "type": "integer"
+          },
+          "out_of_bounds": {
+            "description": "Rows whose rate is outside the plausible range; they get no rate",
+            "title": "Out Of Bounds",
+            "type": "integer"
+          },
+          "with_rate": {
+            "description": "Rows with a usable hourly rate",
+            "title": "With Rate",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "columns_present",
+          "with_rate",
+          "blank",
+          "out_of_bounds",
+          "multiple_columns",
+          "minimum_rate",
+          "maximum_rate",
+          "by_source"
+        ],
+        "title": "CensusHourlyRateSummary",
+        "type": "object"
+      },
       "CensusMetrics": {
         "description": "Participation, savings-rate, and cost metrics for one population slice.",
         "properties": {
@@ -9640,6 +9703,17 @@
             "title": "File Size Bytes",
             "type": "integer"
           },
+          "hourly_rate_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CensusHourlyRateSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hourly rate report; null when the census has no hourly columns"
+          },
           "original_filename": {
             "anyOf": [
               {
@@ -9697,7 +9771,8 @@
           "structured_warnings",
           "data_quality_warnings",
           "column_renames",
-          "original_filename"
+          "original_filename",
+          "hourly_rate_summary"
         ],
         "title": "FileUploadResponse",
         "type": "object"
@@ -13552,6 +13627,16 @@
             "title": "Filename",
             "type": "string"
           },
+          "hourly_rate_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CensusHourlyRateSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "import_id": {
             "title": "Import Id",
             "type": "string"
@@ -13592,6 +13677,7 @@
           "row_count",
           "file_size_bytes",
           "schema",
+          "hourly_rate_summary",
           "created_at",
           "created_by"
         ],

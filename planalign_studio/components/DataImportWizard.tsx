@@ -9,6 +9,7 @@ import FieldMappingStep from './imports/FieldMappingStep';
 import PreviewStep from './imports/PreviewStep';
 import ImportedFilesList from './imports/ImportedFilesList';
 import CensusRollForwardBanner from './imports/CensusRollForwardBanner';
+import HourlyRateSummaryNotice from './imports/HourlyRateSummaryNotice';
 import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 
 type WizardStep = 'upload' | 'mapping' | 'preview' | 'done';
@@ -172,6 +173,7 @@ export default function DataImportWizard() {
               <span className="font-mono">{parquetResult.file_name}</span> — {parquetResult.row_count.toLocaleString()} rows
             </p>
             <p className="text-xs text-ink-subtle">Your workspace census has been updated.</p>
+            <HourlyRateSummaryNotice summary={parquetResult.hourly_rate_summary} />
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={handleStartNew}
@@ -198,6 +200,7 @@ export default function DataImportWizard() {
             <p className="text-xs text-ink-subtle">
               This file is now set as the workspace census and will be used by your scenarios.
             </p>
+            <HourlyRateSummaryNotice summary={generatedFile.hourly_rate_summary} />
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={handleStartNew}

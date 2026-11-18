@@ -371,6 +371,39 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "eligibility_entry",
         ),
     ),
+    # Hourly pay (#1230). One per person is enough; when several are filled the
+    # first of hourly_rate, hours_worked, scheduled_hours_per_week wins.
+    CensusFieldDefinition(
+        field_name="hourly_rate",
+        required=False,
+        data_type="decimal",
+        description=(
+            "Base hourly rate in dollars — preferred source of an hourly rate for a "
+            "minimum wage change; unaffected by overtime and bonuses"
+        ),
+        aliases=("hourly_pay_rate", "hourly_wage", "rate_per_hour"),
+    ),
+    CensusFieldDefinition(
+        field_name="hours_worked",
+        required=False,
+        data_type="decimal",
+        description=(
+            "All paid hours in the census year, overtime included — hourly rate is "
+            "census pay / hours; overstates the base rate when pay includes overtime "
+            "premium or bonuses, so hourly_rate is preferred"
+        ),
+        aliases=("annual_hours_worked", "paid_hours", "hours_paid"),
+    ),
+    CensusFieldDefinition(
+        field_name="scheduled_hours_per_week",
+        required=False,
+        data_type="decimal",
+        description=(
+            "Scheduled weekly hours — used for part-time eligibility; hourly rate is "
+            "annual pay rate / (hours x 52), right only when census pay is an annual rate"
+        ),
+        aliases=("hours_per_week", "scheduled_hours", "weekly_hours"),
+    ),
 )
 
 CANONICAL_NAMES: frozenset[str] = frozenset(f.field_name for f in FIELDS)

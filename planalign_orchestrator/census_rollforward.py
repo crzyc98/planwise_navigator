@@ -12,6 +12,11 @@ holds each employee's year-end rate, except under ``earnings`` for people hired
 in the bridge year: they get their part-year earnings, which staging turns
 back into an annual rate. People the simulation hired carry
 ``simulated_employee = TRUE``.
+
+When the original census gives ``hourly_rate`` or ``hours_worked`` (#1230),
+the bridge census holds each census employee's hourly rate, moved with their
+pay since the census year, as ``hourly_rate``. ``hours_worked`` is not carried:
+it describes the original census year, not the bridge year's pay.
 """
 
 from __future__ import annotations
@@ -157,12 +162,28 @@ def _sql_path(path: Path) -> str:
     return str(path.resolve()).replace("'", "''")
 
 
-def _carried_columns(conn: duckdb.DuckDBPyConnection, census_path: Path) -> list[str]:
+def _census_columns(conn: duckdb.DuckDBPyConnection, census_path: Path) -> set[str]:
     rows = conn.execute(
         f"DESCRIBE SELECT * FROM read_parquet('{_sql_path(census_path)}')"
     ).fetchall()
-    present = {row[0] for row in rows}
-    return [column for column in CARRIED_COLUMNS if column in present]
+    return {row[0] for row in rows}
+
+
+def _hourly_rate_sql(present: set[str]) -> tuple[str, str]:
+    """The select item and join that roll each census hourly rate forward.
+
+    Empty when the census gives no rate or hours (#1230). The rate moves with
+    pay: census rate x year-end pay / census annual rate.
+    """
+    if not present.intersection({"hourly_rate", "hours_worked"}):
+        return "", ""
+    select = """, CASE WHEN st.employee_annualized_compensation > 0
+              THEN st.census_hourly_rate * s.current_compensation
+                / st.employee_annualized_compensation END AS hourly_rate"""
+    join = """LEFT JOIN stg_census_data st
+            ON c.census_employee_id IS NOT NULL
+            AND CAST(st.employee_id AS VARCHAR) = c.census_employee_id"""
+    return select, join
 
 
 def _pay_column(pay_basis: str, year: int) -> str:
@@ -187,7 +208,11 @@ def _write_census(
 ) -> None:
     """Write the year-end active workforce in census format."""
     pay = _pay_column(pay_basis, year)
-    carried = "".join(f", c.{column}" for column in _carried_columns(conn, census_path))
+    present = _census_columns(conn, census_path)
+    carried = "".join(
+        f", c.{column}" for column in CARRIED_COLUMNS if column in present
+    )
+    hourly_rate, hourly_join = _hourly_rate_sql(present)
     conn.execute(f"""
         COPY (
           WITH census AS (
@@ -213,10 +238,11 @@ def _write_census(
             CASE WHEN s.is_enrolled_flag THEN COALESCE(s.current_deferral_rate, 0)
               ELSE 0 END AS employee_deferral_rate,
             s.employee_eligibility_date AS eligibility_entry_date
-            {carried},
+            {carried}{hourly_rate},
             c.census_employee_id IS NULL AS simulated_employee
           FROM fct_workforce_snapshot s
           LEFT JOIN census c ON c.census_employee_id = CAST(s.employee_id AS VARCHAR)
+          {hourly_join}
           WHERE s.simulation_year = {int(year)} AND s.employment_status = 'active'
           ORDER BY s.employee_id
         ) TO '{_sql_path(output_path)}' (FORMAT PARQUET)

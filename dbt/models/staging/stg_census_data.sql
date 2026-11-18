@@ -61,6 +61,11 @@ raw_data AS (
       -- Scheduled weekly hours: NULL means full-time (40 hrs/wk assumed downstream)
       TRY_CAST(scheduled_hours_per_week AS DECIMAL(5,2)) AS scheduled_hours_per_week,
 
+      -- Hourly pay inputs (#1230): a given hourly rate, or all paid hours in
+      -- the census year. Either may be absent; see hourly_rates below.
+      TRY_CAST(hourly_rate AS DOUBLE) AS hourly_rate,
+      TRY_CAST(hours_worked AS DOUBLE) AS hours_worked,
+
       -- Per-employee auto-escalation opt-out (issue #316). Defaults to FALSE
       -- (employee participates in auto-escalation) when absent from the census.
       COALESCE(CAST(auto_escalation_opt_out AS BOOLEAN), FALSE) AS auto_escalation_opt_out,
@@ -169,6 +174,43 @@ comp_data AS (
 
 {% endif %}
 
+-- One hourly rate per person (#1230), from the first column the row fills:
+--   hourly_rate               as given (preferred: unaffected by overtime and bonuses)
+--   hours_worked              census-year pay / all paid hours in the census year
+--   scheduled_hours_per_week  annual rate / (weekly hours * 52)
+-- No column means not hourly: the rate is NULL. Hours are never inferred. A
+-- rate outside the plausible range keeps the person but leaves the rate NULL,
+-- with source 'out_of_bounds'.
+hourly_rate_candidates AS (
+  SELECT *,
+    CASE
+      WHEN hourly_rate IS NOT NULL THEN 'hourly_rate'
+      WHEN hours_worked IS NOT NULL THEN 'hours_worked'
+      WHEN scheduled_hours_per_week IS NOT NULL THEN 'scheduled_hours_per_week'
+    END AS hourly_rate_basis,
+    CASE
+      WHEN hourly_rate IS NOT NULL THEN hourly_rate
+      WHEN hours_worked IS NOT NULL
+        THEN computed_plan_year_compensation / NULLIF(hours_worked, 0)
+      WHEN scheduled_hours_per_week IS NOT NULL
+        THEN employee_annualized_compensation / NULLIF(scheduled_hours_per_week * 52, 0)
+    END AS candidate_hourly_rate
+  FROM comp_data
+),
+hourly_rates AS (
+  SELECT *,
+    CASE WHEN candidate_hourly_rate BETWEEN {{ var('census_hourly_rate_min') }}
+        AND {{ var('census_hourly_rate_max') }}
+      THEN candidate_hourly_rate
+    END AS census_hourly_rate,
+    CASE
+      WHEN candidate_hourly_rate BETWEEN {{ var('census_hourly_rate_min') }}
+        AND {{ var('census_hourly_rate_max') }} THEN hourly_rate_basis
+      WHEN hourly_rate_basis IS NOT NULL THEN 'out_of_bounds'
+    END AS census_hourly_rate_source
+  FROM hourly_rate_candidates
+),
+
 -- Calculate eligibility and enrollment fields
 eligibility_data AS (
   SELECT
@@ -189,7 +231,7 @@ eligibility_data AS (
           THEN (SELECT plan_end FROM plan_calendar)
           ELSE NULL
       END AS employee_enrollment_date
-  FROM comp_data ad
+  FROM hourly_rates ad
 )
 
 -- **FIX**: Select only the first occurrence of each employee_id after deduplication
@@ -213,6 +255,8 @@ SELECT
     employer_match_contribution,
     eligibility_entry_date,
     scheduled_hours_per_week,
+    census_hourly_rate,
+    census_hourly_rate_source,
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,

@@ -2,7 +2,7 @@
  * Import Service — API client for all data import endpoints.
  */
 
-import { fetchWithAuth, saveBrowserDownload } from './api';
+import { CensusHourlyRateSummary, fetchWithAuth, saveBrowserDownload } from './api';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -83,6 +83,7 @@ export interface ParquetFile {
   row_count: number;
   file_size_bytes: number;
   schema: ParquetColumn[];
+  hourly_rate_summary?: CensusHourlyRateSummary | null;
   created_at: string;
   created_by: string;
 }

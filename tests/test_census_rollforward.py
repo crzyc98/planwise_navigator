@@ -140,3 +140,54 @@ def test_simulated_hires_get_no_ssn_so_staging_assigns_a_safe_one(
         .fetchall()
     )
     assert rows == {"E1": "S1", "E2": "S2", "N1": None}
+
+
+def test_census_without_rate_columns_gets_no_hourly_rate(tmp_path: Path) -> None:
+    _write(tmp_path, "earnings")
+    columns = {
+        row[0]
+        for row in duckdb.connect()
+        .execute(
+            "DESCRIBE SELECT * FROM read_parquet(?)",
+            [str(tmp_path / "bridge_earnings.parquet")],
+        )
+        .fetchall()
+    }
+    assert "hourly_rate" not in columns and "hours_worked" not in columns
+
+
+def test_hourly_rate_moves_with_pay_and_hires_get_none(tmp_path: Path) -> None:
+    """E1's $20 census rate rises with pay (60,000 -> 61,800) to $20.60 (#1230)."""
+    census = tmp_path / "hourly.parquet"
+    with duckdb.connect() as conn:
+        conn.execute(f"""
+            COPY (SELECT * FROM (VALUES
+              ('E1', DATE '2019-04-01', NULL, 3000.0),
+              ('E2', DATE '2024-08-01', NULL, NULL)
+            ) t(employee_id, employee_hire_date, hourly_rate, hours_worked))
+            TO '{census}' (FORMAT parquet)
+            """)
+    db = _bridge_db(tmp_path)
+    with duckdb.connect(str(db)) as conn:
+        conn.execute("""
+            CREATE TABLE stg_census_data AS SELECT * FROM (VALUES
+              ('E1', 60000.0, 20.0), ('E2', 51000.0, NULL)
+            ) t(employee_id, employee_annualized_compensation, census_hourly_rate)
+            """)
+    out = tmp_path / "bridge_hourly.parquet"
+    with duckdb.connect(str(db), read_only=True) as conn:
+        census_rollforward._write_census(conn, census, 2025, "earnings", out)
+        rows = dict(
+            conn.execute(
+                f"SELECT employee_id, hourly_rate FROM read_parquet('{out}')"
+            ).fetchall()
+        )
+        columns = {
+            r[0]
+            for r in conn.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{out}')"
+            ).fetchall()
+        }
+    assert rows["E1"] == pytest.approx(20.6)
+    assert rows["E2"] is None and rows["N1"] is None
+    assert "hours_worked" not in columns

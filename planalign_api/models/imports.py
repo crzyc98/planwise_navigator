@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from pydantic import Field
 from .base import APIModel
+from .files import CensusHourlyRateSummary
 
 # ---------------------------------------------------------------------------
 # Schema-mapping types (089-import-schema-mapping)
@@ -143,6 +144,7 @@ class ParquetFile(APIModel):
     row_count: int = Field(default=0, ge=0)
     file_size_bytes: int = Field(default=0, ge=0)
     parquet_schema: List[ParquetColumn] = Field(default_factory=list, alias="schema")
+    hourly_rate_summary: Optional[CensusHourlyRateSummary] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"
 

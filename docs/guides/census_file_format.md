@@ -83,6 +83,8 @@ below); they don't block ingestion.
 | `employer_match_contribution` | decimal | Employer matching contribution amount | `er_match`, `ermatch`, `employer_match`, `matching`, `match_contribution`, `matchcontribution`, `employer_matching` |
 | `eligibility_entry_date` | date | Override for plan eligibility entry date; if present, used instead of the calculated hire-date + waiting-period date | `entry_date`, `entrydate`, `eligibility_date`, `eligibilitydate`, `plan_entry`, `planentry`, `eligibility_entry` |
 | `scheduled_hours_per_week` | decimal | Scheduled weekly hours; omit for full-time (defaults to 40 hrs/wk downstream) | `hours_per_week`, `scheduled_hours`, `weekly_hours` |
+| `hourly_rate` | decimal | Base hourly rate in dollars. The preferred way to give an hourly rate (see **Hourly rates** below) | `hourly_pay_rate`, `hourly_wage`, `rate_per_hour` |
+| `hours_worked` | decimal | All paid hours in the census year, overtime included | `annual_hours_worked`, `paid_hours`, `hours_paid` |
 | `auto_escalation_opt_out` | boolean | Per-employee opt-out of auto-escalation; defaults to `false` (participates) if omitted | *(no aliases — must match exactly)* |
 | `eligibility_override` | boolean | Per-employee plan eligibility override: `true`=eligible, `false`=ineligible, omitted/null=unspecified (calculated normally) | *(no aliases — must match exactly)* |
 
@@ -126,6 +128,29 @@ eligible. Studio and config validation reject new-hire ages under 21.
   mid-year. Hours are not used, so seasonal work and unpaid leave are not
   detected. The received value is never changed.
 - **Files that hold true annual rates:** set `setup.census_pay_basis: annual_rate`.
+- **Hourly rates (#1230).** A minimum wage change needs an hourly rate for each
+  hourly person. Give one of these per person; leave all of them blank for
+  anyone who is not hourly:
+  - `hourly_rate`: the rate as given. **Preferred.** Ask sponsors for it.
+  - `hours_worked`: all paid hours in the census year. The rate is census-year
+    pay / hours (under `annual_rate`, the rate prorated to the days employed).
+    Overtime hours are not removed, and pay divided by all hours overstates the
+    base rate for people paid overtime premium or bonuses, so some people just
+    under a new minimum would be missed.
+  - `scheduled_hours_per_week`: the rate is the annual pay rate / (hours x 52).
+    Right only when census pay is an annual rate, not earnings.
+
+  When a row fills more than one, `hourly_rate` wins, then `hours_worked`, then
+  `scheduled_hours_per_week`, and the import says how many rows that affected.
+  Hours are never inferred: a blank row means not hourly, and a minimum wage
+  change never touches that person. A rate below $7.25 or above $500 an hour is
+  flagged at import, does not stop the import, and leaves that person with no
+  rate (bounds: `census_hourly_rate_min`/`census_hourly_rate_max` in
+  `dbt/dbt_project.yml`). The import does not compare rates against the
+  sponsor's own old minimum. Staging publishes the result as
+  `census_hourly_rate` and `census_hourly_rate_source` on `stg_census_data` and
+  `int_baseline_workforce`. A bridge census (roll-forward) writes each census
+  employee's rate, moved with their pay, as `hourly_rate`.
 - **IDs:** treat as strings even if numeric-looking (leading zeros must be
   preserved — don't let a spreadsheet tool strip them).
 

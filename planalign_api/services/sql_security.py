@@ -339,6 +339,26 @@ CENSUS_SCHEDULED_HOURS_COLUMNS = frozenset(
     }
 )
 
+# Census hourly pay inputs (#1230). Only unambiguous names: "hours" or "rate"
+# alone could mean anything.
+CENSUS_HOURLY_RATE_COLUMNS = frozenset(
+    {
+        "hourly_rate",
+        "hourly_pay_rate",
+        "hourly_wage",
+        "rate_per_hour",
+    }
+)
+
+CENSUS_HOURS_WORKED_COLUMNS = frozenset(
+    {
+        "hours_worked",
+        "annual_hours_worked",
+        "paid_hours",
+        "hours_paid",
+    }
+)
+
 CENSUS_EMPLOYER_MATCH_COLUMNS = frozenset(
     {
         "employer_match_contribution",
@@ -386,6 +406,8 @@ ALL_CENSUS_COLUMNS = (
     | CENSUS_STATUS_COLUMNS
     | CENSUS_DEFERRAL_COLUMNS
     | CENSUS_SCHEDULED_HOURS_COLUMNS
+    | CENSUS_HOURLY_RATE_COLUMNS
+    | CENSUS_HOURS_WORKED_COLUMNS
     | CENSUS_EMPLOYER_MATCH_COLUMNS
     | CENSUS_EMPLOYER_CORE_COLUMNS
     | CENSUS_ELIGIBILITY_DATE_COLUMNS

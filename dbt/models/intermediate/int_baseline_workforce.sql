@@ -39,7 +39,10 @@ WITH base_employees AS (
         -- Epic E049: Census deferral rate integration - preserve exact census rates
         stg.employee_deferral_rate,
         -- Issue #316: per-employee auto-escalation opt-out (carried for audit visibility)
-        stg.auto_escalation_opt_out
+        stg.auto_escalation_opt_out,
+        -- Issue #1230: census hourly rate (NULL = not hourly) and its source column
+        stg.census_hourly_rate,
+        stg.census_hourly_rate_source
     FROM {{ ref('stg_census_data') }} stg
     -- Use a subquery to find the best matching level_id for each employee
     LEFT JOIN (
@@ -80,6 +83,8 @@ SELECT
     employee_deferral_rate,
     -- Issue #316: per-employee auto-escalation opt-out (carried for audit visibility)
     auto_escalation_opt_out,
+    census_hourly_rate,
+    census_hourly_rate_source,
     CASE
         WHEN employee_deferral_rate > 0 THEN true
         ELSE false

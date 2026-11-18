@@ -1,7 +1,7 @@
 """File upload and validation models."""
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import Field
 from .base import APIModel
@@ -53,6 +53,28 @@ class DataQualityWarning(APIModel):
     suggested_action: str = Field(..., description="Recommended fix")
 
 
+class CensusHourlyRateSummary(APIModel):
+    """Import report on census hourly rates (#1230)."""
+
+    columns_present: List[str] = Field(
+        ..., description="Hourly columns found, highest precedence first"
+    )
+    with_rate: int = Field(..., description="Rows with a usable hourly rate")
+    blank: int = Field(..., description="Rows with no hourly column filled: not hourly")
+    out_of_bounds: int = Field(
+        ...,
+        description="Rows whose rate is outside the plausible range; they get no rate",
+    )
+    multiple_columns: int = Field(
+        ..., description="Rows with more than one hourly column; precedence decided"
+    )
+    minimum_rate: float = Field(..., description="Lowest plausible hourly rate")
+    maximum_rate: float = Field(..., description="Highest plausible hourly rate")
+    by_source: Dict[str, int] = Field(
+        default_factory=dict, description="Rows with a usable rate, by column used"
+    )
+
+
 class FileUploadResponse(APIModel):
     """Response after successful file upload."""
 
@@ -82,6 +104,10 @@ class FileUploadResponse(APIModel):
     )
     original_filename: Optional[str] = Field(
         None, description="Original uploaded filename before normalization"
+    )
+    hourly_rate_summary: Optional[CensusHourlyRateSummary] = Field(
+        None,
+        description="Hourly rate report; null when the census has no hourly columns",
     )
 
 

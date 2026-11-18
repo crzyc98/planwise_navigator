@@ -1,11 +1,14 @@
 """File service for census file uploads and validation."""
 
 import logging
+from dataclasses import asdict
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
+
+from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 
 from .sql_security import (
     ALL_CENSUS_COLUMNS,
@@ -13,6 +16,8 @@ from .sql_security import (
     CENSUS_COMPENSATION_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
     CENSUS_JOB_LEVEL_COLUMNS,
+    CENSUS_HOURLY_RATE_COLUMNS,
+    CENSUS_HOURS_WORKED_COLUMNS,
     CENSUS_SCHEDULED_HOURS_COLUMNS,
     CENSUS_STATUS_COLUMNS,
     CENSUS_TERMINATION_DATE_COLUMNS,
@@ -74,6 +79,8 @@ class FileService:
         "employee_job_level": CENSUS_JOB_LEVEL_COLUMNS,
         "active": CENSUS_STATUS_COLUMNS,
         "scheduled_hours_per_week": CENSUS_SCHEDULED_HOURS_COLUMNS,
+        "hourly_rate": CENSUS_HOURLY_RATE_COLUMNS,
+        "hours_worked": CENSUS_HOURS_WORKED_COLUMNS,
     }
 
     # Flattened alias -> canonical map (excludes canonical names themselves)
@@ -666,9 +673,11 @@ class FileService:
                 conn, columns, row_count
             )
 
+            hourly_rates = summarize_hourly_rates(conn, "census", columns)
             return {
                 "row_count": row_count,
                 "columns": columns,
+                "hourly_rate_summary": asdict(hourly_rates) if hourly_rates else None,
                 "file_size_bytes": file_path.stat().st_size,
                 "validation_warnings": warnings,
                 "structured_warnings": structured_warnings,
