@@ -132,12 +132,13 @@ acquisition_participation_events AS (
       ) AS participation_rank,
       COUNT(*) OVER (PARTITION BY cohort.acquisition_id) AS cohort_size
     FROM acquisition_entry_cohort cohort
+    -- Rank only members who can enter, so ineligible ones take no slots
+    WHERE cohort.is_plan_eligible
+      AND NOT cohort.is_plan_ineligible_override
   ) ranked
   INNER JOIN acquisition_participation_settings settings
     ON ranked.acquisition_id = settings.acquisition_id
   WHERE ranked.participation_rank <= ROUND(settings.participation_rate * ranked.cohort_size)
-    AND ranked.is_plan_eligible
-    AND NOT ranked.is_plan_ineligible_override
 ),
 {% endif %}
 
