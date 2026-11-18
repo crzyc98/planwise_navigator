@@ -1826,7 +1826,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary', 'easy_enroll']
+                values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary', 'easy_enroll', 'acquisition_enrollment']
       - name: data_quality_flag
         description: Data quality validation flag
         data_tests:

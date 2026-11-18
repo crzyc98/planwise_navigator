@@ -53,7 +53,13 @@ def test_no_acquisitions_exports_nothing_and_keeps_fingerprint() -> None:
 def test_acquisitions_export_as_list_var_without_display_name() -> None:
     config = _config([ACME])
     assert to_dbt_vars(config)["acquisitions"] == [
-        {"id": "acme", "headcount": 120, "effective_date": "2026-07-01"}
+        {
+            "id": "acme",
+            "headcount": 120,
+            "effective_date": "2026-07-01",
+            "service_credit": "prior_service",
+            "plan_entry": "acquisition_date",
+        }
     ]
 
 
@@ -189,3 +195,95 @@ def test_bridge_census_roll_forward_never_applies_acquisitions(
     bridge = _bridge_config(config, tmp_path / "census.parquet", 2024, 2025)
     assert bridge.workforce.acquisitions == []
     assert config.workforce.acquisitions[0].id == "acme"
+
+
+# --- #1227: plan settings --------------------------------------------------
+
+PLAN_SETTINGS = {
+    "service_credit": "acquisition_date",
+    "plan_entry": "waiting_period",
+    "starting_participation_rate": 0.7,
+    "starting_deferral_rate": 0.05,
+}
+
+
+def test_plan_settings_default_to_prior_service_entry_on_date_and_ae() -> None:
+    acquisition = AcquisitionSettings.model_validate(ACME)
+    assert acquisition.service_credit == "prior_service"
+    assert acquisition.plan_entry == "acquisition_date"
+    assert acquisition.starting_participation_rate is None
+    assert acquisition.starting_deferral_rate is None
+
+
+def test_plan_settings_export_and_round_trip() -> None:
+    config = _config([{**ACME, **PLAN_SETTINGS}])
+    exported = to_dbt_vars(config)["acquisitions"][0]
+    assert {key: exported[key] for key in PLAN_SETTINGS} == PLAN_SETTINGS
+    dumped = config.model_dump(mode="json")["workforce"]["acquisitions"][0]
+    assert (
+        SimulationConfig.model_validate(
+            {**config.model_dump(mode="json"), "workforce": {"acquisitions": [dumped]}}
+        ).workforce.acquisitions[0]
+        == config.workforce.acquisitions[0]
+    )
+
+
+def test_plan_settings_change_the_fingerprint() -> None:
+    assert compute_config_fingerprint(_config([ACME])) != compute_config_fingerprint(
+        _config([{**ACME, **PLAN_SETTINGS}])
+    )
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"service_credit": "hire_date"},
+        {"plan_entry": "next_quarter"},
+        {"starting_participation_rate": 0.5},
+        {"starting_deferral_rate": 0.05},
+        {"starting_participation_rate": 1.5, "starting_deferral_rate": 0.05},
+        {"starting_participation_rate": 0.5, "starting_deferral_rate": 0},
+    ],
+)
+def test_plan_settings_reject_invalid_values(override: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        AcquisitionSettings.model_validate({**ACME, **override})
+
+
+def _acquisition_macros(acquisitions: list[dict[str, Any]]) -> Any:
+    macros = Path(__file__).resolve().parents[2] / "dbt" / "macros"
+    env = Environment(extensions=["jinja2.ext.do"])
+    env.globals["var"] = lambda name, default=None: (
+        acquisitions if name == "acquisitions" else default
+    )
+    return env.from_string((macros / "events" / "acquisitions.sql").read_text()).module
+
+
+@pytest.mark.parametrize(
+    ("employee_id", "expected"),
+    [
+        ("ACQ_acme_000001", "acme"),
+        ("ACQ_acme-2_000042", "acme-2"),
+        ("ACQ_acme_00001", None),
+        ("ACQ_other_000001", None),
+        ("NH_2026_000001", None),
+        ("EMP_000001", None),
+    ],
+)
+def test_acquisition_id_of_matches_only_built_member_ids(
+    employee_id: str, expected: str | None
+) -> None:
+    module = _acquisition_macros([{"id": "acme"}, {"id": "acme-2"}])
+    built = duckdb.sql(
+        "SELECT " + module.acquisition_member_id("'acme'", "1")
+    ).fetchall()
+    assert built == [("ACQ_acme_000001",)]
+    sql = module.acquisition_id_of(f"'{employee_id}'")
+    assert duckdb.sql(f"SELECT {sql}").fetchall() == [(expected,)]
+
+
+def test_acquisition_macros_render_nothing_without_acquisitions() -> None:
+    module = _acquisition_macros([])
+    assert module.acquisition_cohort("employee_id").strip() == ""
+    sql = module.acquisition_id_of("'ACQ_acme_000001'")
+    assert duckdb.sql(f"SELECT {sql}").fetchall() == [(None,)]

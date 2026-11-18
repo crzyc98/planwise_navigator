@@ -52,7 +52,9 @@ def probabilities(
     context = {"var": lambda key, default=None: variables.get(key, default)}
     module = env.from_string(macro_source).make_module(context)
     sql = env.from_string(sql).render(
-        **context, deferral_change_multiplier=module.deferral_change_multiplier
+        **context,
+        deferral_change_multiplier=module.deferral_change_multiplier,
+        acquisition_cohort=lambda employee_id: "",
     )
     with duckdb.connect() as con:
         rows = con.execute(

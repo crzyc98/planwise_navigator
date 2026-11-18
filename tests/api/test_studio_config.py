@@ -189,3 +189,31 @@ def test_create_copy_and_template_paths_preserve_config(tmp_path, partial_config
 def test_sweep_api_rejects_invalid_schedule(field: str, value: object) -> None:
     with pytest.raises(ValidationError):
         ScenarioCreate(name="S", config_overrides={"dc_plan": {field: value}})
+
+
+def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path):
+    """#1227: Studio can save an acquisition's plan settings before #1228 adds UI."""
+    from planalign_orchestrator.config import AcquisitionSettings
+
+    acquisition = {
+        "id": "acme",
+        "name": "Acme Co",
+        "headcount": 120,
+        "effective_date": "2026-07-01",
+        "service_credit": "acquisition_date",
+        "plan_entry": "waiting_period",
+        "starting_participation_rate": 0.7,
+        "starting_deferral_rate": 0.05,
+    }
+    overrides = {"workforce": {"acquisitions": [acquisition]}}
+    storage = WorkspaceStorage(tmp_path / "workspaces")
+    workspace = storage.create_workspace(WorkspaceCreate(name="W"), {})
+    service = ScenarioService(storage)
+    created = service.create_scenario(
+        workspace.id, ScenarioCreate(name="S", config_overrides=overrides)
+    )
+    stored = storage.get_scenario(workspace.id, created.id).config_overrides
+    assert stored == overrides
+    merged = service.get_merged_config(workspace.id, created.id)
+    loaded = AcquisitionSettings.model_validate(merged["workforce"]["acquisitions"][0])
+    assert loaded.model_dump(mode="json") == acquisition

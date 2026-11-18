@@ -47,6 +47,9 @@ def render(source: str, **variables: Any) -> str:
             target={"schema": "main"},
             assign_age_band=lambda column: "'35-44'",
             assign_tenure_band=lambda column: "'0-4'",
+            # #1227 acquisition macros, rendered for a scenario without any.
+            acquisitions_with_starting_participation=lambda: [],
+            acquisition_cohort=lambda employee_id: "",
         )
     )
 

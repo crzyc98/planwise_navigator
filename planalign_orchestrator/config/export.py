@@ -275,7 +275,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         # Omitted when empty so configs without acquisitions keep their fingerprint.
         if cfg.workforce.acquisitions:
             dbt_vars["acquisitions"] = [
-                item.model_dump(mode="json", exclude={"name"})
+                # Plan settings go out resolved (#1227), so dbt never restates
+                # their defaults; unset starting rates are left out.
+                item.model_dump(mode="json", exclude={"name"}, exclude_none=True)
                 for item in cfg.workforce.acquisitions
             ]
 

@@ -34,6 +34,9 @@ def _render(headcount: int) -> str:
         assign_age_band=lambda column: "'age_band'",
         assign_tenure_band=lambda column: "'tenure_band'",
         acquisitions_joining=lambda year: joining,
+        acquisition_member_id=lambda acquisition, seq: (
+            f"'ACQ_' || {acquisition} || '_' || LPAD(CAST({seq} AS VARCHAR), 6, '0')"
+        ),
     )
     model = DBT / "models/intermediate/events/int_acquisition_hire_events.sql"
     return env.from_string(model.read_text()).render()

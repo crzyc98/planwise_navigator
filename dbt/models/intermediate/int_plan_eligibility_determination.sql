@@ -7,6 +7,8 @@
 {% set scenario_id = var('scenario_id', 'default') %}
 {% set minimum_age = var('plan_eligibility_minimum_age', var('minimum_age', 21)) | int %}
 {% set plan_design_parameters_config = var('plan_design_parameters', none) %}
+{# #1227: members of these acquisitions enter on the acquisition date #}
+{% set enter_on_acquisition_date = acquisitions_where('plan_entry', 'acquisition_date', 'acquisition_date') %}
 
 WITH parameter_rows AS (
 {% if plan_design_parameters_config %}
@@ -44,7 +46,8 @@ employee_candidates AS (
     employee_ssn,
     effective_date::DATE AS employee_hire_date,
     employee_age AS current_age,
-    0::DECIMAL(10,2) AS current_tenure,
+    -- 0 for organic hires; acquired members carry their credited service
+    CAST(employee_tenure AS DECIMAL(10,2)) AS current_tenure,
     level_id,
     compensation_amount AS current_compensation,
     age_band,
@@ -70,24 +73,19 @@ employees AS (
   WHERE candidate_rank = 1
 ),
 
-eligibility_calculation AS (
+employee_waiting_periods AS (
   SELECT
-    '{{ scenario_id }}'::VARCHAR AS scenario_id,
     assignment.plan_design_id,
     employee.*,
-    parameters.eligibility_waiting_period_days AS waiting_period_days,
-    {{ minimum_age }}::INTEGER AS minimum_age,
-    employee.employee_hire_date
-      + INTERVAL (parameters.eligibility_waiting_period_days) DAY
-      AS plan_eligibility_date,
-    employee.current_age >= {{ minimum_age }} AS meets_age_requirement,
+    {% if enter_on_acquisition_date %}
     CASE
-      WHEN parameters.eligibility_waiting_period_days = 0 THEN TRUE
-      ELSE DATE_DIFF(
-        'day', employee.employee_hire_date,
-        MAKE_DATE(employee.simulation_year::INTEGER, 12, 31)
-      ) >= parameters.eligibility_waiting_period_days
-    END AS meets_tenure_requirement
+      WHEN {{ acquisition_id_of('employee.employee_id', enter_on_acquisition_date) }} IS NOT NULL
+        THEN 0
+      ELSE parameters.eligibility_waiting_period_days
+    END AS waiting_period_days
+    {% else %}
+    parameters.eligibility_waiting_period_days AS waiting_period_days
+    {% endif %}
   FROM employees employee
   INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
     ON employee.employee_id = assignment.employee_id
@@ -95,6 +93,25 @@ eligibility_calculation AS (
    AND assignment.scenario_id = '{{ scenario_id }}'
   INNER JOIN parameter_rows parameters
     ON assignment.plan_design_id = parameters.plan_design_id
+),
+
+eligibility_calculation AS (
+  SELECT
+    '{{ scenario_id }}'::VARCHAR AS scenario_id,
+    employee.*,
+    {{ minimum_age }}::INTEGER AS minimum_age,
+    employee.employee_hire_date
+      + INTERVAL (employee.waiting_period_days) DAY
+      AS plan_eligibility_date,
+    employee.current_age >= {{ minimum_age }} AS meets_age_requirement,
+    CASE
+      WHEN employee.waiting_period_days = 0 THEN TRUE
+      ELSE DATE_DIFF(
+        'day', employee.employee_hire_date,
+        MAKE_DATE(employee.simulation_year::INTEGER, 12, 31)
+      ) >= employee.waiting_period_days
+    END AS meets_tenure_requirement
+  FROM employee_waiting_periods employee
 )
 
 SELECT
