@@ -174,6 +174,8 @@ describe('like-for-like copy', () => {
 
   it('formats settings in plain words', () => {
     expect(formatSetting('compensation.merit_budget_percent', 3.5)).toBe('3.5%');
+    expect(formatSetting('dc_plan.max_voluntary_deferral_percent', 0.75)).toBe('75%');
+    expect(formatSetting('dc_plan.match_cap_percent', 0.06)).toBe('6%');
     expect(formatSetting('workforce.total_termination_rate', 0.12)).toBe('12%');
     expect(formatSetting('dc_plan.auto_enroll', true)).toBe('on');
     expect(formatSetting('new_hire.age_distribution', [{ age: 25 }])).toBeNull();

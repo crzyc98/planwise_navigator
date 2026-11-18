@@ -26,7 +26,7 @@ describe('summarizeRunChanges', () => {
         change({ code: 'engine_version_differs', previous_value: '3.1.0', current_value: '3.2.0' }),
         change({ code: 'census_differs', previous_value: 'a.parquet', current_value: 'b.parquet' }),
         change({ path: 'workforce.total_termination_rate', group: 'workforce_and_pay', previous_value: 0.12, current_value: 0.15 }),
-        change({ path: 'dc_plan.match_cap_percent', group: 'plan_design', previous_value: 4, current_value: 6 }),
+        change({ path: 'dc_plan.match_cap_percent', group: 'plan_design', previous_value: 0.04, current_value: 0.06 }),
       ],
     }));
     expect(summary.headline).toBe(`Since the previous run (${DATE}):`);
