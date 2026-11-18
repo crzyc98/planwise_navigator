@@ -173,16 +173,18 @@ def _hourly_rate_sql(present: set[str]) -> tuple[str, str]:
     """The select item and join that roll each census hourly rate forward.
 
     Empty when the census gives no rate or hours (#1230). The rate moves with
-    pay: census rate x year-end pay / census annual rate.
+    pay: census rate x year-end pay / census annual rate. A rate staging
+    rejected is written as 0, so the bridge census rejects it again instead of
+    falling back to the carried weekly hours.
     """
     if not present.intersection({"hourly_rate", "hours_worked"}):
         return "", ""
-    select = """, CASE WHEN st.employee_annualized_compensation > 0
+    select = """, CASE WHEN st.census_hourly_rate_source = 'out_of_bounds' THEN 0.0
+              WHEN st.employee_annualized_compensation > 0
               THEN st.census_hourly_rate * s.current_compensation
                 / st.employee_annualized_compensation END AS hourly_rate"""
     join = """LEFT JOIN stg_census_data st
-            ON c.census_employee_id IS NOT NULL
-            AND CAST(st.employee_id AS VARCHAR) = c.census_employee_id"""
+            ON CAST(st.employee_id AS VARCHAR) = c.census_employee_id"""
     return select, join
 
 

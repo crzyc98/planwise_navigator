@@ -36,6 +36,13 @@ describe('Hourly rate summary', () => {
     );
   });
 
+  it('uses a singular verb for one person', () => {
+    const html = render({ ...summary, with_rate: 1, blank: 1, multiple_columns: 1 });
+    expect(html).toContain('1 person has an hourly rate');
+    expect(html).toContain('1 person has none and is treated as not hourly');
+    expect(html).toContain('1 person has more than one hourly column');
+  });
+
   it('shows nothing for a census without hourly columns', () => {
     expect(render(null)).toBe('');
   });

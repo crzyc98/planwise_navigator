@@ -4,7 +4,9 @@ import { CensusHourlyRateSummary } from '../../services/api';
 
 const PRECEDENCE = ['hourly_rate', 'hours_worked', 'scheduled_hours_per_week'];
 
-const people = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'person' : 'people'}`;
+/** "1 person has" / "3 people have": the count with a matching noun and verb. */
+const peopleHave = (count: number) =>
+  `${count.toLocaleString()} ${count === 1 ? 'person has' : 'people have'}`;
 
 const dollars = (value: number) =>
   `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,22 +21,22 @@ export default function HourlyRateSummaryNotice({ summary }: { summary?: CensusH
       <div className="space-y-1">
         <div className="font-medium text-ink">Hourly rates</div>
         <div>
-          {people(summary.with_rate)} have an hourly rate
+          {peopleHave(summary.with_rate)} an hourly rate
           {sources.length > 0 && (
             <> ({sources.map((column) => `${summary.by_source[column].toLocaleString()} from ${column}`).join(', ')})</>
           )}
-          . {people(summary.blank)} have none and are treated as not hourly.
+          . {peopleHave(summary.blank)} none and {summary.blank === 1 ? 'is' : 'are'} treated as not hourly.
         </div>
         {summary.out_of_bounds > 0 && (
           <div className="text-warning-ink">
-            {people(summary.out_of_bounds)} have a rate below {dollars(summary.minimum_rate)} or
+            {peopleHave(summary.out_of_bounds)} a rate below {dollars(summary.minimum_rate)} or
             above {dollars(summary.maximum_rate)} an hour. They stay in the census with no rate,
             so a minimum wage change won't touch them. Check their pay and hours.
           </div>
         )}
         {summary.multiple_columns > 0 && (
           <div>
-            {people(summary.multiple_columns)} have more than one hourly column. The rate comes
+            {peopleHave(summary.multiple_columns)} more than one hourly column. The rate comes
             from hourly_rate first, then hours_worked, then scheduled_hours_per_week.
           </div>
         )}

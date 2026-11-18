@@ -14,9 +14,12 @@ A row with none of them is not hourly. Hours are never inferred. A rate below
 or above the plausible bounds keeps the person in the census with no rate.
 
 ``stg_census_data`` derives the rate the simulation uses. The summary here is
-the import-time report, which takes census pay as given; staging also
-annualizes part-year pay under the ``earnings`` pay basis, so a census-year
-hire's rate from ``scheduled_hours_per_week`` can differ slightly.
+the import-time report and takes census pay as given for both derived columns.
+Staging applies ``census_pay_basis``: it annualizes part-year earnings for
+``scheduled_hours_per_week`` and prorates an annual rate for ``hours_worked``.
+So a part-year person's derived rate, and whether it falls in bounds, can
+differ between this report and the simulation. A given ``hourly_rate`` is the
+same in both.
 """
 
 from __future__ import annotations
@@ -110,6 +113,16 @@ def summarize_hourly_rates(
         """,
         [low, high],
     ).fetchall()
+    return _tally(rows, present, low, high)
+
+
+def _tally(
+    rows: list[tuple[str | None, bool | None, int, int]],
+    present: Tuple[str, ...],
+    low: float,
+    high: float,
+) -> HourlyRateSummary:
+    """Fold the grouped (source, in_bounds, count, multi) rows into a summary."""
     by_source: Dict[str, int] = {}
     blank = out_of_bounds = multiple = 0
     for row_source, in_bounds, count, multi in rows:
