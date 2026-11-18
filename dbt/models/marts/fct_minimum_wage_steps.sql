@@ -35,6 +35,9 @@ WITH on_staff AS (
   WHERE simulation_year = {{ simulation_year }}
     AND employment_status = 'active'
     AND employee_hire_date <= DATE '{{ step.effective_date }}'
+    -- In the start year this table also holds placeholder hires; the real
+    -- hires come from int_hiring_events below.
+    AND data_source <> 'new_hire_staging_independent'
   UNION
   SELECT employee_id
   FROM {{ ref('int_hiring_events') }}

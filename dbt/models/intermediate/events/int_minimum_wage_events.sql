@@ -122,7 +122,7 @@ floored AS (
 SELECT
   employee_id,
   employee_ssn,
-  'minimum_wage' AS event_type,
+  {{ evt_minimum_wage() }} AS event_type,
   {{ simulation_year }} AS simulation_year,
   effective_date,
   'Minimum wage $' || printf('%.2f', minimum_hourly_rate) || '/hr: hourly rate $'
@@ -138,7 +138,7 @@ SELECT
   age_band,
   tenure_band,
   NULL::DOUBLE AS event_probability,
-  'minimum_wage' AS event_category,
+  {{ evt_minimum_wage() }} AS event_category,
   hourly_rate_before,
   minimum_hourly_rate AS hourly_rate_after
 FROM floored

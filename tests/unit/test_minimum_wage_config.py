@@ -141,3 +141,15 @@ def test_pay_after_floor_compounds_later_events(
         SELECT {sql} FROM t
         """).fetchall()
     assert float(rows[0][0]) == pytest.approx(expected)
+
+
+def test_bridge_census_roll_forward_never_applies_minimum_wage(
+    tmp_path: Path,
+) -> None:
+    """The bridge census is shared by every scenario, so no floor enters it."""
+    from planalign_orchestrator.census_rollforward import _bridge_config
+
+    config = _config([STEP_2026])
+    bridge = _bridge_config(config, tmp_path / "census.parquet", 2025, 2026)
+    assert bridge.compensation.minimum_wage == []
+    assert len(config.compensation.minimum_wage) == 1
