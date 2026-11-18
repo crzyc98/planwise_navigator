@@ -18,6 +18,8 @@ from ..models.files import (
     FileValidationRequest,
     FileValidationResponse,
     LevelDistributionResponse,
+    MinimumWagePreviewRequest,
+    MinimumWagePreviewResponse,
     PartTimePctResponse,
     SetCensusPathRequest,
     SetCensusPathResponse,
@@ -305,6 +307,42 @@ def analyze_part_time_pct(
             file_path=request.file_path,
         )
         return PartTimePctResponse(**result)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
+
+
+@router.post(
+    "/{workspace_id}/analyze-minimum-wage",
+    response_model=MinimumWagePreviewResponse,
+    summary="Preview minimum wage steps on a census",
+    description=(
+        "Hourly rates of the census's active employees and, for each step, how "
+        "many are below the new minimum and the annual pay it adds, as of the "
+        "census date. hourly_rate_summary is null when the census has no hourly columns."
+    ),
+)
+def analyze_minimum_wage(
+    workspace_id: str,
+    request: MinimumWagePreviewRequest,
+) -> MinimumWagePreviewResponse:
+    """Preview minimum wage steps from census data."""
+    service = get_file_service()
+
+    try:
+        result = service.analyze_minimum_wage(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+            steps=[(step.hourly_rate, step.effective_date) for step in request.steps],
+        )
+        return MinimumWagePreviewResponse(**result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

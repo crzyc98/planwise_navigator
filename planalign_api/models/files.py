@@ -4,6 +4,9 @@ from datetime import date, datetime
 from typing import Dict, List, Literal, Optional
 
 from pydantic import Field
+
+from planalign_orchestrator.config.simulation import MinimumWageStep
+
 from .base import APIModel
 
 
@@ -133,6 +136,49 @@ class CompensationAnalysisRequest(APIModel):
         ge=0,
         le=20,
         description="Number of years to look back for recent hires (0 = all employees). Default: 4 years",
+    )
+
+
+class MinimumWagePreviewRequest(APIModel):
+    """Census preview of minimum wage steps (#1231)."""
+
+    file_path: str = Field(
+        ..., description="Census file (relative to workspace or absolute)"
+    )
+    steps: List[MinimumWageStep] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Steps to estimate; empty returns only the census hourly rates",
+    )
+
+
+class MinimumWageStepPreview(APIModel):
+    """One step applied to census rates as of the census date."""
+
+    hourly_rate: float = Field(..., description="New minimum hourly rate")
+    effective_date: date
+    people_below: int = Field(
+        ...,
+        description="Active census staff whose rate is below it, after earlier steps",
+    )
+    added_annual_pay: float = Field(
+        ..., description="Annual pay it adds, with hours unchanged"
+    )
+
+
+class MinimumWagePreviewResponse(APIModel):
+    """Census hourly rates and a census-date estimate of each step (#1231)."""
+
+    headcount: int = Field(..., description="Active census employees analyzed")
+    hourly_rate_summary: Optional[CensusHourlyRateSummary] = Field(
+        None,
+        description="Hourly rates of active employees; null when the census has no hourly columns",
+    )
+    columns_needed: List[str] = Field(
+        ..., description="Census columns that give an hourly rate, preferred first"
+    )
+    steps: List[MinimumWageStepPreview] = Field(
+        default_factory=list, description="Estimates in date order"
     )
 
 

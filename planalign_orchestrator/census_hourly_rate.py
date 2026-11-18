@@ -14,20 +14,22 @@ A row with none of them is not hourly. Hours are never inferred. A rate below
 or above the plausible bounds keeps the person in the census with no rate.
 
 ``stg_census_data`` derives the rate the simulation uses. The summary here is
-the import-time report and takes census pay as given for both derived columns.
-Staging applies ``census_pay_basis``: it annualizes part-year earnings for
+the import-time report, and the minimum wage estimate is Studio's preview
+(#1231). Both take census pay as given for the derived columns. Staging applies
+``census_pay_basis``: it annualizes part-year earnings for
 ``scheduled_hours_per_week`` and prorates an annual rate for ``hours_worked``.
 So a part-year person's derived rate, and whether it falls in bounds, can
-differ between this report and the simulation. A given ``hourly_rate`` is the
-same in both.
+differ between these and the simulation. A given ``hourly_rate`` is the same
+in all of them.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Collection, Dict, Tuple
+from typing import Collection, Dict, List, Sequence, Tuple
 
 import duckdb
 import yaml
@@ -143,3 +145,54 @@ def _tally(
         maximum_rate=high,
         by_source=by_source,
     )
+
+
+@dataclass(frozen=True)
+class MinimumWageEstimate:
+    """A minimum wage step applied to census rates as of the census date (#1231)."""
+
+    hourly_rate: float
+    effective_date: date
+    people_below: int
+    added_annual_pay: float
+
+
+def estimate_minimum_wage(
+    conn: duckdb.DuckDBPyConnection,
+    table: str,
+    columns: Collection[str],
+    steps: Sequence[Tuple[float, date]],
+) -> List[MinimumWageEstimate]:
+    """Who each step raises and the annual pay it adds, from census rates.
+
+    Steps apply in date order, each on the rates the earlier ones left, with
+    hours unchanged, so pay rises by (minimum / rate) - 1. Raises, promotions
+    and turnover before the date are ignored: the run applies those first.
+    ``table`` must be a trusted identifier, not user input.
+    """
+    low, high = hourly_rate_bounds()
+    _, value = _rate_sql(columns)
+    pay = _number("employee_gross_compensation", columns)
+    estimates: List[MinimumWageEstimate] = []
+    floor = 0.0
+    for minimum, effective_date in sorted(steps, key=lambda step: step[1]):
+        people, added = (
+            conn.execute(
+                f"""
+            WITH rates AS (
+              SELECT GREATEST(_rate, ?) AS rate_now, _pay / _rate AS hours
+              FROM (SELECT {value} AS _rate, {pay} AS _pay FROM {table})
+              WHERE _rate BETWEEN ? AND ?
+            )
+            SELECT COUNT(*), COALESCE(SUM(hours * (? - rate_now)), 0)
+            FROM rates WHERE rate_now < ?
+            """,
+                [floor, low, high, minimum, minimum],
+            ).fetchone()
+            or (0, 0.0)
+        )
+        estimates.append(
+            MinimumWageEstimate(minimum, effective_date, int(people), float(added))
+        )
+        floor = max(floor, minimum)
+    return estimates

@@ -168,6 +168,9 @@ _IGNORED_PREFIXES = (
     # Backup, log and database location settings.
     "production_safety",
 )
+# Lists where an empty list means the same to the engine as no setting, so
+# Studio's [] after removing every entry is not a difference.
+_EMPTY_MEANS_UNSET = frozenset({"compensation.minimum_wage"})
 # Engine-only changes; a rerun after an upgrade is not "inputs changed".
 _ENGINE_CODES = frozenset({"engine_version_differs", "engine_build_differs"})
 _RUN_CHANGE_CODES = frozenset(get_args(RunChangeCode))
@@ -192,7 +195,10 @@ def _ignored(path: str) -> bool:
 
 
 def _ignored_delta(delta: ConfigDelta) -> bool:
-    """Ignored path, or a section only one run has whose settings are all ignored."""
+    """Ignored path, a section only one run has whose settings are all ignored,
+    or an empty list on one side of a setting where that means unset."""
+    if delta.path in _EMPTY_MEANS_UNSET and not delta.a and not delta.b:
+        return True
     section = delta.a if isinstance(delta.a, Mapping) else delta.b
     if not isinstance(section, Mapping):
         return _ignored(delta.path)

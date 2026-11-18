@@ -12200,6 +12200,75 @@
         "title": "MetricDistribution",
         "type": "object"
       },
+      "MinimumWagePreviewRequest": {
+        "description": "Census preview of minimum wage steps (#1231).",
+        "properties": {
+          "file_path": {
+            "description": "Census file (relative to workspace or absolute)",
+            "title": "File Path",
+            "type": "string"
+          },
+          "steps": {
+            "description": "Steps to estimate; empty returns only the census hourly rates",
+            "items": {
+              "$ref": "#/components/schemas/MinimumWageStep"
+            },
+            "maxItems": 50,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "title": "MinimumWagePreviewRequest",
+        "type": "object"
+      },
+      "MinimumWagePreviewResponse": {
+        "description": "Census hourly rates and a census-date estimate of each step (#1231).",
+        "properties": {
+          "columns_needed": {
+            "description": "Census columns that give an hourly rate, preferred first",
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns Needed",
+            "type": "array"
+          },
+          "headcount": {
+            "description": "Active census employees analyzed",
+            "title": "Headcount",
+            "type": "integer"
+          },
+          "hourly_rate_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CensusHourlyRateSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hourly rates of active employees; null when the census has no hourly columns"
+          },
+          "steps": {
+            "description": "Estimates in date order",
+            "items": {
+              "$ref": "#/components/schemas/MinimumWageStepPreview"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "headcount",
+          "hourly_rate_summary",
+          "columns_needed",
+          "steps"
+        ],
+        "title": "MinimumWagePreviewResponse",
+        "type": "object"
+      },
       "MinimumWageStep": {
         "additionalProperties": false,
         "description": "A new minimum hourly rate that takes effect on a date (#1229).\n\nEveryone with a census hourly rate below it on that date is raised to it,\nwith hours unchanged. Simulated hires and acquired members have no rate.",
@@ -12222,6 +12291,159 @@
           "effective_date"
         ],
         "title": "MinimumWageStep",
+        "type": "object"
+      },
+      "MinimumWageStepPreview": {
+        "description": "One step applied to census rates as of the census date.",
+        "properties": {
+          "added_annual_pay": {
+            "description": "Annual pay it adds, with hours unchanged",
+            "title": "Added Annual Pay",
+            "type": "number"
+          },
+          "effective_date": {
+            "format": "date",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "hourly_rate": {
+            "description": "New minimum hourly rate",
+            "title": "Hourly Rate",
+            "type": "number"
+          },
+          "people_below": {
+            "description": "Active census staff whose rate is below it, after earlier steps",
+            "title": "People Below",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hourly_rate",
+          "effective_date",
+          "people_below",
+          "added_annual_pay"
+        ],
+        "title": "MinimumWageStepPreview",
+        "type": "object"
+      },
+      "MinimumWageYear": {
+        "description": "A run's minimum wage by year (#1231).\n\nThe step fields come from fct_minimum_wage_steps and are null in a year\nwithout a step. The year-end fields cover everyone a step raised so far.",
+        "properties": {
+          "added_annual_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Annual pay the step added on its date",
+            "title": "Added Annual Pay"
+          },
+          "effective_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This year's step date",
+            "title": "Effective Date"
+          },
+          "estimated_added_pay": {
+            "default": 0.0,
+            "description": "Estimate: their year-end pay times the share of it the minimum wage added, 1 - 1/(product of their raise ratios so far)",
+            "title": "Estimated Added Pay",
+            "type": "number"
+          },
+          "minimum_hourly_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This year's minimum",
+            "title": "Minimum Hourly Rate"
+          },
+          "people_not_covered": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Simulated hires and acquired members on the date; not covered",
+            "title": "People Not Covered"
+          },
+          "people_raised": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Raised on the date",
+            "title": "People Raised"
+          },
+          "people_with_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On staff on the date with a census hourly rate",
+            "title": "People With Rate"
+          },
+          "people_without_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census staff on the date with no usable hourly rate; not raised",
+            "title": "People Without Rate"
+          },
+          "raised_still_active": {
+            "default": 0,
+            "description": "People any step so far raised who are active at year end",
+            "title": "Raised Still Active",
+            "type": "integer"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "effective_date",
+          "minimum_hourly_rate",
+          "people_raised",
+          "people_with_rate",
+          "people_without_rate",
+          "people_not_covered",
+          "added_annual_pay",
+          "raised_still_active",
+          "estimated_added_pay"
+        ],
+        "title": "MinimumWageYear",
         "type": "object"
       },
       "ObjectiveConstraintSpec": {
@@ -17067,6 +17289,14 @@
             "title": "Growth Analysis",
             "type": "object"
           },
+          "minimum_wage": {
+            "description": "Minimum wage by year; empty when the run has no minimum wage step",
+            "items": {
+              "$ref": "#/components/schemas/MinimumWageYear"
+            },
+            "title": "Minimum Wage",
+            "type": "array"
+          },
           "participation_rate": {
             "title": "Participation Rate",
             "type": "number"
@@ -17109,6 +17339,7 @@
           "participation_rate",
           "workforce_progression",
           "event_trends",
+          "minimum_wage",
           "growth_analysis",
           "compensation_by_status",
           "cagr_metrics"
@@ -26824,6 +27055,59 @@
         "summary": "Analyze census for per-segment deferral rate suggestions",
         "tags": [
           "Bands"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analyze-minimum-wage": {
+      "post": {
+        "description": "Hourly rates of the census's active employees and, for each step, how many are below the new minimum and the annual pay it adds, as of the census date. hourly_rate_summary is null when the census has no hourly columns.",
+        "operationId": "analyze_minimum_wage_api_workspaces__workspace_id__analyze_minimum_wage_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinimumWagePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinimumWagePreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview minimum wage steps on a census",
+        "tags": [
+          "Files"
         ]
       }
     },

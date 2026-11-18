@@ -4,11 +4,15 @@ import logging
 from dataclasses import asdict
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import duckdb
 
-from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
+from planalign_orchestrator.census_hourly_rate import (
+    HOURLY_RATE_COLUMNS,
+    estimate_minimum_wage,
+    summarize_hourly_rates,
+)
 
 from .sql_security import (
     ALL_CENSUS_COLUMNS,
@@ -1214,22 +1218,14 @@ class FileService:
         finally:
             conn.close()
 
-    def analyze_part_time_pct(self, workspace_id: str, file_path: str) -> Dict:
+    def _load_active_census(
+        self, conn: duckdb.DuckDBPyConnection, workspace_id: str, file_path: str
+    ) -> List[str]:
+        """Load a census file's active employees into table ``census``.
+
+        Returns the census columns. Raises ValueError for a missing, unsafe or
+        unsupported file.
         """
-        Analyze the part-time percentage of a census file.
-
-        Part-time is defined as employees whose scheduled annual hours
-        (scheduled_hours_per_week * 52) fall below 1,000 — they can never
-        satisfy a 1,000-hour annual eligibility requirement.
-
-        Args:
-            workspace_id: The workspace ID
-            file_path: File path (relative to workspace or absolute)
-
-        Returns:
-            Dict with column_present, headcount, part_time_count, part_time_pct
-        """
-        # Resolve path
         if file_path.startswith("/"):
             resolved = Path(file_path)
         else:
@@ -1247,33 +1243,78 @@ class FileService:
             raise ValueError(str(e))
 
         suffix = resolved.suffix.lower()
+        if suffix == ".parquet":
+            conn.execute(
+                f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
+            )
+        elif suffix == ".csv":
+            conn.execute(
+                f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
+            )
+        else:
+            raise ValueError(f"Unsupported file type: {suffix}")
+
+        columns_result = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+        ).fetchall()
+        columns = [row[0] for row in columns_result]
+
+        # Filter to active employees if status column exists
+        if "active" in columns:
+            conn.execute(f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}")
+        elif "status" in columns:
+            conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
+        return columns
+
+    def analyze_minimum_wage(
+        self,
+        workspace_id: str,
+        file_path: str,
+        steps: Sequence[Tuple[float, date]],
+    ) -> Dict[str, Any]:
+        """Preview minimum wage steps on a census's active employees (#1231).
+
+        Rates come from the census file itself, with the same precedence and
+        bounds as the import report, so censuses imported before hourly rates
+        were reported (#1230) are covered too. No steps are estimated when the
+        census has no hourly columns.
+        """
+        conn = duckdb.connect(":memory:")
+        try:
+            columns = self._load_active_census(conn, workspace_id, file_path)
+            headcount = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
+            summary = summarize_hourly_rates(conn, "census", columns)
+            estimates = (
+                estimate_minimum_wage(conn, "census", columns, steps) if summary else []
+            )
+        finally:
+            conn.close()
+        return {
+            "headcount": headcount,
+            "hourly_rate_summary": asdict(summary) if summary else None,
+            "columns_needed": list(HOURLY_RATE_COLUMNS),
+            "steps": [asdict(estimate) for estimate in estimates],
+        }
+
+    def analyze_part_time_pct(self, workspace_id: str, file_path: str) -> Dict:
+        """
+        Analyze the part-time percentage of a census file.
+
+        Part-time is defined as employees whose scheduled annual hours
+        (scheduled_hours_per_week * 52) fall below 1,000 — they can never
+        satisfy a 1,000-hour annual eligibility requirement.
+
+        Args:
+            workspace_id: The workspace ID
+            file_path: File path (relative to workspace or absolute)
+
+        Returns:
+            Dict with column_present, headcount, part_time_count, part_time_pct
+        """
         conn = duckdb.connect(":memory:")
 
         try:
-            if suffix == ".parquet":
-                conn.execute(
-                    f"CREATE TABLE census AS SELECT * FROM read_parquet('{safe_path}')"
-                )
-            elif suffix == ".csv":
-                conn.execute(
-                    f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_path}', header=true, auto_detect=true)"
-                )
-            else:
-                raise ValueError(f"Unsupported file type: {suffix}")
-
-            columns_result = conn.execute(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
-            ).fetchall()
-            columns = [row[0] for row in columns_result]
-
-            # Filter to active employees if status column exists
-            if "active" in columns:
-                conn.execute(
-                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
-                )
-            elif "status" in columns:
-                conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
-
+            columns = self._load_active_census(conn, workspace_id, file_path)
             headcount = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
 
             # Find scheduled hours column (validate against allowlist)

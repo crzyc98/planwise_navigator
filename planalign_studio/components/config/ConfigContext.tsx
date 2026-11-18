@@ -9,6 +9,7 @@ import { applyResolvedFormData } from './resolvedFormData';
 import { participantBehaviorFormFields, validateBelowDefaultSettings, validateEasyEnrollSettings, validateDeferralRateChangeSettings } from './participantBehaviorConfig';
 import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
+import { minimumWageFromConfig, minimumWageSaveErrors } from './minimumWage';
 export { extractCensusPath } from './censusConfig';
 import {
   updateWorkspace as apiUpdateWorkspace,
@@ -141,6 +142,7 @@ function mapCompensationFields(cfg: any, prev: FormData): Partial<FormData> {
     promoDistributionRange: promotionPercent('promotion_distribution_range', 'distribution_range', 0.05, prev.promoDistributionRange),
     promoBudget: percent('promotion_budget', prev.promoBudget),
     promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
+    minimumWage: minimumWageFromConfig(cfg.compensation?.minimum_wage) ?? prev.minimumWage,
   };
 }
 
@@ -699,7 +701,8 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         formData.promoIncrease !== savedFormData.promoIncrease ||
         formData.promoDistributionRange !== savedFormData.promoDistributionRange ||
         formData.promoBudget !== savedFormData.promoBudget ||
-        formData.promoRateMultiplier !== savedFormData.promoRateMultiplier) {
+        formData.promoRateMultiplier !== savedFormData.promoRateMultiplier ||
+        JSON.stringify(formData.minimumWage) !== JSON.stringify(savedFormData.minimumWage)) {
       dirty.add('compensation');
     }
     if (formData.newHireStrategy !== savedFormData.newHireStrategy ||
@@ -756,6 +759,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
 
   const buildDraftConfig = useCallback(() => {
     const current = latestConfig.current;
+    const minimumWageProblems = minimumWageSaveErrors(
+      current.formData.minimumWage, Number(current.formData.startYear), Number(current.formData.endYear),
+    );
+    if (minimumWageProblems.length) throw new Error(minimumWageProblems.join(' '));
     if (current.formData.dcAutoEnroll) {
       const errors = validateBelowDefaultSettings(current.formData);
       if (errors.length) throw new Error(errors.join(' '));

@@ -134,6 +134,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   promoDistributionRange: 5.0,
   promoBudget: 1.5,
   promoRateMultiplier: 1.0,
+  minimumWage: [],
 
   // New Hire
   newHireStrategy: 'percentile',
