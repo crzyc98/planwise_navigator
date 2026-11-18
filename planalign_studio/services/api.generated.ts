@@ -8552,6 +8552,25 @@ export interface components {
             stddev: number | null;
         };
         /**
+         * MinimumWageStep
+         * @description A new minimum hourly rate that takes effect on a date (#1229).
+         *
+         *     Everyone with a census hourly rate below it on that date is raised to it,
+         *     with hours unchanged. Simulated hires and acquired members have no rate.
+         */
+        MinimumWageStep: {
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /**
+             * Hourly Rate
+             * @description Minimum hourly rate, dollars
+             */
+            hourly_rate: number;
+        };
+        /**
          * ObjectiveConstraintSpec
          * @description The objectives and hard constraints for a search.
          */
@@ -10933,6 +10952,11 @@ export interface components {
             merit_budget?: number | null;
             /** Merit Budget Percent */
             merit_budget_percent?: number | null;
+            /**
+             * Minimum Wage
+             * @description Minimum wage steps (#1229): a new minimum hourly rate and its effective date, at most one per calendar year.
+             */
+            minimum_wage?: components["schemas"]["MinimumWageStep"][] | null;
             /** Raise Budget */
             raise_budget?: number | null;
             /** Raise Budget Percent */

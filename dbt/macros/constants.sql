@@ -38,6 +38,7 @@
 {% macro evt_deferral_match_response() %}'deferral_match_response'{% endmacro %}
 {% macro evt_eligibility() %}'eligibility'{% endmacro %}
 {% macro evt_initial_state() %}'initial_state'{% endmacro %}
+{% macro evt_minimum_wage() %}'minimum_wage'{% endmacro %}
 
 {# ── Event types (UPPERCASE – seed/parameter layer) ───── #}
 
@@ -87,7 +88,7 @@
    Composite Helpers
    ============================================================ #}
 
-{# Event priority CASE – maps event_type to sort order (1-12).
+{# Event priority CASE – maps event_type to sort order (1-13).
    Used for conflict resolution when multiple events occur on the same day. #}
 {% macro event_priority(col) %}
 CASE {{ col }}
@@ -102,7 +103,8 @@ CASE {{ col }}
   WHEN {{ evt_promotion() }} THEN 9
   WHEN {{ evt_raise() }} THEN 10
   WHEN {{ evt_merit() }} THEN 11
-  ELSE 12
+  WHEN {{ evt_minimum_wage() }} THEN 12
+  ELSE 13
 END
 {% endmacro %}
 
@@ -120,7 +122,7 @@ END
 
 {# Returns TRUE when col is a compensation-affecting event type. #}
 {% macro is_compensation_event(col) %}
-{{ col }} IN ({{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }})
+{{ col }} IN ({{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }}, {{ evt_minimum_wage() }})
 {% endmacro %}
 
 {# Returns TRUE when col is an enrollment-related event type. #}

@@ -32,6 +32,7 @@ TERMINAL_OUTPUT_PURPOSES = {
     "dim_hazard_table": "standalone combined hazard inspection",
     "fct_compensation_growth": "CalibrationRunner._read_year compensation metrics",
     "fct_employer_match_events": "TimelineService employer contribution history",
+    "fct_minimum_wage_steps": "per-step minimum wage counts for run results (#1229, Studio #1231)",
     "hazard_cache_metadata": "HazardCacheManager cache currency checks",
     "int_deferral_change_events": "int_current_year_events when deferral_rate_changes_enabled (#986)",
     "stg_census_duplicates_audit": "standalone census deduplication audit",

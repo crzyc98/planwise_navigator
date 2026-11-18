@@ -25,6 +25,7 @@ from .paths import (
 from .simulation import (
     SimulationSettings,
     CompensationSettings,
+    MinimumWageStep,
     PromotionCompensationSettings,
 )
 
@@ -109,6 +110,7 @@ __all__ = [
     # Simulation
     "SimulationSettings",
     "CompensationSettings",
+    "MinimumWageStep",
     "PromotionCompensationSettings",
     # Workforce
     "AcquisitionSettings",

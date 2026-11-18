@@ -34,6 +34,7 @@ from planalign_orchestrator.pipeline.enrollment_projection import (
     EnrollmentDecisionProjection,
 )
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
+from planalign_orchestrator.minimum_wage import warn_unreached_minimum_wage_steps
 from planalign_orchestrator.pipeline_orchestrator import warn_unreached_acquisitions
 from planalign_orchestrator.run_metadata import check_and_record_run
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -349,6 +350,9 @@ class CalibrationRunner:
         """Validate, guard, build the comp subgraph per year, return results."""
         verify_dc_prerequisites(self.database_path)
         warn_unreached_acquisitions(
+            self._config, self.run.start_year, self.run.end_year
+        )
+        warn_unreached_minimum_wage_steps(
             self._config, self.run.start_year, self.run.end_year
         )
         self._ensure_projection_tables()

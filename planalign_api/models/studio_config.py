@@ -6,6 +6,7 @@ preserved at every level; omitted fields must never become null overrides.
 
 from typing import Annotated, Any, Literal
 
+from planalign_orchestrator.config.simulation import MinimumWageStep
 from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
     BelowDefaultTier,
@@ -61,6 +62,10 @@ class StudioCompensationConfig(PartialConfig):
     raise_budget: float | None = None
     raise_budget_percent: float | None = None
     raise_coverage_percent: float | None = None
+    minimum_wage: list[MinimumWageStep] | None = Field(
+        default=None,
+        description="Minimum wage steps (#1229): a new minimum hourly rate and its effective date, at most one per calendar year.",
+    )
 
 
 class StudioTurnoverConfig(PartialConfig):

@@ -1,6 +1,35 @@
 version: 2
 
 models:
+  - name: int_minimum_wage_events
+    description: >
+      Minimum wage floor events (#1229). On a step's effective date, one event per
+      census employee whose hourly rate (census rate moved with pay) is below the
+      new minimum. Pay rises by minimum / rate; hours are unchanged. Simulated
+      hires and acquired members have no rate and are never raised.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
+    columns:
+      - name: employee_id
+        data_tests:
+          - not_null
+      - name: compensation_amount
+        description: Annual pay rate after the floor
+        data_tests:
+          - not_null
+      - name: previous_compensation
+        description: Annual pay rate on the date, before the floor
+        data_tests:
+          - not_null
+      - name: hourly_rate_before
+        description: Hourly rate on the date, before the floor
+      - name: hourly_rate_after
+        description: The new minimum hourly rate
+
   - name: int_eligibility_events
     description: >
       DC plan eligibility events (Feature 086). Generates one eligibility event per

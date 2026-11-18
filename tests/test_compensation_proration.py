@@ -16,8 +16,9 @@ def render_ctes(
 ) -> str:
     source = (DBT / path).read_text().split(start, 1)[1].split(end, 1)[0]
     macros = (DBT / "macros/utils/census_plan_calendar.sql").read_text()
+    macros += (DBT / "macros/events/minimum_wage.sql").read_text()
     return (
-        Environment(undefined=StrictUndefined)
+        Environment(undefined=StrictUndefined, extensions=["jinja2.ext.do"])
         .from_string(macros + start + source)
         .render(
             simulation_year=year,
@@ -30,10 +31,11 @@ def render_ctes(
             evt_promotion=lambda: "'promotion'",
             evt_raise=lambda: "'raise'",
             evt_termination=lambda: "'termination'",
+            evt_minimum_wage=lambda: "'minimum_wage'",
             status_terminated=lambda: "'terminated'",
             status_active=lambda: "'active'",
             is_compensation_event=lambda column: (
-                f"{column} IN ('hire', 'promotion', 'raise')"
+                f"{column} IN ('hire', 'promotion', 'raise', 'minimum_wage')"
             ),
         )
     )
@@ -147,6 +149,44 @@ def test_earned_pay_keeps_both_promotion_and_raise(
         + 122625 * (end - last).days
     ) / (end - start).days
     assert actual["both"] == pytest.approx(expected)
+
+
+def test_earned_pay_follows_a_minimum_wage_floor_and_later_raise() -> None:
+    """A floor holds pay on its date; a raise after it compounds on the floor."""
+    year = 2027
+    ctes = render_ctes(
+        "models/intermediate/int_workforce_state_accumulator.sql",
+        "compensation_events AS (",
+        "\nSELECT\n  '{{ scenario_id }}'",
+        year,
+    )
+    with duckdb.connect(":memory:") as conn:
+        setup_workforce(conn, year)
+        conn.execute(
+            "INSERT INTO deduplicated_workforce VALUES "
+            "('floored', '2020-01-01', NULL, 'active', 136250)"
+        )
+        conn.executemany(
+            "INSERT INTO current_year_events VALUES ('floored', ?, ?::DATE, ?, ?)",
+            [
+                ("promotion", f"{year}-02-01", 112500, 100000),
+                ("minimum_wage", f"{year}-07-01", 125000, 112500),
+                ("raise", f"{year}-08-01", 109000, 100000),
+            ],
+        )
+        actual = dict(
+            conn.execute(
+                "WITH " + ctes + " SELECT * FROM prorated_compensation"
+            ).fetchall()
+        )
+    periods = [
+        (100000, date(year, 1, 1), date(year, 2, 1)),
+        (112500, date(year, 2, 1), date(year, 7, 1)),
+        (125000, date(year, 7, 1), date(year, 8, 1)),
+        (136250, date(year, 8, 1), date(year + 1, 1, 1)),
+    ]
+    expected = sum(pay * (end - start).days for pay, start, end in periods) / 365
+    assert actual["floored"] == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("year", [2027, 2028, 2029])

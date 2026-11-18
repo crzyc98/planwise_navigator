@@ -409,6 +409,8 @@ class EventGenerationExecutor:
             "int_hazard_merit",
             MODEL_INT_PROMOTION_EVENTS,
             MODEL_INT_MERIT_EVENTS,
+            "int_minimum_wage_events",
+            "fct_minimum_wage_steps",
             "int_eligibility_events",
             "int_voluntary_enrollment_decision",
             "int_proactive_voluntary_enrollment",

@@ -93,7 +93,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['termination', 'promotion', 'hire', 'raise', 'enrollment', 'enrollment_change', 'deferral_escalation', 'deferral_match_response', 'deferral_change', 'eligibility']
+                values: ['termination', 'promotion', 'hire', 'raise', 'minimum_wage', 'enrollment', 'enrollment_change', 'deferral_escalation', 'deferral_match_response', 'deferral_change', 'eligibility']
       - name: simulation_year
         description: "Year of simulation"
         data_type: integer
@@ -488,6 +488,27 @@ models:
         data_type: timestamp with time zone
 
 
+
+  - name: fct_minimum_wage_steps
+    description: >
+      One row per minimum wage step (#1229) per scenario: the people on staff on
+      its effective date with a census hourly rate, how many were raised and the
+      annual pay that added on the date, census staff with no rate (not touched),
+      and simulated hires and acquired members (not covered).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - scenario_id
+              - simulation_year
+    columns:
+      - name: people_raised
+        data_tests:
+          - not_null
+      - name: added_annual_pay
+        description: Sum of each raised person's annual pay increase on the date
+        data_tests:
+          - not_null
 
   - name: fct_compensation_growth
     description: "Compensation growth fact table validation"

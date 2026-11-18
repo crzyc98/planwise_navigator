@@ -5,9 +5,10 @@ E073: Config Module Refactoring - simulation module.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class NewHireSettings(BaseModel):
@@ -90,6 +91,19 @@ class PromotionCompensationSettings(BaseModel):
     )
 
 
+class MinimumWageStep(BaseModel):
+    """A new minimum hourly rate that takes effect on a date (#1229).
+
+    Everyone with a census hourly rate below it on that date is raised to it,
+    with hours unchanged. Simulated hires and acquired members have no rate.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    hourly_rate: float = Field(gt=0, le=500, description="Minimum hourly rate, dollars")
+    effective_date: date
+
+
 class CompensationSettings(BaseModel):
     """Compensation settings with support for both decimal and percent formats.
 
@@ -118,6 +132,23 @@ class CompensationSettings(BaseModel):
     promotion_compensation: PromotionCompensationSettings = Field(
         default_factory=PromotionCompensationSettings
     )
+    # Scheduled minimum wage steps (#1229), at most one per calendar year.
+    minimum_wage: List[MinimumWageStep] = Field(default_factory=list, max_length=50)
+
+    @field_validator("minimum_wage")
+    @classmethod
+    def one_minimum_wage_step_per_year(
+        cls, value: List[MinimumWageStep]
+    ) -> List[MinimumWageStep]:
+        """Reject two steps in one calendar year; schedule them a year apart."""
+        years = [step.effective_date.year for step in value]
+        repeated = sorted({year for year in years if years.count(year) > 1})
+        if repeated:
+            raise ValueError(
+                "one minimum wage step per calendar year; more than one in "
+                + ", ".join(str(year) for year in repeated)
+            )
+        return sorted(value, key=lambda step: step.effective_date)
 
     @model_validator(mode="before")
     @classmethod

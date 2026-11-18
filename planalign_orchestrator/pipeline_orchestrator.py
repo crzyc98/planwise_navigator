@@ -30,6 +30,10 @@ from .config.dbt_var_validation import validate_dbt_vars
 from .census_year import census_gap_message, infer_census_year
 from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
+from .minimum_wage import (
+    require_census_hourly_rates,
+    warn_unreached_minimum_wage_steps,
+)
 from .orchestrator_setup import (
     setup_memory_manager,
     setup_parallelization,
@@ -321,9 +325,9 @@ class PipelineOrchestrator:
         end = end_year or self.config.simulation.end_year
         validate_seed_coverage(end)
         # A resumed run already simulated the configured years before ``start``.
-        warn_unreached_acquisitions(
-            self.config, min(start, self.config.simulation.start_year), end
-        )
+        first = min(start, self.config.simulation.start_year)
+        warn_unreached_acquisitions(self.config, first, end)
+        warn_unreached_minimum_wage_steps(self.config, first, end)
         authoritative_run_id: Optional[str] = None
 
         if self._initialization_callback is not None:
@@ -784,6 +788,9 @@ class PipelineOrchestrator:
             raise PipelineStageError(
                 f"Staging models failed with code {staging_res.return_code}"
             )
+        if self.config.compensation.minimum_wage:
+            with self.db_manager.get_connection() as conn:
+                require_census_hourly_rates(conn)
 
     def _seed_start_year_enrollment_registry(self, year: int) -> None:
         """Seed census enrollments after FOUNDATION creates baseline workforce."""
