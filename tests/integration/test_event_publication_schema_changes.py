@@ -42,6 +42,7 @@ SELECT
   TIMESTAMP '2025-01-01' AS created_at,
   'default' AS parameter_scenario_id,
   'test' AS parameter_source,
+  CAST(NULL AS VARCHAR) AS acquisition_id,
   'valid' AS data_quality_flag
 WHERE NOT {{ var('empty', false) }}
 """
