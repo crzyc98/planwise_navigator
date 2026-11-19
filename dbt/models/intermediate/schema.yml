@@ -1361,6 +1361,16 @@ models:
               arguments:
                 values: [true, false]
 
+      - name: census_hourly_rate
+        description: >
+          Census hourly rate in dollars, from stg_census_data (#1230). NULL means the
+          person is not hourly, so an hourly pay change never touches them.
+
+      - name: census_hourly_rate_source
+        description: >
+          Census column the hourly rate came from (hourly_rate, hours_worked,
+          scheduled_hours_per_week), 'out_of_bounds' for a rejected rate, or NULL.
+
     # int_termination_events and int_hiring_events are ephemeral models (E068A optimization)
     # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
 

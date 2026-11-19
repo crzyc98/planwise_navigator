@@ -86,7 +86,7 @@ def test_suggestions_returns_200_with_suggestions(client: TestClient):
     data = resp.json()
     assert data["import_id"] == import_id
     assert len(data["suggestions"]) == 5
-    assert len(data["canonical_schema"]) == 16
+    assert len(data["canonical_schema"]) == 19
 
 
 def test_suggestions_auto_maps_empid_to_employee_id(client: TestClient):

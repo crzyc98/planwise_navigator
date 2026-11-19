@@ -134,6 +134,29 @@ models:
                 max_value: 40
               config:
                 where: "scheduled_hours_per_week IS NOT NULL"
+      - name: census_hourly_rate
+        description: >
+          Hourly rate in dollars (#1230), from the census's hourly_rate, else census-year
+          pay / hours_worked, else annual rate / (scheduled_hours_per_week * 52). NULL means
+          not hourly: no column filled, or a rate outside census_hourly_rate_min/max.
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: "{{ var('census_hourly_rate_min') }}"
+                max_value: "{{ var('census_hourly_rate_max') }}"
+              config:
+                where: "census_hourly_rate IS NOT NULL"
+      - name: census_hourly_rate_source
+        description: >
+          Which census column census_hourly_rate came from. 'out_of_bounds' means a rate
+          was given or derived but fell outside the plausible range, so the rate is NULL.
+          NULL means no hourly column was filled.
+        data_type: varchar
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['hourly_rate', 'hours_worked', 'scheduled_hours_per_week', 'out_of_bounds']
       - name: employee_eligibility_date
         description: "Date when employee becomes eligible for DC plan participation (hire date + waiting period)."
         data_type: date

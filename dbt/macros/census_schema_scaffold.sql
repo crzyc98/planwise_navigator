@@ -17,6 +17,8 @@
     NULL::DECIMAL(12,2) AS employer_match_contribution,
     NULL::DATE AS eligibility_entry_date,
     NULL::DECIMAL(5,2) AS scheduled_hours_per_week,
+    NULL::DOUBLE AS hourly_rate,
+    NULL::DOUBLE AS hours_worked,
     NULL::BOOLEAN AS auto_escalation_opt_out,
     NULL::BOOLEAN AS eligibility_override
   WHERE FALSE

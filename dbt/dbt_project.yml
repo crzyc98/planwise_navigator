@@ -180,6 +180,11 @@ vars:
   # Census compensation defaults to earnings; use annual_rate for true salary rates.
   census_pay_basis: earnings
   census_pay_min_days: 30
+  # Plausible census hourly rates, in dollars (#1230). A given or derived rate
+  # outside this range is flagged at import and treated as no rate. This is the
+  # one place these bounds live; planalign_orchestrator.census_hourly_rate reads them.
+  census_hourly_rate_min: 7.25
+  census_hourly_rate_max: 500
 
   # Simulation parameters
   simulation_year: 2025

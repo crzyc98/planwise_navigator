@@ -23,7 +23,7 @@ REQUIRED_FIELD_NAMES = {
 
 
 def test_field_count():
-    assert len(FIELDS) == 16
+    assert len(FIELDS) == 19
 
 
 def test_active_filter_uses_shared_aliases_and_null_policy():
@@ -87,7 +87,7 @@ def test_canonical_names_frozenset_contains_all_field_names():
 
 
 def test_canonical_names_count():
-    assert len(CANONICAL_NAMES) == 16
+    assert len(CANONICAL_NAMES) == 19
 
 
 def test_all_fields_have_aliases():

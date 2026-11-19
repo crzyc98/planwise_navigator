@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional
@@ -11,7 +12,10 @@ from typing import Any, Dict, List, Optional
 import duckdb
 import pandas as pd
 
+from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
+
 from ..config import get_settings
+from ..models.files import CensusHourlyRateSummary
 from ..models.imports import (
     DetectedColumn,
     FieldMapping,
@@ -295,6 +299,9 @@ class ImportService:
         conn = duckdb.connect(":memory:")
         conn.register("_transformed", transformed)
         conn.execute(f"COPY _transformed TO '{output_path}' (FORMAT PARQUET)")
+        hourly_rates = summarize_hourly_rates(
+            conn, "_transformed", list(transformed.columns)
+        )
         conn.close()
 
         schema = [
@@ -310,6 +317,11 @@ class ImportService:
             row_count=len(transformed),
             file_size_bytes=output_path.stat().st_size,
             schema=schema,
+            hourly_rate_summary=(
+                CensusHourlyRateSummary.model_validate(asdict(hourly_rates))
+                if hourly_rates
+                else None
+            ),
             created_by=user,
         )
         self.save_parquet_record(workspace_id, pf)

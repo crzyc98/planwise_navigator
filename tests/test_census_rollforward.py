@@ -140,3 +140,90 @@ def test_simulated_hires_get_no_ssn_so_staging_assigns_a_safe_one(
         .fetchall()
     )
     assert rows == {"E1": "S1", "E2": "S2", "N1": None}
+
+
+def test_census_without_rate_columns_gets_no_hourly_rate(tmp_path: Path) -> None:
+    _write(tmp_path, "earnings")
+    columns = {
+        row[0]
+        for row in duckdb.connect()
+        .execute(
+            "DESCRIBE SELECT * FROM read_parquet(?)",
+            [str(tmp_path / "bridge_earnings.parquet")],
+        )
+        .fetchall()
+    }
+    assert "hourly_rate" not in columns and "hours_worked" not in columns
+
+
+def test_hourly_rate_moves_with_pay_and_hires_get_none(tmp_path: Path) -> None:
+    """E1's $20 census rate rises with pay (60,000 -> 61,800) to $20.60 (#1230)."""
+    census = tmp_path / "hourly.parquet"
+    with duckdb.connect() as conn:
+        conn.execute(f"""
+            COPY (SELECT * FROM (VALUES
+              ('E1', DATE '2019-04-01', NULL, 3000.0),
+              ('E2', DATE '2024-08-01', NULL, NULL)
+            ) t(employee_id, employee_hire_date, hourly_rate, hours_worked))
+            TO '{census}' (FORMAT parquet)
+            """)
+    db = _bridge_db(tmp_path)
+    with duckdb.connect(str(db)) as conn:
+        conn.execute("""
+            CREATE TABLE stg_census_data AS SELECT * FROM (VALUES
+              ('E1', 60000.0, 20.0, 'hours_worked'), ('E2', 51000.0, NULL, NULL)
+            ) t(employee_id, employee_annualized_compensation, census_hourly_rate,
+                census_hourly_rate_source)
+            """)
+    out = tmp_path / "bridge_hourly.parquet"
+    with duckdb.connect(str(db), read_only=True) as conn:
+        census_rollforward._write_census(conn, census, 2025, "earnings", out)
+        rows = dict(
+            conn.execute(
+                f"SELECT employee_id, hourly_rate FROM read_parquet('{out}')"
+            ).fetchall()
+        )
+        columns = {
+            r[0]
+            for r in conn.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{out}')"
+            ).fetchall()
+        }
+    assert rows["E1"] == pytest.approx(20.6)
+    assert rows["E2"] is None and rows["N1"] is None
+    assert "hours_worked" not in columns
+
+
+def test_rejected_hourly_rate_stays_rejected_in_bridge(tmp_path: Path) -> None:
+    """A rate staging flagged out of bounds is written as 0, not NULL (#1230).
+
+    NULL would let the bridge census fall back to the carried weekly hours and
+    give the person a rate the original import rejected.
+    """
+    census = tmp_path / "hourly.parquet"
+    with duckdb.connect() as conn:
+        conn.execute(f"""
+            COPY (SELECT * FROM (VALUES
+              ('E1', DATE '2019-04-01', 5.0, 40.0),
+              ('E2', DATE '2024-08-01', NULL, NULL)
+            ) t(employee_id, employee_hire_date, hourly_rate, scheduled_hours_per_week))
+            TO '{census}' (FORMAT parquet)
+            """)
+    db = _bridge_db(tmp_path)
+    with duckdb.connect(str(db)) as conn:
+        conn.execute("""
+            CREATE TABLE stg_census_data AS SELECT * FROM (VALUES
+              ('E1', 60000.0, NULL, 'out_of_bounds'), ('E2', 51000.0, NULL, NULL)
+            ) t(employee_id, employee_annualized_compensation, census_hourly_rate,
+                census_hourly_rate_source)
+            """)
+    out = tmp_path / "bridge_rejected.parquet"
+    with duckdb.connect(str(db), read_only=True) as conn:
+        census_rollforward._write_census(conn, census, 2025, "earnings", out)
+        rows = dict(
+            conn.execute(
+                f"SELECT employee_id, hourly_rate FROM read_parquet('{out}')"
+            ).fetchall()
+        )
+    assert rows["E1"] == 0.0
+    assert rows["E2"] is None

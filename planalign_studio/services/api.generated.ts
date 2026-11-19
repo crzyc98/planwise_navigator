@@ -4617,6 +4617,54 @@ export interface components {
             percentage: number;
         };
         /**
+         * CensusHourlyRateSummary
+         * @description Import report on census hourly rates (#1230).
+         */
+        CensusHourlyRateSummary: {
+            /**
+             * Blank
+             * @description Rows with no hourly column filled: not hourly
+             */
+            blank: number;
+            /**
+             * By Source
+             * @description Rows with a usable rate, by column used
+             */
+            by_source: {
+                [key: string]: number;
+            };
+            /**
+             * Columns Present
+             * @description Hourly columns found, highest precedence first
+             */
+            columns_present: string[];
+            /**
+             * Maximum Rate
+             * @description Highest plausible hourly rate
+             */
+            maximum_rate: number;
+            /**
+             * Minimum Rate
+             * @description Lowest plausible hourly rate
+             */
+            minimum_rate: number;
+            /**
+             * Multiple Columns
+             * @description Rows with more than one hourly column; precedence decided
+             */
+            multiple_columns: number;
+            /**
+             * Out Of Bounds
+             * @description Rows whose rate is outside the plausible range; they get no rate
+             */
+            out_of_bounds: number;
+            /**
+             * With Rate
+             * @description Rows with a usable hourly rate
+             */
+            with_rate: number;
+        };
+        /**
          * CensusMetrics
          * @description Participation, savings-rate, and cost metrics for one population slice.
          */
@@ -7371,6 +7419,8 @@ export interface components {
              * @description File size in bytes
              */
             file_size_bytes: number;
+            /** @description Hourly rate report; null when the census has no hourly columns */
+            hourly_rate_summary: components["schemas"]["CensusHourlyRateSummary"] | null;
             /**
              * Original Filename
              * @description Original uploaded filename before normalization
@@ -9054,6 +9104,7 @@ export interface components {
             file_size_bytes: number;
             /** Filename */
             filename: string;
+            hourly_rate_summary: components["schemas"]["CensusHourlyRateSummary"] | null;
             /** Import Id */
             import_id: string;
             /** Original Filename */
