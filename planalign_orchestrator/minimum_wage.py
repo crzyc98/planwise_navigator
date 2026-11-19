@@ -52,8 +52,8 @@ def warn_unreached_minimum_wage_steps(
 
 def require_census_hourly_rates(conn: duckdb.DuckDBPyConnection) -> None:
     """Reject a minimum wage when no census row has a usable hourly rate."""
-    (rated,) = conn.execute(
+    row = conn.execute(
         "SELECT COUNT(census_hourly_rate) FROM stg_census_data"
     ).fetchone()
-    if not rated:
+    if row is None or not row[0]:
         raise ConfigurationError(NEEDS_RATES_MESSAGE)
