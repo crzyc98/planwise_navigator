@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The minimum wage preview now rejects two steps in the same calendar year, as saving a scenario already did. Before, a direct API call could preview a schedule that could not be saved or run.
+
 ## [3.5.1] - 2026-11-19
 
 ### Fixed

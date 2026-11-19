@@ -189,6 +189,14 @@ def test_preview_endpoint_validates_steps(client_factory, tmp_path):
     bad = {**body, "steps": [{"hourly_rate": 0, "effective_date": "2026-07-01"}]}
     assert client.post(url, json=bad).status_code == 422
 
+    same_year = [
+        {"hourly_rate": 20, "effective_date": "2026-01-01"},
+        {"hourly_rate": 21, "effective_date": "2026-07-01"},
+    ]
+    response = client.post(url, json={**body, "steps": same_year})
+    assert response.status_code == 422
+    assert "one minimum wage step per calendar year" in response.text
+
 
 # --- Results by year -------------------------------------------------------
 
