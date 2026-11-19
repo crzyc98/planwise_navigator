@@ -536,9 +536,10 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         example="18.50",
         when_missing=(
             "A minimum wage change needs an hourly rate from this column, hours "
-            "worked or weekly hours; if all three are blank, it cannot be modelled. "
-            "This column is the best source, because overtime and bonuses don't "
-            "change it. " + _RATE_CHECK
+            "worked or weekly hours. Someone with all three blank has no rate, so a "
+            "minimum wage leaves their pay alone; if nobody has a rate, a run with "
+            "a minimum wage stops. This column is the best source, because overtime "
+            "and bonuses don't change it. " + _RATE_CHECK
         ),
     ),
     CensusFieldDefinition(
@@ -553,7 +554,8 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         when_missing=(
             "Used when hourly rate is blank: the hourly rate is the year's pay "
             "divided by these hours. Overtime and bonuses push that rate up, so send "
-            "hourly rate when you can. A blank means the person is not hourly."
+            "hourly rate when you can. Someone with all three hours columns blank "
+            "has no hourly rate."
         ),
     ),
     CensusFieldDefinition(
@@ -566,7 +568,8 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         group="hours",
         example="40",
         when_missing=(
-            "Without it, everyone counts as working 40 hours a week for the "
+            "Without it, every census employee counts as working 40 hours a week "
+            "for the "
             "employer match and core hours rule (often 1,000 a year), and Studio "
             "can't suggest a part-time share for new hires. It is also the last "
             "source of an hourly rate: yearly pay divided by (weekly hours x 52)."

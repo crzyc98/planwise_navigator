@@ -100,7 +100,7 @@ They are read only from a directly uploaded Parquet file that already has
 these exact column names. Every other row can be mapped in the wizard.
 
 **Age and census eligibility.** Census employees are taken as given. Anyone past
-the waiting period (or with an `eligibility_entry_date`) is eligible whatever
+the waiting period is eligible whatever
 their age, and the plan's minimum age is not reapplied to them. The minimum age
 applies to employees the simulation hires. New-hire ages start at 21, the highest
 minimum age a plan may require, so no simulated hire is too young to become
@@ -186,7 +186,8 @@ eligible. Studio and config validation reject new-hire ages under 21.
   (40 hrs/week) for the employer annual-hours rule, and Studio cannot
   estimate a census part-time share.
 - Missing all of `hourly_rate`, `hours_worked` and `scheduled_hours_per_week`
-  → nobody has an hourly rate, so a minimum wage change has no one to apply to.
+  → nobody has an hourly rate, so a run with a minimum wage stops with an error
+  naming these columns.
 - Missing `eligibility_entry_date` → no effect on the simulation, which
   always calculates eligibility from hire date + plan rules. Census Analysis
   counts every active employee as eligible, and the tie-out skips the
