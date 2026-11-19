@@ -104,6 +104,18 @@ class MinimumWageStep(BaseModel):
     effective_date: date
 
 
+def one_step_per_year(steps: List[MinimumWageStep]) -> List[MinimumWageStep]:
+    """The steps in date order; rejects two in one calendar year."""
+    years = [step.effective_date.year for step in steps]
+    repeated = sorted({year for year in years if years.count(year) > 1})
+    if repeated:
+        raise ValueError(
+            "one minimum wage step per calendar year; more than one in "
+            + ", ".join(str(year) for year in repeated)
+        )
+    return sorted(steps, key=lambda step: step.effective_date)
+
+
 class CompensationSettings(BaseModel):
     """Compensation settings with support for both decimal and percent formats.
 
@@ -141,14 +153,7 @@ class CompensationSettings(BaseModel):
         cls, value: List[MinimumWageStep]
     ) -> List[MinimumWageStep]:
         """Reject two steps in one calendar year; schedule them a year apart."""
-        years = [step.effective_date.year for step in value]
-        repeated = sorted({year for year in years if years.count(year) > 1})
-        if repeated:
-            raise ValueError(
-                "one minimum wage step per calendar year; more than one in "
-                + ", ".join(str(year) for year in repeated)
-            )
-        return sorted(value, key=lambda step: step.effective_date)
+        return one_step_per_year(value)
 
     @model_validator(mode="before")
     @classmethod

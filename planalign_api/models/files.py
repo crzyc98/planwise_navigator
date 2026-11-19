@@ -3,9 +3,9 @@
 from datetime import date, datetime
 from typing import Dict, List, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
-from planalign_orchestrator.config.simulation import MinimumWageStep
+from planalign_orchestrator.config.simulation import MinimumWageStep, one_step_per_year
 
 from .base import APIModel
 
@@ -150,6 +150,14 @@ class MinimumWagePreviewRequest(APIModel):
         max_length=50,
         description="Steps to estimate; empty returns only the census hourly rates",
     )
+
+    @field_validator("steps")
+    @classmethod
+    def one_step_per_calendar_year(
+        cls, value: List[MinimumWageStep]
+    ) -> List[MinimumWageStep]:
+        """The same rule a saved scenario follows, so a preview can be saved."""
+        return one_step_per_year(value)
 
 
 class MinimumWageStepPreview(APIModel):
