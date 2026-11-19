@@ -88,15 +88,16 @@ below); they don't block ingestion.
 | `employer_core_contribution` | decimal | Employer non-elective (core/profit-sharing) contribution amount. Not a simulation input; Census Analysis and the census tie-out report it | `er_core`, `ercore`, `non_elective`, `nonelective`, `employer_core`, `profit_sharing`, `profitsharing`, `core_contribution` |
 | `employer_match_contribution` | decimal | Employer matching contribution amount. Not a simulation input; Census Analysis and the census tie-out report it | `er_match`, `ermatch`, `employer_match`, `matching`, `match_contribution`, `matchcontribution`, `employer_matching` |
 | `eligibility_entry_date` | date | Plan entry date. Not a simulation input: the engine calculates eligibility from hire date + plan rules. Census Analysis and the census tie-out use it to count eligible employees | `entry_date`, `entrydate`, `eligibility_date`, `eligibilitydate`, `plan_entry`, `planentry`, `eligibility_entry` |
-| `scheduled_hours_per_week` | decimal | Scheduled weekly hours; omit for full-time (defaults to 40 hrs/wk downstream) | `hours_per_week`, `scheduled_hours`, `weekly_hours` |
+| `scheduled_hours_per_week` | decimal | Scheduled weekly hours. Blank counts as 40 hrs/wk for the employer match/core annual-hours rule (`int_employer_eligibility`); also drives the census part-time share (weekly hours x 52 < 1,000) and is the last source of an hourly rate | `hours_per_week`, `scheduled_hours`, `weekly_hours` |
 | `hourly_rate` | decimal | Base hourly rate in dollars. The preferred way to give an hourly rate (see **Hourly rates** below) | `hourly_pay_rate`, `hourly_wage`, `rate_per_hour` |
 | `hours_worked` | decimal | All paid hours in the census year, overtime included | `annual_hours_worked`, `paid_hours`, `hours_paid` |
 | `auto_escalation_opt_out` | boolean | Per-employee opt-out of auto-escalation; defaults to `false` (participates) if omitted | *(no aliases — must match exactly)* |
 | `eligibility_override` | boolean | Per-employee plan eligibility override: `true`=eligible, `false`=ineligible, omitted/null=unspecified (calculated normally) | *(no aliases — must match exactly)* |
 
-The last three rows are not in the import wizard's field list yet, so the
-wizard cannot map them. They are read only from a directly uploaded Parquet
-file that already has these exact column names.
+The last two rows (`auto_escalation_opt_out`, `eligibility_override`) are not
+in the import wizard's field list (`FIELDS`), so the wizard cannot map them.
+They are read only from a directly uploaded Parquet file that already has
+these exact column names. Every other row can be mapped in the wizard.
 
 **Age and census eligibility.** Census employees are taken as given. Anyone past
 the waiting period (or with an `eligibility_entry_date`) is eligible whatever
@@ -182,7 +183,10 @@ eligible. Studio and config validation reject new-hire ages under 21.
 - Missing `eligibility_override` → treated as unspecified; eligibility is
   calculated normally from hire date + waiting period.
 - Missing `scheduled_hours_per_week` → employee is assumed full-time
-  (40 hrs/week).
+  (40 hrs/week) for the employer annual-hours rule, and Studio cannot
+  estimate a census part-time share.
+- Missing all of `hourly_rate`, `hours_worked` and `scheduled_hours_per_week`
+  → nobody has an hourly rate, so a minimum wage change has no one to apply to.
 - Missing `eligibility_entry_date` → no effect on the simulation, which
   always calculates eligibility from hire date + plan rules. Census Analysis
   counts every active employee as eligible, and the tie-out skips the

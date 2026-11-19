@@ -69,3 +69,17 @@ def test_field_without_guide_metadata_gets_sensible_defaults(monkeypatch) -> Non
     assert fields[0].when_missing == ""
     assert fields[1].group == "other"
     assert fields[1].example == "true"
+
+
+def test_hourly_fields_are_in_the_hours_group_with_the_import_bounds() -> None:
+    from planalign_orchestrator.census_hourly_rate import (
+        HOURLY_RATE_COLUMNS,
+        hourly_rate_bounds,
+    )
+
+    hours = [f for f in FIELDS if f.group == "hours"]
+    assert {f.field_name for f in hours} == set(HOURLY_RATE_COLUMNS)
+    assert all(f.when_missing and f.label for f in hours)
+    low, high = hourly_rate_bounds()
+    rate = next(f for f in hours if f.field_name == "hourly_rate")
+    assert f"${low:g}" in rate.when_missing and f"${high:g}" in rate.when_missing

@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Optional
 import re
 
+from planalign_orchestrator.census_hourly_rate import hourly_rate_bounds
+
 BOOLEAN_TRUE_ALIASES = frozenset(
     {
         "y",
@@ -113,6 +115,12 @@ CENSUS_FIELD_GROUPS: tuple[tuple[str, str], ...] = (
     ("eligibility", "Eligibility"),
     ("hours", "Hours"),
     ("other", "Other columns"),
+)
+
+_RATE_MIN, _RATE_MAX = hourly_rate_bounds()
+_RATE_CHECK = (
+    f"A rate below ${_RATE_MIN:g} or above ${_RATE_MAX:g} an hour is flagged at "
+    "import, and the person is kept with no rate."
 )
 
 _EXAMPLE_BY_TYPE = {
@@ -519,31 +527,50 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         required=False,
         data_type="decimal",
         description=(
-            "Base hourly rate in dollars — preferred source of an hourly rate for a "
-            "minimum wage change; unaffected by overtime and bonuses"
+            "Base pay per hour in dollars, for hourly employees. Leave blank for "
+            "anyone who is not hourly."
         ),
         aliases=("hourly_pay_rate", "hourly_wage", "rate_per_hour"),
+        label="Hourly rate",
+        group="hours",
+        example="18.50",
+        when_missing=(
+            "A minimum wage change needs an hourly rate from this column, hours "
+            "worked or weekly hours; if all three are blank, it cannot be modelled. "
+            "This column is the best source, because overtime and bonuses don't "
+            "change it. " + _RATE_CHECK
+        ),
     ),
     CensusFieldDefinition(
         field_name="hours_worked",
         required=False,
         data_type="decimal",
-        description=(
-            "All paid hours in the census year, overtime included — hourly rate is "
-            "census pay / hours; overstates the base rate when pay includes overtime "
-            "premium or bonuses, so hourly_rate is preferred"
-        ),
+        description="All paid hours in the census year, overtime included.",
         aliases=("annual_hours_worked", "paid_hours", "hours_paid"),
+        label="Hours worked",
+        group="hours",
+        example="1950",
+        when_missing=(
+            "Used when hourly rate is blank: the hourly rate is the year's pay "
+            "divided by these hours. Overtime and bonuses push that rate up, so send "
+            "hourly rate when you can. A blank means the person is not hourly."
+        ),
     ),
     CensusFieldDefinition(
         field_name="scheduled_hours_per_week",
         required=False,
         data_type="decimal",
-        description=(
-            "Scheduled weekly hours — used for part-time eligibility; hourly rate is "
-            "annual pay rate / (hours x 52), right only when census pay is an annual rate"
-        ),
+        description="Usual scheduled hours in a week.",
         aliases=("hours_per_week", "scheduled_hours", "weekly_hours"),
+        label="Weekly hours",
+        group="hours",
+        example="40",
+        when_missing=(
+            "Without it, everyone counts as working 40 hours a week for the "
+            "employer match and core hours rule (often 1,000 a year), and Studio "
+            "can't suggest a part-time share for new hires. It is also the last "
+            "source of an hourly rate: yearly pay divided by (weekly hours x 52)."
+        ),
     ),
 )
 
