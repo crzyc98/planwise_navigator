@@ -117,11 +117,21 @@ CENSUS_FIELD_GROUPS: tuple[tuple[str, str], ...] = (
     ("other", "Other columns"),
 )
 
-_RATE_MIN, _RATE_MAX = hourly_rate_bounds()
+# The bounds are filled in by guide_when_missing, not here: reading the dbt
+# project at import time breaks importing this module from an installed wheel.
 _RATE_CHECK = (
-    f"A rate below ${_RATE_MIN:g} or above ${_RATE_MAX:g} an hour is flagged at "
+    "A rate below ${rate_min:g} or above ${rate_max:g} an hour is flagged at "
     "import, and the person is kept with no rate."
 )
+
+
+def guide_when_missing(definition: "CensusFieldDefinition") -> str:
+    """A field's when-missing sentence with the configured rate bounds filled in."""
+    if "{rate_min" not in definition.when_missing:
+        return definition.when_missing
+    rate_min, rate_max = hourly_rate_bounds()
+    return definition.when_missing.format(rate_min=rate_min, rate_max=rate_max)
+
 
 _EXAMPLE_BY_TYPE = {
     "string": "EXAMPLE",

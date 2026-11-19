@@ -9,6 +9,7 @@ from planalign_api.services.census_schema import (
     CENSUS_FIELD_GROUPS,
     FIELDS,
     CensusFieldDefinition,
+    guide_when_missing,
 )
 
 pytestmark = [pytest.mark.fast]
@@ -30,7 +31,7 @@ def test_endpoint_returns_every_field_with_its_metadata(client_factory) -> None:
             "aliases": list(field.aliases),
             "group": field.group,
             "example": field.example_value,
-            "when_missing": field.when_missing,
+            "when_missing": guide_when_missing(field),
         }
     assert [g["key"] for g in body["groups"]] == [k for k, _ in CENSUS_FIELD_GROUPS]
 
@@ -82,4 +83,6 @@ def test_hourly_fields_are_in_the_hours_group_with_the_import_bounds() -> None:
     assert all(f.when_missing and f.label for f in hours)
     low, high = hourly_rate_bounds()
     rate = next(f for f in hours if f.field_name == "hourly_rate")
-    assert f"${low:g}" in rate.when_missing and f"${high:g}" in rate.when_missing
+    sentence = guide_when_missing(rate)
+    assert f"${low:g}" in sentence and f"${high:g}" in sentence
+    assert "{" not in sentence

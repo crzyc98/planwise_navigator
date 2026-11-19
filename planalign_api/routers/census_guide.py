@@ -20,6 +20,7 @@ from ..services.census_schema import (
     CENSUS_DATE_FORMATS,
     CENSUS_FIELD_GROUPS,
     FIELDS,
+    guide_when_missing,
 )
 from .files import MAX_UPLOAD_SIZE as PARQUET_MAX_UPLOAD_BYTES
 from .imports import IMPORT_FILE_TYPES
@@ -51,7 +52,7 @@ def get_census_schema() -> CensusGuideResponse:
             aliases=list(f.aliases),
             group=f.group if f.group in _KNOWN_GROUPS else "other",
             example=f.example_value,
-            when_missing=f.when_missing,
+            when_missing=guide_when_missing(f),
         )
         for f in FIELDS
     ]
