@@ -27,6 +27,7 @@ import EngineVersionBadge from './EngineVersionBadge';
 import RunChangesSince from './RunChangesSince';
 import MinimumWagePanel from './MinimumWagePanel';
 import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
+import { splitAcquiredHires } from './acquiredHires';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
@@ -405,24 +406,28 @@ export default function AnalyticsDashboard() {
     : [];
   const payPerHeadMean = meanGrowthPct(payPerHeadYears);
 
-  const eventChartData = results ? Object.keys(results.event_trends).length > 0
+  // Hires means organic hiring everywhere; acquired members get their own series.
+  const eventTrends = results ? splitAcquiredHires(results.event_trends, results.acquired_hires) : {};
+  const hasAcquisitions = 'acquired' in eventTrends;
+  const eventChartData = results ? Object.keys(eventTrends).length > 0
     ? Array.from(
         new Set(
-          Object.values(results.event_trends).flatMap((_, i) =>
+          Object.values(eventTrends).flatMap((_, i) =>
             results.workforce_progression?.map(r => r.simulation_year) || []
           )
         )
       ).map((year, idx) => ({
         year,
-        Hires: results.event_trends['hire']?.[idx] || 0,
-        Terminations: results.event_trends['termination']?.[idx] || 0,
-        Promotions: results.event_trends['promotion']?.[idx] || 0,
+        Hires: eventTrends['hire']?.[idx] || 0,
+        ...(hasAcquisitions ? { Acquired: eventTrends['acquired']?.[idx] || 0 } : {}),
+        Terminations: eventTrends['termination']?.[idx] || 0,
+        Promotions: eventTrends['promotion']?.[idx] || 0,
       }))
     : []
   : [];
 
-  const eventTypeRows = results?.event_trends && Object.keys(results.event_trends).length > 0
-    ? buildEventTypeRows(results.event_trends)
+  const eventTypeRows = Object.keys(eventTrends).length > 0
+    ? buildEventTypeRows(eventTrends)
     : [];
 
   // Same transform the "Average Compensation by Detailed Status" chart uses,
@@ -756,6 +761,7 @@ export default function AnalyticsDashboard() {
                       />
                       <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                       <Bar dataKey="Hires" stackId="a" fill={chartTheme.colorAt(1)} radius={[0, 0, 4, 4]} />
+                      {hasAcquisitions && <Bar dataKey="Acquired" stackId="a" fill={chartTheme.colorAt(4)} />}
                       <Bar dataKey="Promotions" stackId="a" fill={chartTheme.colorAt(2)} />
                       <Bar dataKey="Terminations" stackId="a" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -966,6 +972,47 @@ export default function AnalyticsDashboard() {
               <p className="text-sm text-ink-muted">No pay data available.</p>
             )}
           </div>
+
+          {/* #1228: acquired groups apart from existing staff; hidden when nobody joined by acquisition */}
+          {(results.acquisition_split?.length ?? 0) > 0 && (
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-ink">Pay and Employer Cost: Acquired vs Existing Staff</h3>
+                <CopyTableButton rows={results.acquisition_split} />
+              </div>
+              <p className="text-sm text-ink-muted mb-4">
+                Total pay and employer contributions (match plus core) for people who joined through an acquisition and for everyone else, for the population selected above. Each year&apos;s two sides add up to its total pay.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Year</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Acquired Headcount</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Acquired Pay</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Acquired Employer Cost</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Existing Headcount</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Existing Pay</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Existing Employer Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {results.acquisition_split.map(row => (
+                      <tr key={row.simulation_year}>
+                        <td className="px-4 py-2 text-sm text-ink">{row.simulation_year}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">{row.acquired_headcount.toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.acquired_compensation).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.acquired_employer_cost).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">{row.existing_headcount.toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.existing_compensation).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.existing_employer_cost).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Compensation by Detailed Status Code */}
           {results.compensation_by_status && results.compensation_by_status.length > 0 && (() => {

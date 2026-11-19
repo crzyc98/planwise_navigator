@@ -67,6 +67,37 @@ class AcquisitionSettings(BaseModel):
         le=1,
         description="Deferral rate for members who start as participants",
     )
+    # #1228: who the group is. Unset mirrors the sponsor's active staff.
+    average_pay: Optional[float] = Field(
+        default=None,
+        gt=0,
+        le=10_000_000,
+        description=(
+            "Members' average annual pay; every sampled member's pay is scaled "
+            "by one factor, so the spread is kept"
+        ),
+    )
+    relative_pay: Optional[float] = Field(
+        default=None,
+        ge=0.1,
+        le=10,
+        description="Pay relative to existing staff, e.g. 0.9 for 10% below",
+    )
+    average_age: Optional[float] = Field(
+        default=None,
+        ge=18,
+        le=80,
+        description="Members' average age; every member shifts by the same years",
+    )
+    average_service: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=62,
+        description=(
+            "Members' average years of service; every member shifts by the "
+            "same years, kept between 0 and age minus 18"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_starting_participation(self) -> "AcquisitionSettings":
@@ -78,6 +109,19 @@ class AcquisitionSettings(BaseModel):
                 "starting_participation_rate and starting_deferral_rate "
                 "must be set together"
             )
+        return self
+
+    @model_validator(mode="after")
+    def validate_overrides(self) -> "AcquisitionSettings":
+        """One way to set pay, and a service average the age average allows."""
+        if self.average_pay is not None and self.relative_pay is not None:
+            raise ValueError("set average_pay or relative_pay, not both")
+        if (
+            self.average_age is not None
+            and self.average_service is not None
+            and self.average_service > self.average_age - 18
+        ):
+            raise ValueError("average_service cannot exceed average_age minus 18")
         return self
 
 

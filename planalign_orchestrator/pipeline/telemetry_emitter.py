@@ -218,13 +218,17 @@ class TelemetryEmitter:
                         [year - 1],
                     ).fetchone()[0]
                     opening_source = "prior_year_snapshot"
-            hires = event_counts.get("HIRE", 0)
+                acquired = self._acquired_hires(conn, year)
+            # #1228: acquired members are their own step, apart from organic hires
+            hires = event_counts.get("HIRE", 0) - acquired
             terms = event_counts.get("TERMINATION", 0)
             opening = int(opening)
-            expected = opening + hires - terms
+            expected = opening + hires + acquired - terms
+            steps = {"acquired": acquired} if acquired else {}
             return {
                 "opening_workforce": opening,
                 "hires": hires,
+                **steps,
                 "terminations": terms,
                 "expected_closing_workforce": expected,
                 "actual_closing_workforce": int(actual),
@@ -234,6 +238,24 @@ class TelemetryEmitter:
         except Exception as e:
             logger.warning("Telemetry reconciliation query failed for %s: %s", year, e)
             return unavailable
+
+    @staticmethod
+    def _acquired_hires(conn: Any, year: int) -> int:
+        """Hires of acquired-group members (#1226) in the year; 0 when none."""
+        has_column = conn.execute(
+            "SELECT COUNT(*) > 0 FROM information_schema.columns "
+            "WHERE table_name = 'fct_yearly_events' "
+            "AND column_name = 'acquisition_id'"
+        ).fetchone()[0]
+        if not has_column:
+            return 0
+        return int(
+            conn.execute(
+                "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ? "
+                "AND lower(event_type) = 'hire' AND acquisition_id IS NOT NULL",
+                [year],
+            ).fetchone()[0]
+        )
 
     def _emit(self, payload: Dict[str, Any]) -> None:
         if not self.enabled:

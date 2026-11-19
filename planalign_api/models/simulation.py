@@ -312,6 +312,22 @@ class MinimumWageYear(APIModel):
     )
 
 
+class AcquisitionSplitRow(APIModel):
+    """Pay and employer cost for acquired and existing staff in one year (#1228).
+
+    Both sides use the results' population filter, so they add up to that
+    year's total compensation.
+    """
+
+    simulation_year: int
+    acquired_headcount: int
+    acquired_compensation: float
+    acquired_employer_cost: float
+    existing_headcount: int
+    existing_compensation: float
+    existing_employer_cost: float
+
+
 class SimulationResults(APIModel):
     """Full simulation results."""
 
@@ -334,6 +350,22 @@ class SimulationResults(APIModel):
     # Event trends
     event_trends: Dict[str, List[int]] = Field(
         description="Event counts by type and year"
+    )
+    acquired_hires: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Hire events per year for acquired members, aligned with "
+            "event_trends (included in its hire counts); empty when none"
+        ),
+    )
+
+    acquisition_split: List[AcquisitionSplitRow] = Field(
+        default_factory=list,
+        description=(
+            "Pay and employer cost (match plus core) per year for members of "
+            "acquired groups and for everyone else; empty when nobody joined "
+            "by acquisition"
+        ),
     )
 
     minimum_wage: List[MinimumWageYear] = Field(

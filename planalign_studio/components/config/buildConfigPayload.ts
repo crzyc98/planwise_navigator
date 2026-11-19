@@ -5,6 +5,7 @@ import type { FormData } from './types';
 import type { PromotionHazardConfig, BandConfig } from '../../services/api';
 import { calculateMatchCap } from './constants';
 import { minimumWagePayload } from './minimumWage';
+import { acquisitionsPayload } from './acquisitions';
 
 function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], value: string) {
   if (mode === 'inherit') return {};
@@ -45,6 +46,8 @@ export function buildConfigPayload(
       total_termination_rate: Number(formData.totalTerminationRate) / 100,
       new_hire_termination_rate: Number(formData.newHireTerminationRate) / 100,
       part_time_new_hire_pct: Number(formData.partTimeNewHirePct) / 100,
+      // Saves only apply what changed, so an untouched empty list is never written.
+      acquisitions: acquisitionsPayload(formData.acquisitions),
     },
     // Keep workspace inheritance when saving a scenario. Only a distinct census
     // belongs in scenario overrides; retain the legacy key for existing readers.

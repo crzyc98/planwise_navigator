@@ -216,4 +216,4 @@ def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path)
     assert stored == overrides
     merged = service.get_merged_config(workspace.id, created.id)
     loaded = AcquisitionSettings.model_validate(merged["workforce"]["acquisitions"][0])
-    assert loaded.model_dump(mode="json") == acquisition
+    assert loaded.model_dump(mode="json", exclude_none=True) == acquisition

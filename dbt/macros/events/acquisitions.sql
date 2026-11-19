@@ -14,7 +14,11 @@
         'headcount': item['headcount'] | int,
         'effective_date': item['effective_date'] | string,
         'ordinal': loop.index,
-        'service_credit': item.get('service_credit', 'prior_service')
+        'service_credit': item.get('service_credit', 'prior_service'),
+        'average_pay': item.get('average_pay'),
+        'relative_pay': item.get('relative_pay'),
+        'average_age': item.get('average_age'),
+        'average_service': item.get('average_service')
       }) -%}
     {%- endif -%}
   {%- endfor -%}

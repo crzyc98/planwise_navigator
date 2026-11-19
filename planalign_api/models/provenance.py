@@ -195,6 +195,11 @@ class AnnualWorkforceReconciliation(StrictModel):
     simulation_year: int
     opening_workforce: int | None = Field(default=None, ge=0)
     hires: int | None = Field(default=None, ge=0)
+    # #1228: members of acquired groups, a step apart from organic hires. Left
+    # out when nobody joined, so runs without acquisitions serialize as before.
+    acquired: int | None = Field(
+        default=None, ge=0, exclude_if=lambda value: value is None
+    )
     terminations: int | None = Field(default=None, ge=0)
     expected_closing_workforce: int | None = None
     actual_closing_workforce: int | None = Field(default=None, ge=0)

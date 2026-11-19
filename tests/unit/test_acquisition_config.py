@@ -287,3 +287,65 @@ def test_acquisition_macros_render_nothing_without_acquisitions() -> None:
     assert module.acquisition_cohort("employee_id").strip() == ""
     sql = module.acquisition_id_of("'ACQ_acme_000001'")
     assert duckdb.sql(f"SELECT {sql}").fetchall() == [(None,)]
+
+
+# --- #1228: who the group is -----------------------------------------------
+
+OVERRIDES = {"relative_pay": 0.9, "average_age": 45, "average_service": 8.5}
+
+
+def test_unset_overrides_mirror_staff_and_keep_the_fingerprint() -> None:
+    acquisition = AcquisitionSettings.model_validate(ACME)
+    assert acquisition.average_pay is None and acquisition.relative_pay is None
+    assert acquisition.average_age is None and acquisition.average_service is None
+    exported = to_dbt_vars(_config([ACME]))["acquisitions"][0]
+    assert not set(exported) & {
+        "average_pay",
+        "relative_pay",
+        "average_age",
+        "average_service",
+    }
+
+
+def test_overrides_export_and_change_the_fingerprint() -> None:
+    config = _config([{**ACME, **OVERRIDES}])
+    exported = to_dbt_vars(config)["acquisitions"][0]
+    assert {key: exported[key] for key in OVERRIDES} == OVERRIDES
+    assert compute_config_fingerprint(config) != compute_config_fingerprint(
+        _config([ACME])
+    )
+    amount = to_dbt_vars(_config([{**ACME, "average_pay": 82_000}]))
+    assert amount["acquisitions"][0]["average_pay"] == 82_000
+
+
+def test_overrides_reach_the_joining_macro() -> None:
+    macros = Path(__file__).resolve().parents[2] / "dbt" / "macros"
+    env = Environment(extensions=["jinja2.ext.do"])
+    returned: list[Any] = []
+    env.globals["var"] = lambda name, default=None: (
+        [{**ACME, **OVERRIDES}] if name == "acquisitions" else default
+    )
+    env.globals["return"] = lambda value: returned.append(value) or ""
+    module = env.from_string((macros / "events" / "acquisitions.sql").read_text())
+    module.module.acquisitions_joining(2026)
+    [joining] = returned
+    assert {key: joining[0][key] for key in OVERRIDES} == OVERRIDES
+    assert joining[0]["average_pay"] is None
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"average_pay": 80_000, "relative_pay": 0.9},
+        {"average_pay": 0},
+        {"relative_pay": 0},
+        {"relative_pay": 90},
+        {"average_age": 17},
+        {"average_age": 81},
+        {"average_service": -1},
+        {"average_age": 30, "average_service": 13},
+    ],
+)
+def test_overrides_reject_invalid_values(override: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        AcquisitionSettings.model_validate({**ACME, **override})

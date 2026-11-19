@@ -174,6 +174,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   // Turnover
   totalTerminationRate: 12.0,
   newHireTerminationRate: 25.0,
+  acquisitions: [],
 
   // DC Plan - Basic
   dcEligibilityMonths: 3,

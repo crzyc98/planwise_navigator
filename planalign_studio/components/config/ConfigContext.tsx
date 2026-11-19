@@ -10,6 +10,7 @@ import { participantBehaviorFormFields, validateBelowDefaultSettings, validateEa
 import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
 import { minimumWageFromConfig, minimumWageSaveErrors } from './minimumWage';
+import { acquisitionSaveErrors, acquisitionsFromConfig } from './acquisitions';
 export { extractCensusPath } from './censusConfig';
 import {
   updateWorkspace as apiUpdateWorkspace,
@@ -115,6 +116,7 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
     partTimeNewHirePct: cfg.workforce?.part_time_new_hire_pct != null
       ? cfg.workforce.part_time_new_hire_pct * 100
       : prev.partTimeNewHirePct,
+    acquisitions: acquisitionsFromConfig(cfg.workforce?.acquisitions) ?? prev.acquisitions,
     // The simulation engine resolves census paths from setup.census_parquet_path.
     censusDataPath: extractCensusPath(cfg) || prev.censusDataPath,
     censusDataStatus: extractCensusPath(cfg) ? 'validating' as const : prev.censusDataStatus,
@@ -720,6 +722,9 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         formData.newHireTerminationRate !== savedFormData.newHireTerminationRate) {
       dirty.add('turnover');
     }
+    if (JSON.stringify(formData.acquisitions) !== JSON.stringify(savedFormData.acquisitions)) {
+      dirty.add('workforce');
+    }
     if (hasDcPlanChanges(formData, savedFormData)) {
       dirty.add('dcplan');
     }
@@ -763,6 +768,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       current.formData.minimumWage, Number(current.formData.startYear), Number(current.formData.endYear),
     );
     if (minimumWageProblems.length) throw new Error(minimumWageProblems.join(' '));
+    const acquisitionProblems = acquisitionSaveErrors(
+      current.formData.acquisitions, Number(current.formData.startYear), Number(current.formData.endYear),
+    );
+    if (acquisitionProblems.length) throw new Error(acquisitionProblems.join(' '));
     if (current.formData.dcAutoEnroll) {
       const errors = validateBelowDefaultSettings(current.formData);
       if (errors.length) throw new Error(errors.join(' '));

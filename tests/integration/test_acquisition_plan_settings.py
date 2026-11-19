@@ -7,7 +7,10 @@ scenario with two acquisitions joining on 1 July 2026:
   on the acquisition date and go through auto-enrollment like new entrants.
 - ``beta`` sets the alternatives: service starts on the acquisition date,
   members wait out the plan's 365-day waiting period, and half of them start
-  deferring 6%.
+  deferring 6%. It is also paid 10% below staff and given an average service
+  that the acquisition-date credit then zeroes (#1228).
+- ``gamma`` keeps the plan defaults and overrides who the group is (#1228):
+  an average pay amount, age and service.
 
 The plan is chosen so that service drives every formula: auto-enrollment for
 all eligible employees, a points-based core with a one-year eligibility
@@ -44,6 +47,9 @@ HEADCOUNT = 40
 WAITING_DAYS = 365
 PARTICIPATION_RATE = 0.5
 DEFERRAL_RATE = 0.06
+GAMMA_PAY = 91_000.0
+GAMMA_AGE = 52.0
+GAMMA_SERVICE = 14.0
 CORE_BANDS = ((0, 30, 0.01), (30, 50, 0.02), (50, None, 0.03))
 CORE_MIN_SERVICE_YEARS = 3
 CORE_PRE_SERVICE_RATE = 0.01
@@ -125,6 +131,16 @@ def runs(
             "plan_entry": "waiting_period",
             "starting_participation_rate": PARTICIPATION_RATE,
             "starting_deferral_rate": DEFERRAL_RATE,
+            "relative_pay": 0.9,
+            "average_service": 6,
+        },
+        {
+            "id": "gamma",
+            "headcount": HEADCOUNT,
+            "effective_date": EFFECTIVE,
+            "average_pay": GAMMA_PAY,
+            "average_age": GAMMA_AGE,
+            "average_service": GAMMA_SERVICE,
         },
     ]
     acquired = _execute(
@@ -167,9 +183,9 @@ def test_service_credit_sets_current_tenure(acquired_db: Path) -> None:
         WHERE s.acquisition_id IS NOT NULL AND s.employment_status = 'active'
         """,
     )
-    assert {row[0] for row in rows} == {"acme", "beta"}
+    assert {row[0] for row in rows} == {"acme", "beta", "gamma"}
     for acquisition, year, tenure, carried in rows:
-        expected = carried if acquisition == "acme" else 0
+        expected = 0 if acquisition == "beta" else carried
         assert tenure == expected + (year - JOIN_YEAR)
     acme_carried = [row[3] for row in rows if row[0] == "acme"]
     assert min(acme_carried) >= 1
@@ -361,3 +377,83 @@ def test_non_members_contributions_match_a_run_without_the_acquisition(
             assert (a is None) == (b is None), left[0]
             if a is not None:
                 assert float(a) == pytest.approx(float(b), abs=1e-6), left[0]
+
+
+# --- #1228: who the group is -----------------------------------------------
+
+
+def test_overrides_hit_their_targets(acquired_db: Path) -> None:
+    rows = _rows(
+        acquired_db,
+        """
+        SELECT acquisition_id, AVG(compensation_amount), AVG(employee_age),
+          AVG(employee_tenure), MIN(employee_age), MIN(employee_tenure),
+          BOOL_AND(employee_tenure <= employee_age - 18)
+        FROM fct_yearly_events
+        WHERE event_type = 'hire' AND acquisition_id IS NOT NULL
+        GROUP BY acquisition_id
+        """,
+    )
+    by_group = {row[0]: row[1:] for row in rows}
+    pay, age, service, min_age, min_service, bounded = by_group["gamma"]
+    assert pay == pytest.approx(GAMMA_PAY)
+    # Whole-year shifts land within half a year, plus any clamping.
+    assert age == pytest.approx(GAMMA_AGE, abs=0.5)
+    assert float(service) == pytest.approx(GAMMA_SERVICE, abs=1.0)
+    assert min_age >= 18 and min_service >= 0 and bounded
+    # Acquisition-date service credit zeroes beta's shifted service.
+    assert float(by_group["beta"][2]) == 0
+
+
+def test_gamma_snapshot_carries_the_overrides(acquired_db: Path) -> None:
+    rows = _rows(
+        acquired_db,
+        f"""
+        SELECT AVG(current_age), MIN(current_age)
+        FROM fct_workforce_snapshot
+        WHERE acquisition_id = 'gamma' AND simulation_year = {JOIN_YEAR}
+        """,
+    )
+    assert rows[0][0] == pytest.approx(GAMMA_AGE, abs=1.5)
+    assert rows[0][1] >= 18
+
+
+SNAPSHOT_NON_MEMBERS = f"""
+    SELECT * EXCLUDE (acquisition_id)
+    FROM fct_workforce_snapshot
+    WHERE acquisition_id IS NULL AND simulation_year <= {JOIN_YEAR}
+    ORDER BY employee_id, simulation_year
+"""
+
+
+def _comparable(value: Any) -> Any:
+    return (
+        float(value)
+        if isinstance(value, (int, float)) or hasattr(value, "as_tuple")
+        else value
+    )
+
+
+def test_non_member_snapshot_rows_match_a_run_without_the_acquisition(
+    baseline_db: Path, acquired_db: Path
+) -> None:
+    with duckdb.connect(str(baseline_db), read_only=True) as connection:
+        cursor = connection.execute(SNAPSHOT_NON_MEMBERS)
+        columns = [column[0] for column in cursor.description]
+        baseline = cursor.fetchall()
+    acquired = _rows(acquired_db, SNAPSHOT_NON_MEMBERS)
+    skip = {
+        index
+        for index, column in enumerate(columns)
+        if "timestamp" in column or column.endswith("_at")
+    }
+    assert len(acquired) == len(baseline) > 0
+    for left, right in zip(baseline, acquired):
+        for index, (a, b) in enumerate(zip(left, right)):
+            if index in skip:
+                continue
+            a, b = _comparable(a), _comparable(b)
+            if isinstance(a, float) and isinstance(b, float):
+                assert a == pytest.approx(b, abs=1e-6), (left[0], columns[index])
+            else:
+                assert a == b, (left[0], columns[index])

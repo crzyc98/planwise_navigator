@@ -619,6 +619,50 @@
         "title": "ADPTestResponse",
         "type": "object"
       },
+      "AcquisitionSplitRow": {
+        "description": "Pay and employer cost for acquired and existing staff in one year (#1228).\n\nBoth sides use the results' population filter, so they add up to that\nyear's total compensation.",
+        "properties": {
+          "acquired_compensation": {
+            "title": "Acquired Compensation",
+            "type": "number"
+          },
+          "acquired_employer_cost": {
+            "title": "Acquired Employer Cost",
+            "type": "number"
+          },
+          "acquired_headcount": {
+            "title": "Acquired Headcount",
+            "type": "integer"
+          },
+          "existing_compensation": {
+            "title": "Existing Compensation",
+            "type": "number"
+          },
+          "existing_employer_cost": {
+            "title": "Existing Employer Cost",
+            "type": "number"
+          },
+          "existing_headcount": {
+            "title": "Existing Headcount",
+            "type": "integer"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "acquired_headcount",
+          "acquired_compensation",
+          "acquired_employer_cost",
+          "existing_headcount",
+          "existing_compensation",
+          "existing_employer_cost"
+        ],
+        "title": "AcquisitionSplitRow",
+        "type": "object"
+      },
       "ActiveRun": {
         "description": "One in-flight run, for page-refresh recovery (Feature 045).",
         "properties": {
@@ -828,6 +872,18 @@
       "AnnualWorkforceReconciliation": {
         "additionalProperties": false,
         "properties": {
+          "acquired": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired"
+          },
           "actual_closing_workforce": {
             "anyOf": [
               {
@@ -17394,6 +17450,22 @@
       "SimulationResults": {
         "description": "Full simulation results.",
         "properties": {
+          "acquired_hires": {
+            "description": "Hire events per year for acquired members, aligned with event_trends (included in its hire counts); empty when none",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Acquired Hires",
+            "type": "array"
+          },
+          "acquisition_split": {
+            "description": "Pay and employer cost (match plus core) per year for members of acquired groups and for everyone else; empty when nobody joined by acquisition",
+            "items": {
+              "$ref": "#/components/schemas/AcquisitionSplitRow"
+            },
+            "title": "Acquisition Split",
+            "type": "array"
+          },
           "cagr": {
             "title": "Cagr",
             "type": "number"
@@ -17491,6 +17563,8 @@
           "participation_rate",
           "workforce_progression",
           "event_trends",
+          "acquired_hires",
+          "acquisition_split",
           "minimum_wage",
           "growth_analysis",
           "compensation_by_status",

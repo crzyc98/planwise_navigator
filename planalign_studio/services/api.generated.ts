@@ -3310,6 +3310,29 @@ export interface components {
             year: number;
         };
         /**
+         * AcquisitionSplitRow
+         * @description Pay and employer cost for acquired and existing staff in one year (#1228).
+         *
+         *     Both sides use the results' population filter, so they add up to that
+         *     year's total compensation.
+         */
+        AcquisitionSplitRow: {
+            /** Acquired Compensation */
+            acquired_compensation: number;
+            /** Acquired Employer Cost */
+            acquired_employer_cost: number;
+            /** Acquired Headcount */
+            acquired_headcount: number;
+            /** Existing Compensation */
+            existing_compensation: number;
+            /** Existing Employer Cost */
+            existing_employer_cost: number;
+            /** Existing Headcount */
+            existing_headcount: number;
+            /** Simulation Year */
+            simulation_year: number;
+        };
+        /**
          * ActiveRun
          * @description One in-flight run, for page-refresh recovery (Feature 045).
          */
@@ -3404,6 +3427,8 @@ export interface components {
         };
         /** AnnualWorkforceReconciliation */
         AnnualWorkforceReconciliation: {
+            /** Acquired */
+            acquired?: number | null;
             /** Actual Closing Workforce */
             actual_closing_workforce: number | null;
             /** Expected Closing Workforce */
@@ -10860,6 +10885,16 @@ export interface components {
          * @description Full simulation results.
          */
         SimulationResults: {
+            /**
+             * Acquired Hires
+             * @description Hire events per year for acquired members, aligned with event_trends (included in its hire counts); empty when none
+             */
+            acquired_hires: number[];
+            /**
+             * Acquisition Split
+             * @description Pay and employer cost (match plus core) per year for members of acquired groups and for everyone else; empty when nobody joined by acquisition
+             */
+            acquisition_split: components["schemas"]["AcquisitionSplitRow"][];
             /** Cagr */
             cagr: number;
             /**

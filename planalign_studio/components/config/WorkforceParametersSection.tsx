@@ -3,6 +3,7 @@ import { SimulationSection } from './SimulationSection';
 import { CompensationSection } from './CompensationSection';
 import { NewHireSection } from './NewHireSection';
 import { TurnoverSection } from './TurnoverSection';
+import { AcquisitionsSection } from './AcquisitionsSection';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { PromotionHazardEditor } from './PromotionHazardEditor';
@@ -36,6 +37,7 @@ export function WorkforceParametersSection() {
 
       <SimulationSection variant="essentials" />
       <TurnoverSection variant="essentials" />
+      <AcquisitionsSection />
       <CompensationSection variant="essentials" />
       <details className="rounded-lg border border-border p-4">
         <summary className="cursor-pointer text-ink marker:text-ink-muted">
