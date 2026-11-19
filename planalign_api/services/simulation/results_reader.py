@@ -11,7 +11,7 @@ from planalign_core.constants import (
 )
 
 from ...constants import DEFAULT_PARTICIPATION_RATE
-from ...models.simulation import SimulationResults
+from ...models.simulation import MinimumWageYear, SimulationResults
 from ...storage.workspace_storage import WorkspaceStorage
 from ..database_path_resolver import DatabasePathResolver, ResolvedDatabasePath
 
@@ -77,6 +77,7 @@ def read_results(
             conn, config_start_year, config_end_year, pop_filter
         )
         event_trends = _query_event_trends(conn, config_start_year, config_end_year)
+        minimum_wage = _query_minimum_wage(conn, config_start_year, config_end_year)
         participation_rate = _query_participation_rate(
             conn, config_end_year, pop_filter
         )
@@ -99,6 +100,7 @@ def read_results(
         participation_rate=participation_rate,
         workforce_progression=workforce_progression,
         event_trends=event_trends,
+        minimum_wage=minimum_wage,
         growth_analysis={
             "total_growth_pct": summary["total_growth_pct"],
             "cagr": summary["cagr"],
@@ -223,6 +225,93 @@ def _query_event_trends(
     except Exception as e:
         logger.error(f"Error fetching event trends: {e}")
         return {}
+
+
+TABLE_FCT_MINIMUM_WAGE_STEPS = "fct_minimum_wage_steps"
+EVENT_MINIMUM_WAGE = "minimum_wage"
+
+_MINIMUM_WAGE_STEPS_SQL = f"""
+    SELECT simulation_year, effective_date, minimum_hourly_rate, people_raised,
+      people_with_rate, people_without_rate, people_not_covered, added_annual_pay
+    FROM {TABLE_FCT_MINIMUM_WAGE_STEPS}
+    WHERE simulation_year BETWEEN ? AND ?
+"""
+
+# Everyone a step raised up to each year, still active at its end: their
+# year-end pay times the share of it the floor added, 1 - 1/(product of ratios).
+_MINIMUM_WAGE_CARRYOVER_SQL = f"""
+    WITH ratios AS (
+      SELECT employee_id, simulation_year,
+        compensation_amount / previous_compensation AS ratio
+      FROM {TABLE_FCT_YEARLY_EVENTS}
+      WHERE event_type = '{EVENT_MINIMUM_WAGE}' AND previous_compensation > 0
+    ),
+    factors AS (
+      SELECT s.simulation_year, s.current_compensation, PRODUCT(r.ratio) AS factor
+      FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} s
+      JOIN ratios r
+        ON r.employee_id = s.employee_id AND r.simulation_year <= s.simulation_year
+      WHERE s.simulation_year BETWEEN ? AND ?
+        AND LOWER(s.employment_status) = 'active'
+      GROUP BY s.simulation_year, s.employee_id, s.current_compensation
+    )
+    SELECT simulation_year, COUNT(*),
+      COALESCE(SUM(current_compensation * (1 - 1 / factor)), 0)
+    FROM factors
+    GROUP BY simulation_year
+"""
+
+
+def _has_table(conn: duckdb.DuckDBPyConnection, table: str) -> bool:
+    row = conn.execute(
+        "SELECT COUNT(*) > 0 FROM information_schema.tables "
+        "WHERE table_schema = 'main' AND table_name = ?",
+        [table],
+    ).fetchone()
+    return bool(row and row[0])
+
+
+def _query_minimum_wage(
+    conn: duckdb.DuckDBPyConnection, start_year: int, end_year: int
+) -> List[MinimumWageYear]:
+    """The run's minimum wage by year, or empty when it has no step.
+
+    Results built before the minimum wage (#1229) have no steps table.
+    """
+    try:
+        if not _has_table(conn, TABLE_FCT_MINIMUM_WAGE_STEPS):
+            return []
+        steps = conn.execute(_MINIMUM_WAGE_STEPS_SQL, [start_year, end_year]).fetchall()
+        if not steps:
+            return []
+        carryover = conn.execute(
+            _MINIMUM_WAGE_CARRYOVER_SQL, [start_year, end_year]
+        ).fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching minimum wage results: {e}")
+        return []
+    step_fields = (
+        "effective_date",
+        "minimum_hourly_rate",
+        "people_raised",
+        "people_with_rate",
+        "people_without_rate",
+        "people_not_covered",
+        "added_annual_pay",
+    )
+    by_year: Dict[int, Dict[str, Any]] = {
+        int(row[0]): dict(zip(step_fields, row[1:])) for row in steps
+    }
+    still_active = {int(year): (int(n), float(pay)) for year, n, pay in carryover}
+    return [
+        MinimumWageYear(
+            simulation_year=year,
+            **by_year.get(year, {}),
+            raised_still_active=still_active.get(year, (0, 0.0))[0],
+            estimated_added_pay=still_active.get(year, (0, 0.0))[1],
+        )
+        for year in range(start_year, end_year + 1)
+    ]
 
 
 def _query_participation_rate(

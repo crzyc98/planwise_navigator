@@ -1686,6 +1686,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analyze-minimum-wage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview minimum wage steps on a census
+         * @description Hourly rates of the census's active employees and, for each step, how many are below the new minimum and the annual pay it adds, as of the census date. hourly_rate_summary is null when the census has no hourly columns.
+         */
+        post: operations["analyze_minimum_wage_api_workspaces__workspace_id__analyze_minimum_wage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analyze-opt-out-rate": {
         parameters: {
             query?: never;
@@ -8552,6 +8572,45 @@ export interface components {
             stddev: number | null;
         };
         /**
+         * MinimumWagePreviewRequest
+         * @description Census preview of minimum wage steps (#1231).
+         */
+        MinimumWagePreviewRequest: {
+            /**
+             * File Path
+             * @description Census file (relative to workspace or absolute)
+             */
+            file_path: string;
+            /**
+             * Steps
+             * @description Steps to estimate; empty returns only the census hourly rates
+             */
+            steps?: components["schemas"]["MinimumWageStep"][];
+        };
+        /**
+         * MinimumWagePreviewResponse
+         * @description Census hourly rates and a census-date estimate of each step (#1231).
+         */
+        MinimumWagePreviewResponse: {
+            /**
+             * Columns Needed
+             * @description Census columns that give an hourly rate, preferred first
+             */
+            columns_needed: string[];
+            /**
+             * Headcount
+             * @description Active census employees analyzed
+             */
+            headcount: number;
+            /** @description Hourly rates of active employees; null when the census has no hourly columns */
+            hourly_rate_summary: components["schemas"]["CensusHourlyRateSummary"] | null;
+            /**
+             * Steps
+             * @description Estimates in date order
+             */
+            steps: components["schemas"]["MinimumWageStepPreview"][];
+        };
+        /**
          * MinimumWageStep
          * @description A new minimum hourly rate that takes effect on a date (#1229).
          *
@@ -8569,6 +8628,90 @@ export interface components {
              * @description Minimum hourly rate, dollars
              */
             hourly_rate: number;
+        };
+        /**
+         * MinimumWageStepPreview
+         * @description One step applied to census rates as of the census date.
+         */
+        MinimumWageStepPreview: {
+            /**
+             * Added Annual Pay
+             * @description Annual pay it adds, with hours unchanged
+             */
+            added_annual_pay: number;
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /**
+             * Hourly Rate
+             * @description New minimum hourly rate
+             */
+            hourly_rate: number;
+            /**
+             * People Below
+             * @description Active census staff whose rate is below it, after earlier steps
+             */
+            people_below: number;
+        };
+        /**
+         * MinimumWageYear
+         * @description A run's minimum wage by year (#1231).
+         *
+         *     The step fields come from fct_minimum_wage_steps and are null in a year
+         *     without a step. The year-end fields cover everyone a step raised so far.
+         */
+        MinimumWageYear: {
+            /**
+             * Added Annual Pay
+             * @description Annual pay the step added on its date
+             */
+            added_annual_pay: number | null;
+            /**
+             * Effective Date
+             * @description This year's step date
+             */
+            effective_date: string | null;
+            /**
+             * Estimated Added Pay
+             * @description Estimate: their year-end pay times the share of it the minimum wage added, 1 - 1/(product of their raise ratios so far)
+             * @default 0
+             */
+            estimated_added_pay: number;
+            /**
+             * Minimum Hourly Rate
+             * @description This year's minimum
+             */
+            minimum_hourly_rate: number | null;
+            /**
+             * People Not Covered
+             * @description Simulated hires and acquired members on the date; not covered
+             */
+            people_not_covered: number | null;
+            /**
+             * People Raised
+             * @description Raised on the date
+             */
+            people_raised: number | null;
+            /**
+             * People With Rate
+             * @description On staff on the date with a census hourly rate
+             */
+            people_with_rate: number | null;
+            /**
+             * People Without Rate
+             * @description Census staff on the date with no usable hourly rate; not raised
+             */
+            people_without_rate: number | null;
+            /**
+             * Raised Still Active
+             * @description People any step so far raised who are active at year end
+             * @default 0
+             */
+            raised_still_active: number;
+            /** Simulation Year */
+            simulation_year: number;
         };
         /**
          * ObjectiveConstraintSpec
@@ -10679,6 +10822,11 @@ export interface components {
             growth_analysis: {
                 [key: string]: number;
             };
+            /**
+             * Minimum Wage
+             * @description Minimum wage by year; empty when the run has no minimum wage step
+             */
+            minimum_wage: components["schemas"]["MinimumWageYear"][];
             /** Participation Rate */
             participation_rate: number;
             /**
@@ -15343,6 +15491,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeferralSegmentAnalysisResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_minimum_wage_api_workspaces__workspace_id__analyze_minimum_wage_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinimumWagePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinimumWagePreviewResponse"];
                 };
             };
             /** @description Validation Error */

@@ -3,6 +3,7 @@ import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { solveCompensationGrowth, CompensationSolverResponse } from '../../services/api';
 import { useSuggestionPreview } from './useSuggestionPreview';
+import { MinimumWageSection } from './MinimumWageSection';
 
 export function CompensationSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
   const { formData, setFormData, inputProps, activeWorkspace, scenarioId, scenarioLoading } = useConfigContext();
@@ -86,6 +87,7 @@ export function CompensationSection({ variant = 'full' }: { variant?: 'full' | '
           {variant === 'full' && <InputField label="Promotion Rate Multiplier" {...inputProps('promoRateMultiplier')} type="number" step="0.1" suffix="×" helper="Multiplier applied to promotion rates; 1 means no adjustment." />}
         </div>
       </div>
+      <MinimumWageSection />
     </div>
   );
 }

@@ -37,6 +37,14 @@ export interface JobLevelCompRow {
   maxComp: number;
 }
 
+/** A minimum wage step (compensation.minimum_wage): a new hourly minimum from a date. */
+export interface MinimumWageRow {
+  /** Client-only React key, assigned on create or load; never saved. */
+  rowKey: string;
+  hourlyRate: number;
+  effectiveDate: string;
+}
+
 export interface LevelMarketAdjustmentRow {
   level: number;
   adjustment: number;
@@ -139,6 +147,7 @@ export interface FormData {
   promoDistributionRange: number;
   promoBudget: number;
   promoRateMultiplier: number;
+  minimumWage: MinimumWageRow[];
 
   // New Hire
   newHireStrategy: string;

@@ -7,6 +7,7 @@ import type {
   ScenarioIntegrity,
   UnevaluatedCheck,
 } from '../services/api';
+import { describeMinimumWage, minimumWageFromConfig } from './config/minimumWage';
 
 /** Plain-words copy for the like-for-like verdict (#1179, #1180). */
 
@@ -38,6 +39,7 @@ const SETTING_LABELS: Record<string, string> = {
   'compensation.target_compensation_growth_percent': 'Pay growth target',
   'compensation.merit_budget_percent': 'Merit budget',
   'compensation.cola_rate_percent': 'Cost-of-living raise',
+  'compensation.minimum_wage': 'Minimum wage',
   'compensation.promotion_budget_percent': 'Promotion budget',
   'compensation.raise_budget_percent': 'Raise budget',
   'new_hire.salary_growth_rate': 'New-hire pay growth',
@@ -141,6 +143,8 @@ const DECIMAL_PERCENT_KEYS = new Set(['max_voluntary_deferral_percent', 'match_c
 
 /** A config value in plain words, or null when it can't be shown inline. */
 export function formatSetting(path: string, value: unknown): string | null {
+  // One side without a minimum wage reads "none", never "not set".
+  if (path === 'compensation.minimum_wage') return describeMinimumWage(minimumWageFromConfig(value) ?? []);
   if (value === null || value === undefined) return 'not set';
   if (typeof value === 'boolean') return value ? 'on' : 'off';
   if (typeof value === 'string') return value;

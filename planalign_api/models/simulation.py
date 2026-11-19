@@ -1,6 +1,6 @@
 """Simulation run and telemetry models."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
@@ -273,6 +273,45 @@ class CagrMetric(APIModel):
     cagr_pct: float
 
 
+class MinimumWageYear(APIModel):
+    """A run's minimum wage by year (#1231).
+
+    The step fields come from fct_minimum_wage_steps and are null in a year
+    without a step. The year-end fields cover everyone a step raised so far.
+    """
+
+    simulation_year: int
+    effective_date: Optional[date] = Field(None, description="This year's step date")
+    minimum_hourly_rate: Optional[float] = Field(
+        None, description="This year's minimum"
+    )
+    people_raised: Optional[int] = Field(None, description="Raised on the date")
+    people_with_rate: Optional[int] = Field(
+        None, description="On staff on the date with a census hourly rate"
+    )
+    people_without_rate: Optional[int] = Field(
+        None,
+        description="Census staff on the date with no usable hourly rate; not raised",
+    )
+    people_not_covered: Optional[int] = Field(
+        None,
+        description="Simulated hires and acquired members on the date; not covered",
+    )
+    added_annual_pay: Optional[float] = Field(
+        None, description="Annual pay the step added on its date"
+    )
+    raised_still_active: int = Field(
+        0, description="People any step so far raised who are active at year end"
+    )
+    estimated_added_pay: float = Field(
+        0.0,
+        description=(
+            "Estimate: their year-end pay times the share of it the minimum "
+            "wage added, 1 - 1/(product of their raise ratios so far)"
+        ),
+    )
+
+
 class SimulationResults(APIModel):
     """Full simulation results."""
 
@@ -295,6 +334,11 @@ class SimulationResults(APIModel):
     # Event trends
     event_trends: Dict[str, List[int]] = Field(
         description="Event counts by type and year"
+    )
+
+    minimum_wage: List[MinimumWageYear] = Field(
+        default_factory=list,
+        description="Minimum wage by year; empty when the run has no minimum wage step",
     )
 
     # Detailed metrics

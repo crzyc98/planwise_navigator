@@ -147,6 +147,7 @@ export type TelemetryWsMessage =
 export type RunTelemetryResponse = Schemas['RunTelemetryResponse'];
 
 export type SimulationResults = Schemas['SimulationResults'];
+export type MinimumWageYear = Schemas['MinimumWageYear'];
 
 export type BandGroupResult = Schemas['BandGroupResult'];
 
@@ -1048,6 +1049,26 @@ export async function analyzePartTimePct(
     }
   );
   return handleResponse<PartTimePctAnalysis>(response);
+}
+
+export type MinimumWageStepInput = Schemas['MinimumWageStep'];
+export type MinimumWagePreview = Schemas['MinimumWagePreviewResponse'];
+
+/** Census hourly rates and a census-date estimate of minimum wage steps (#1231). */
+export async function analyzeMinimumWage(
+  workspaceId: string,
+  filePath: string,
+  steps: MinimumWageStepInput[],
+): Promise<MinimumWagePreview> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-minimum-wage`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath, steps }),
+    }
+  );
+  return handleResponse<MinimumWagePreview>(response);
 }
 
 // E082: Analyze compensation distribution from census data

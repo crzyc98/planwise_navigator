@@ -4,6 +4,7 @@
 import type { FormData } from './types';
 import type { PromotionHazardConfig, BandConfig } from '../../services/api';
 import { calculateMatchCap } from './constants';
+import { minimumWagePayload } from './minimumWage';
 
 function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], value: string) {
   if (mode === 'inherit') return {};
@@ -66,6 +67,8 @@ export function buildConfigPayload(
       },
       promotion_budget_percent: Number(formData.promoBudget),
       promotion_rate_multiplier: Number(formData.promoRateMultiplier),
+      // Saves only apply what changed, so an untouched empty list is never written.
+      minimum_wage: minimumWagePayload(formData.minimumWage),
     },
     new_hire: {
       strategy: formData.newHireStrategy,

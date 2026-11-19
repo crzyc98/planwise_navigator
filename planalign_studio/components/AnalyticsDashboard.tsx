@@ -25,6 +25,8 @@ import RunHealthSummary from './simulation/RunHealthSummary';
 import CensusTieOutPanel from './CensusTieOutPanel';
 import EngineVersionBadge from './EngineVersionBadge';
 import RunChangesSince from './RunChangesSince';
+import MinimumWagePanel from './MinimumWagePanel';
+import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
@@ -200,6 +202,7 @@ export default function AnalyticsDashboard() {
     new_hire_termination: chartTheme.colorAt(3),
   };
   const [searchParams] = useSearchParams();
+  const comparePath = useWorkspacePath('/compare');
   const { activeWorkspace: contextWorkspace, lastRunScenarioId, isSimulationRunning } = useOutletContext<LayoutContext>();
 
   // Priority: URL param > context lastRun > default
@@ -699,6 +702,8 @@ export default function AnalyticsDashboard() {
               onMarkSaved={handleCurrentPlanSaved}
             />
           )}
+
+          <MinimumWagePanel rows={results.minimum_wage} comparePath={comparePath} />
 
           {/* Main Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
