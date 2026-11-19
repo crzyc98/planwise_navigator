@@ -49,7 +49,7 @@ Given a raw census file (CSV/XLSX, any column names) and this spec:
   direct Parquet upload.
 - **Encoding:** UTF-8 for CSV. Non-UTF-8 files fall back to Latin-1 with a
   warning when characters may be garbled.
-- **Repeated headers:** the wizard renames repeats (`salary`, `salary_1`).
+- **Repeated headers:** the wizard renames repeats (`salary`, `salary.1`).
 - **Uniqueness:** `employee_id` should be unique. If duplicates exist, the
   importer keeps the row with the most recent `employee_hire_date` (ties
   broken by higher `employee_gross_compensation`) and drops the rest — so

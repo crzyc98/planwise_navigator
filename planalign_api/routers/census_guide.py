@@ -22,6 +22,7 @@ from ..services.census_schema import (
     FIELDS,
 )
 from .files import MAX_UPLOAD_SIZE as PARQUET_MAX_UPLOAD_BYTES
+from .imports import IMPORT_FILE_TYPES
 from .imports import MAX_UPLOAD_BYTES as IMPORT_MAX_UPLOAD_BYTES
 
 router = APIRouter()
@@ -58,7 +59,7 @@ def get_census_schema() -> CensusGuideResponse:
         fields=fields,
         groups=[CensusGuideGroup(key=k, label=v) for k, v in CENSUS_FIELD_GROUPS],
         file_rules=CensusFileRules(
-            import_file_types=["csv", "xlsx"],
+            import_file_types=list(IMPORT_FILE_TYPES),
             import_max_mb=IMPORT_MAX_UPLOAD_BYTES // _MB,
             parquet_max_mb=PARQUET_MAX_UPLOAD_BYTES // _MB,
             date_formats=[_display_date_format(f) for f in CENSUS_DATE_FORMATS],

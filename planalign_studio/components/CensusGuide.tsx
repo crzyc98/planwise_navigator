@@ -108,7 +108,7 @@ function FileRules({ rules }: Readonly<{ rules: CensusFileRules }>) {
     },
     {
       title: 'Duplicates',
-      body: 'If an employee ID appears more than once, Studio keeps the row with the latest hire date (then the higher pay) and drops the rest. Repeated header names get a number added, such as salary_1.',
+      body: 'If an employee ID appears more than once, Studio keeps the row with the latest hire date (then the higher pay) and drops the rest. Repeated header names get a number added, such as salary.1.',
     },
     {
       title: 'Text encoding',
@@ -127,28 +127,18 @@ function FileRules({ rules }: Readonly<{ rules: CensusFileRules }>) {
   );
 }
 
-export function CensusGuideContent({ guide }: Readonly<{ guide: CensusGuideData }>) {
-  const importPath = useWorkspacePath('/import');
+function GuideHeader({ guide, requiredCount }: Readonly<{ guide: CensusGuideData; requiredCount: number }>) {
   const { copy, copied, error: copyError } = useCopyToClipboard();
-  const required = guide.fields.filter((f) => f.required);
-  const optional = guide.fields.filter((f) => !f.required);
-  const groups = groupOptionalFields(guide);
-
   const downloadTemplate = () => {
     saveBrowserDownload(new Blob([buildTemplateCsv(guide.fields)], { type: 'text/csv' }), TEMPLATE_FILENAME);
   };
-
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
-      <Link to={importPath} className="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline">
-        <ArrowLeft size={14} /> Back to Import Data
-      </Link>
-
+    <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-ink">What should the census include?</h1>
           <p className="text-sm text-ink-muted mt-0.5">
-            One row per employee. {required.length} columns are required; everything else is optional and adds detail.
+            One row per employee. {requiredCount} columns are required; everything else is optional and adds detail.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -170,25 +160,45 @@ export function CensusGuideContent({ guide }: Readonly<{ guide: CensusGuideData 
         </div>
       </div>
       {copyError && <p className="text-sm text-danger-ink">Could not copy: {copyError}</p>}
+    </>
+  );
+}
 
-      <Section title="At a glance">
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-ink-muted uppercase">Required</p>
-            <Chips fields={required} tone="required" />
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-ink-muted uppercase">Optional</p>
-            <Chips fields={optional} tone="optional" />
-          </div>
+function AtAGlance({ required, optional }: Readonly<{ required: CensusGuideField[]; optional: CensusGuideField[] }>) {
+  return (
+    <Section title="At a glance">
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-ink-muted uppercase">Required</p>
+          <Chips fields={required} tone="required" />
         </div>
-      </Section>
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-ink-muted uppercase">Optional</p>
+          <Chips fields={optional} tone="optional" />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+export function CensusGuideContent({ guide }: Readonly<{ guide: CensusGuideData }>) {
+  const importPath = useWorkspacePath('/import');
+  const required = guide.fields.filter((f) => f.required);
+  const optional = guide.fields.filter((f) => !f.required);
+
+  return (
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+      <Link to={importPath} className="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline">
+        <ArrowLeft size={14} /> Back to Import Data
+      </Link>
+      <GuideHeader guide={guide} requiredCount={required.length} />
+      <AtAGlance required={required} optional={optional} />
 
       <Section title="Required columns" intro="Every file needs these. The import wizard will not finish until all of them are matched.">
         <FieldList fields={required} />
       </Section>
 
-      {groups.map(({ group, fields }) => (
+      {groupOptionalFields(guide).map(({ group, fields }) => (
         <Section key={group.key} title={group.label}>
           <FieldList fields={fields} />
         </Section>

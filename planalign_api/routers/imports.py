@@ -41,6 +41,7 @@ from ..storage.workspace_storage import WorkspaceStorage
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+IMPORT_FILE_TYPES = ("csv", "xlsx")
 
 
 def _df_to_records(df: pd.DataFrame) -> list[dict]:
@@ -249,7 +250,7 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     suffix = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if suffix not in ("csv", "xlsx"):
+    if suffix not in IMPORT_FILE_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported format: .{suffix}. Only .csv and .xlsx are accepted",

@@ -533,7 +533,7 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         aliases=("hourly_pay_rate", "hourly_wage", "rate_per_hour"),
         label="Hourly rate",
         group="hours",
-        example="18.50",
+        example="34.62",
         when_missing=(
             "A minimum wage change needs an hourly rate from this column, hours "
             "worked or weekly hours. Someone with all three blank has no rate, so a "
@@ -550,7 +550,7 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         aliases=("annual_hours_worked", "paid_hours", "hours_paid"),
         label="Hours worked",
         group="hours",
-        example="1950",
+        example="2080",
         when_missing=(
             "Used when hourly rate is blank: the hourly rate is the year's pay "
             "divided by these hours. Overtime and bonuses push that rate up, so send "
@@ -569,10 +569,9 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         example="40",
         when_missing=(
             "Without it, every census employee counts as working 40 hours a week "
-            "for the "
-            "employer match and core hours rule (often 1,000 a year), and Studio "
-            "can't suggest a part-time share for new hires. It is also the last "
-            "source of an hourly rate: yearly pay divided by (weekly hours x 52)."
+            "for the employer match and core hours rule (often 1,000 a year), and "
+            "Studio can't suggest a part-time share for new hires. It is also the "
+            "last source of an hourly rate: yearly pay divided by (weekly hours x 52)."
         ),
     ),
 )
