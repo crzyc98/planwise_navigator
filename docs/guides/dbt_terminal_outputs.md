@@ -14,6 +14,9 @@ The explicit purposes in
   `CalibrationRunner._read_year`.
 - `fct_employer_match_events`: the timeline API reads employer contribution
   history in `planalign_api/services/timeline_service.py`.
+- `fct_minimum_wage_steps`: per-step minimum wage results (#1229): people
+  raised, people without a rate and the annual pay added. Studio's results read
+  it (#1231); until then it is a run result to query directly.
 - `hazard_cache_metadata`: `HazardCacheManager` queries the materialization
   fingerprint to decide whether hazard caches are current.
 - `int_deferral_change_events`: participant-chosen deferral rate changes

@@ -12200,6 +12200,30 @@
         "title": "MetricDistribution",
         "type": "object"
       },
+      "MinimumWageStep": {
+        "additionalProperties": false,
+        "description": "A new minimum hourly rate that takes effect on a date (#1229).\n\nEveryone with a census hourly rate below it on that date is raised to it,\nwith hours unchanged. Simulated hires and acquired members have no rate.",
+        "properties": {
+          "effective_date": {
+            "format": "date",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "hourly_rate": {
+            "description": "Minimum hourly rate, dollars",
+            "exclusiveMinimum": 0.0,
+            "maximum": 500.0,
+            "title": "Hourly Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "hourly_rate",
+          "effective_date"
+        ],
+        "title": "MinimumWageStep",
+        "type": "object"
+      },
       "ObjectiveConstraintSpec": {
         "description": "The objectives and hard constraints for a search.",
         "properties": {
@@ -17663,6 +17687,21 @@
               }
             ],
             "title": "Merit Budget Percent"
+          },
+          "minimum_wage": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MinimumWageStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Minimum wage steps (#1229): a new minimum hourly rate and its effective date, at most one per calendar year.",
+            "title": "Minimum Wage"
           },
           "raise_budget": {
             "anyOf": [

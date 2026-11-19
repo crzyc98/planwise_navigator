@@ -129,6 +129,7 @@ EVENT_CANDIDATE_MODELS = (
     "int_new_hire_termination_events",
     "int_promotion_events",
     "int_merit_events",
+    "int_minimum_wage_events",
     "int_enrollment_events",
     "int_deferral_rate_escalation_events",
     "int_reenrollment_sweep_events",

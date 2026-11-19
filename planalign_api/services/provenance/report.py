@@ -30,6 +30,7 @@ _KNOWN_EVENT_TYPES = {
     "TERMINATION",
     "RAISE",
     "MERIT",
+    "MINIMUM_WAGE",
     "SABBATICAL",
     "ELIGIBILITY",
     "ENROLLMENT",

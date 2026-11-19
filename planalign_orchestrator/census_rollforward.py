@@ -123,17 +123,23 @@ def _bridge_config(
 ) -> SimulationConfig:
     """The config for the bridge years: same settings, the given census.
 
-    Acquisitions are scenario events, so they never enter the shared bridge
-    census (#1226).
+    Acquisitions and minimum wage steps are scenario events, so they never
+    enter the shared bridge census (#1226, #1229).
     """
     simulation = config.simulation.model_copy(
         update={"start_year": start_year, "end_year": end_year}
     )
     workforce = config.workforce.model_copy(update={"acquisitions": []})
+    compensation = config.compensation.model_copy(update={"minimum_wage": []})
     setup = _setup(config)
     setup["census_parquet_path"] = str(census_path.resolve())
     return config.model_copy(
-        update={"simulation": simulation, "workforce": workforce, "setup": setup}
+        update={
+            "simulation": simulation,
+            "workforce": workforce,
+            "compensation": compensation,
+            "setup": setup,
+        }
     )
 
 

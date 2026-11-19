@@ -179,6 +179,17 @@ def _apply_dc_plan_participant_behavior_overrides(
             dbt_vars[target] = overrides[source]
 
 
+def _export_minimum_wage(cfg: "SimulationConfig", dbt_vars: Dict[str, Any]) -> None:
+    """Export minimum wage steps (#1229).
+
+    Omitted when empty so configs without a minimum wage keep their fingerprint.
+    """
+    if cfg.compensation.minimum_wage:
+        dbt_vars["minimum_wage_steps"] = [
+            step.model_dump(mode="json") for step in cfg.compensation.minimum_wage
+        ]
+
+
 def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export simulation, compensation, and eligibility settings to dbt vars.
 
@@ -220,6 +231,7 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["raise_flat_share"] = cfg.compensation.raise_flat_share
         if cfg.compensation.raise_coverage < 1:
             dbt_vars["raise_coverage"] = cfg.compensation.raise_coverage
+    _export_minimum_wage(cfg, dbt_vars)
 
     logger.info(
         "Compensation dbt vars: cola_rate=%s, merit_budget=%s",

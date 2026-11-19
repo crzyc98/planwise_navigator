@@ -112,6 +112,7 @@ def _year_orchestrator(monkeypatch, foundation_error: Exception | None):
     orchestrator.duckdb_performance_monitor = None
     orchestrator.config = MagicMock()
     orchestrator.config.simulation.start_year = START_YEAR
+    orchestrator.config.compensation.minimum_wage = []
     orchestrator.state_manager = MagicMock()
     orchestrator.workforce_projection = MagicMock()
     orchestrator.hook_manager = MagicMock()

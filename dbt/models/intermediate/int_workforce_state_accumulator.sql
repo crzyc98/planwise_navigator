@@ -117,7 +117,17 @@ employee_events AS (
     MAX(CASE WHEN event_type = 'raise' THEN compensation_amount END) AS merit_salary,
     MAX(CASE WHEN event_type = 'raise' AND previous_compensation > 0
       THEN (compensation_amount / previous_compensation) - 1.0 END) AS merit_raise_rate,
-    COUNT(CASE WHEN event_type = 'raise' THEN 1 END) > 0 AS has_merit
+    COUNT(CASE WHEN event_type = 'raise' THEN 1 END) > 0 AS has_merit,
+    -- #1229: a minimum wage floor sets pay on its date; a promotion or merit
+    -- raise later in the year compounds on it.
+    MAX(CASE WHEN event_type = {{ evt_minimum_wage() }} THEN compensation_amount END)
+      AS minimum_wage_salary,
+    MAX(CASE WHEN event_type = {{ evt_minimum_wage() }} THEN effective_date END)
+      AS minimum_wage_date,
+    MAX(CASE WHEN event_type = 'promotion' AND previous_compensation > 0
+      THEN compensation_amount / previous_compensation END) AS promotion_ratio,
+    MAX(CASE WHEN event_type = 'promotion' THEN effective_date END) AS promotion_date,
+    MAX(CASE WHEN event_type = 'raise' THEN effective_date END) AS merit_date
   FROM current_year_events
   WHERE employee_id IS NOT NULL
   GROUP BY employee_id
@@ -130,6 +140,8 @@ existing_workforce AS (
     b.employee_birth_date,
     b.employee_hire_date,
     CASE
+      WHEN e.minimum_wage_salary IS NOT NULL
+        THEN {{ pay_after_minimum_wage('e', "MAKE_DATE(" ~ simulation_year ~ ", 12, 31)", 'TRUE') }}
       WHEN e.has_promotion AND e.has_merit AND e.merit_raise_rate IS NOT NULL
         THEN ROUND(e.promotion_salary * (1 + e.merit_raise_rate), 2)
       WHEN e.has_merit THEN e.merit_salary
@@ -206,6 +218,9 @@ compensation_events AS (
     -- must carry both. Otherwise earned pay drops after it, while ending salary
     -- compounds them in existing_workforce.
     CASE
+      WHEN minimum_wage_date IS NOT NULL AND effective_date > minimum_wage_date
+        AND event_type IN ({{ evt_promotion() }}, {{ evt_raise() }})
+        THEN {{ pay_after_minimum_wage('events_with_pair', 'effective_date', "event_type = " ~ evt_raise()) }}
       WHEN merit_raise_rate IS NOT NULL AND promotion_salary IS NOT NULL AND (
         (event_type = {{ evt_raise() }} AND effective_date >= promotion_date)
         OR (event_type = {{ evt_promotion() }} AND effective_date > merit_date)
@@ -220,7 +235,8 @@ compensation_events AS (
           WHEN {{ evt_hire() }} THEN 1
           WHEN {{ evt_promotion() }} THEN 2
           WHEN {{ evt_raise() }} THEN 3
-          WHEN {{ evt_termination() }} THEN 4
+          WHEN {{ evt_minimum_wage() }} THEN 4
+          WHEN {{ evt_termination() }} THEN 5
         END
     ) AS event_sequence
   FROM (
@@ -234,11 +250,19 @@ compensation_events AS (
         THEN (compensation_amount / previous_compensation) - 1.0 END)
         OVER (PARTITION BY employee_id) AS merit_raise_rate,
       MAX(CASE WHEN event_type = {{ evt_raise() }} THEN effective_date END)
-        OVER (PARTITION BY employee_id) AS merit_date
+        OVER (PARTITION BY employee_id) AS merit_date,
+      MAX(CASE WHEN event_type = {{ evt_promotion() }} AND previous_compensation > 0
+        THEN compensation_amount / previous_compensation END)
+        OVER (PARTITION BY employee_id) AS promotion_ratio,
+      MAX(CASE WHEN event_type = {{ evt_minimum_wage() }} THEN compensation_amount END)
+        OVER (PARTITION BY employee_id) AS minimum_wage_salary,
+      MAX(CASE WHEN event_type = {{ evt_minimum_wage() }} THEN effective_date END)
+        OVER (PARTITION BY employee_id) AS minimum_wage_date
     FROM current_year_events
   ) events_with_pair
   WHERE event_type IN (
-    {{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }}, {{ evt_termination() }}
+    {{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }},
+    {{ evt_minimum_wage() }}, {{ evt_termination() }}
   )
 ),
 
