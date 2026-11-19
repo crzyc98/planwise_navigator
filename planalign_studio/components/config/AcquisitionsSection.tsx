@@ -16,7 +16,8 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
+// minimumFractionDigits is explicit: without it some runtimes print "$15.0M" for a round figure.
+const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
 interface RowProps {
   row: AcquisitionRow;
