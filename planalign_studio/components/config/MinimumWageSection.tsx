@@ -149,7 +149,7 @@ export function MinimumWageSection() {
   const { formData, setFormData, activeWorkspace } = useConfigContext();
   const rows = formData.minimumWage;
   const issues = minimumWageIssues(rows, Number(formData.startYear), Number(formData.endYear));
-  const steps = previewableSteps(rows);
+  const steps = previewableSteps(rows, Number(formData.startYear), Number(formData.endYear));
   const preview = useMinimumWagePreview(activeWorkspace?.id, formData.censusDataPath, steps);
   const status = censusRateStatus(formData.censusDataPath, preview);
   const blocked = status.kind === 'no_census' || status.kind === 'no_rates';

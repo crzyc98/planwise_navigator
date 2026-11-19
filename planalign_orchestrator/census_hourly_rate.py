@@ -182,7 +182,8 @@ def estimate_minimum_wage(
             WITH rates AS (
               SELECT GREATEST(_rate, ?) AS rate_now, _pay / _rate AS hours
               FROM (SELECT {value} AS _rate, {pay} AS _pay FROM {table})
-              WHERE _rate BETWEEN ? AND ?
+              -- As int_minimum_wage_events: a rate and some pay.
+              WHERE _rate BETWEEN ? AND ? AND _pay > 0
             )
             SELECT COUNT(*), COALESCE(SUM(hours * (? - rate_now)), 0)
             FROM rates WHERE rate_now < ?

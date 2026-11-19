@@ -144,6 +144,25 @@ def test_preview_estimates_each_step_on_the_rates_earlier_steps_left(tmp_path):
     ] == [(20.0, 1, pytest.approx(4000.0)), (22.0, 2, pytest.approx(6000.0))]
 
 
+def test_preview_skips_rates_without_pay_as_the_run_does():
+    """The engine never raises someone with no census pay, so neither does the preview."""
+    from planalign_orchestrator.census_hourly_rate import estimate_minimum_wage
+
+    with duckdb.connect() as conn:
+        conn.execute(
+            "CREATE TABLE census AS SELECT * FROM (VALUES "
+            "(36000.0, 18.0), (0.0, 10.0), (NULL, 10.0)"
+            ") t(employee_gross_compensation, hourly_rate)"
+        )
+        (step,) = estimate_minimum_wage(
+            conn,
+            "census",
+            ["employee_gross_compensation", "hourly_rate"],
+            [(20.0, date(2026, 7, 1))],
+        )
+    assert (step.people_below, step.added_annual_pay) == (1, pytest.approx(4000.0))
+
+
 def test_preview_of_a_census_without_hourly_columns_has_no_rates(tmp_path):
     service, path = _census(tmp_path, with_rates=False)
     result = service.analyze_minimum_wage("ws", path, [(20.0, date(2026, 7, 1))])

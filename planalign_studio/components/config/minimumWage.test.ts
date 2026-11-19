@@ -43,7 +43,12 @@ describe('minimum wage steps', () => {
   it('saves steps in date order and previews only complete ones', () => {
     const rows = [row(22, '2027-01-01'), row(20, '2026-07-01'), row(0, '')];
     expect(minimumWagePayload(rows.slice(0, 2))).toEqual(STEPS);
-    expect(previewableSteps(rows)).toEqual(STEPS);
+    expect(previewableSteps(rows, 2025, 2029)).toEqual(STEPS);
+  });
+
+  it('leaves steps outside the simulated years out of the preview', () => {
+    const rows = [row(30, '2024-07-01'), row(20, '2026-07-01')];
+    expect(previewableSteps(rows, 2025, 2027)).toEqual([{ hourly_rate: 20, effective_date: '2026-07-01' }]);
   });
 
   it('reads saved steps back as rows', () => {

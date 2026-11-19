@@ -71,10 +71,15 @@ export function minimumWagePayload(rows: MinimumWageRow[]): MinimumWageStepInput
     .sort((a, b) => a.effective_date.localeCompare(b.effective_date));
 }
 
-/** Steps complete enough to preview: a valid rate and date, one per year. */
-export function previewableSteps(rows: MinimumWageRow[]): MinimumWageStepInput[] {
-  const issues = minimumWageIssues(rows, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
-  return minimumWagePayload(rows.filter((_, index) => issues[index].errors.length === 0));
+/**
+ * Steps the run will apply, so the preview can estimate them: complete, one per
+ * year, and inside the simulated years. A skipped step must not raise the floor
+ * that later steps are estimated from.
+ */
+export function previewableSteps(rows: MinimumWageRow[], startYear: number, endYear: number): MinimumWageStepInput[] {
+  const issues = minimumWageIssues(rows, startYear, endYear);
+  return minimumWagePayload(rows.filter((_, index) =>
+    issues[index].errors.length === 0 && issues[index].warnings.length === 0));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
