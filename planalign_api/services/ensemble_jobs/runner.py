@@ -61,6 +61,7 @@ class JobPaths:
 
 
 CommandFactory = Callable[[EnsembleJob, JobPaths], list[str]]
+JobMark = Callable[[EnsembleJob], None]
 
 
 class EnsembleRegistry:
@@ -249,69 +250,79 @@ class EnsembleJobRunner:
         error: Optional[str],
         tail: deque[str],
     ) -> None:
-        """Wait for the job's processes, record the outcome, then clean up."""
-        try:
-            stop_job(job.job_id)
-            self._finalize(job, paths, return_code, error, tail)
-        except Exception:  # noqa: BLE001 -- surfaced on the job record
-            message = sanitize_job_error(logger, job.job_id, event="Ensemble failed")
-            for suffix in ("", ".wal"):
-                Path(str(paths.database) + suffix).unlink(missing_ok=True)
-            self._finalize(job, paths, None, message, tail)
-        finally:
-            self._write_log(job, tail)
-            self.store.remove_work(job.workspace_id, job.job_id)
+        """Wait for the job's processes, clean up, then record the outcome.
 
-    def _finalize(
+        The terminal status is written last, so a client that sees it never
+        finds the job still holding its work folder. It is written even when
+        the cleanup fails.
+        """
+        try:
+            mark = self._decide(job, paths, return_code, error, tail)
+        except BaseException:
+            self._clean_up(job, tail)
+            raise
+        try:
+            self._clean_up(job, tail)
+        finally:
+            self._record(job, paths, mark, tail)
+
+    def _decide(
         self,
         job: EnsembleJob,
         paths: JobPaths,
         return_code: Optional[int],
         error: Optional[str],
         tail: deque[str],
+    ) -> JobMark:
+        try:
+            stop_job(job.job_id)
+            return self._outcome(job, paths, return_code, error, tail)
+        except Exception:  # noqa: BLE001 -- surfaced on the job record
+            return self._after_error(job, paths, tail)
+
+    def _after_error(
+        self, job: EnsembleJob, paths: JobPaths, tail: deque[str]
+    ) -> JobMark:
+        """The outcome once settling itself has failed. Call while handling it."""
+        message = sanitize_job_error(logger, job.job_id, event="Ensemble failed")
+        for suffix in ("", ".wal"):
+            Path(str(paths.database) + suffix).unlink(missing_ok=True)
+        return self._outcome(job, paths, None, message, tail)
+
+    def _clean_up(self, job: EnsembleJob, tail: deque[str]) -> None:
+        try:
+            self._write_log(job, tail)
+        finally:
+            self.store.remove_work(job.workspace_id, job.job_id)
+
+    def _record(
+        self, job: EnsembleJob, paths: JobPaths, mark: JobMark, tail: deque[str]
     ) -> None:
+        try:
+            self.store.update(job.workspace_id, job.job_id, mark)
+        except Exception:  # noqa: BLE001 -- surfaced on the job record
+            fallback = self._after_error(job, paths, tail)
+            self.store.update(job.workspace_id, job.job_id, fallback)
+
+    def _outcome(
+        self,
+        job: EnsembleJob,
+        paths: JobPaths,
+        return_code: Optional[int],
+        error: Optional[str],
+        tail: deque[str],
+    ) -> JobMark:
+        """Decide how the job ended; the caller writes it to the record."""
         if self.registry.begin_finalize(job.job_id):
-            self._set_terminal(job, "cancelled")
-            return
+            return lambda target: _terminal(target, "cancelled")
         if error is not None:
-            self._fail(job, EnsembleError(kind="unexpected", message=error))
-            return
+            return _failed(EnsembleError(kind="unexpected", message=error))
         if return_code in (0, 2):
             output = collect_output(paths)
             if output is not None:
-                self._succeed(job, output, partial=return_code == 2)
-                return
+                return _succeeded(output, partial=return_code == 2)
             tail.append("The ensemble finished without a readable aggregate database.")
-        self._fail(job, _classify_failure(job, return_code, tail, paths))
-
-    def _succeed(self, job: EnsembleJob, output: EnsembleOutput, partial: bool) -> None:
-        def _mark(target: EnsembleJob) -> None:
-            _terminal(target, "partial" if partial else "completed")
-            target.output = output
-            target.progress.current_seed = None
-            if partial:
-                total, failed = target.seed_count, len(target.failed_seeds)
-                target.error = EnsembleError(
-                    kind="seeds_failed",
-                    message=(
-                        f"{failed} of {total} seeds failed; the results use the "
-                        f"{total - failed} that finished."
-                    ),
-                )
-
-        self.store.update(job.workspace_id, job.job_id, _mark)
-
-    def _set_terminal(self, job: EnsembleJob, status: str) -> None:
-        self.store.update(
-            job.workspace_id, job.job_id, lambda target: _terminal(target, status)
-        )
-
-    def _fail(self, job: EnsembleJob, error: EnsembleError) -> None:
-        def _mark(target: EnsembleJob) -> None:
-            _terminal(target, "failed")
-            target.error = error
-
-        self.store.update(job.workspace_id, job.job_id, _mark)
+        return _failed(_classify_failure(job, return_code, tail, paths))
 
     def _write_log(self, job: EnsembleJob, tail: deque[str]) -> None:
         directory = self.store.job_dir(job.workspace_id, job.job_id)
@@ -418,6 +429,32 @@ def _redact(message: str, paths: JobPaths) -> str:
     for path in (job_dir.resolve(), job_dir):
         message = message.replace(str(path), "<ensemble>")
     return message
+
+
+def _succeeded(output: EnsembleOutput, partial: bool) -> JobMark:
+    def _mark(target: EnsembleJob) -> None:
+        _terminal(target, "partial" if partial else "completed")
+        target.output = output
+        target.progress.current_seed = None
+        if partial:
+            total, failed = target.seed_count, len(target.failed_seeds)
+            target.error = EnsembleError(
+                kind="seeds_failed",
+                message=(
+                    f"{failed} of {total} seeds failed; the results use the "
+                    f"{total - failed} that finished."
+                ),
+            )
+
+    return _mark
+
+
+def _failed(error: EnsembleError) -> JobMark:
+    def _mark(target: EnsembleJob) -> None:
+        _terminal(target, "failed")
+        target.error = error
+
+    return _mark
 
 
 def _terminal(job: EnsembleJob, status: str) -> None:

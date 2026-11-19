@@ -692,6 +692,111 @@ def test_cancel_during_error_handling_is_recorded_as_cancelled(
     assert record is not None and record.status == "cancelled"
 
 
+def test_work_folder_is_gone_before_the_job_reads_as_finished(
+    tmp_path, harness, monkeypatch
+) -> None:
+    """A client that sees a terminal status never finds work/ still there (#1215)."""
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    job = _record(harness, "running")
+    store.save(job)
+    work = store.work_dir(harness.workspace_id, job.job_id)
+    work.mkdir(parents=True)
+    registry = EnsembleRegistry()
+    registry.claim(job.job_id)
+    assert registry.begin(job.job_id)
+    work_seen_at_update: list[bool] = []
+    real_update = store.update
+
+    def _update(workspace_id: str, job_id: str, mark: Callable[..., None]) -> object:
+        work_seen_at_update.append(work.exists())
+        return real_update(workspace_id, job_id, mark)
+
+    monkeypatch.setattr(store, "update", _update)
+
+    EnsembleJobRunner(store, registry).settle(job, _paths(tmp_path), 1, None, deque())
+
+    record = store.load(harness.workspace_id, job.job_id)
+    assert record is not None and record.status == "failed"
+    assert work_seen_at_update == [False]
+
+
+def test_a_failed_log_write_still_records_how_the_job_ended(
+    tmp_path, harness, monkeypatch
+) -> None:
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    job = _record(harness, "running")
+    store.save(job)
+    registry = EnsembleRegistry()
+    registry.claim(job.job_id)
+    assert registry.begin(job.job_id)
+    runner = EnsembleJobRunner(store, registry)
+
+    def _no_log(*_args: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(runner, "_write_log", _no_log)
+
+    with pytest.raises(OSError):
+        runner.settle(job, _paths(tmp_path), 1, None, deque())
+
+    record = store.load(harness.workspace_id, job.job_id)
+    assert record is not None and record.status == "failed"
+
+
+def test_an_outcome_that_cannot_be_saved_is_recorded_as_failed(
+    tmp_path, harness, monkeypatch
+) -> None:
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    job = _record(harness, "running")
+    store.save(job)
+    work = store.work_dir(harness.workspace_id, job.job_id)
+    work.mkdir(parents=True)
+    registry = EnsembleRegistry()
+    registry.claim(job.job_id)
+    assert registry.begin(job.job_id)
+    real_update = store.update
+    calls: list[int] = []
+
+    def _update(workspace_id: str, job_id: str, mark: Callable[..., None]) -> object:
+        calls.append(1)
+        if len(calls) == 1:
+            raise ValueError("cannot serialize (secret/path)")
+        return real_update(workspace_id, job_id, mark)
+
+    monkeypatch.setattr(store, "update", _update)
+
+    EnsembleJobRunner(store, registry).settle(job, _paths(tmp_path), 1, None, deque())
+
+    record = store.load(harness.workspace_id, job.job_id)
+    assert record is not None and record.status == "failed"
+    assert record.error is not None and "secret" not in record.error.message
+    assert not work.exists()
+
+
+def test_work_folder_is_removed_when_settling_is_interrupted(
+    tmp_path, harness, monkeypatch
+) -> None:
+    store = EnsembleJobStore(harness.storage.workspaces_root)
+    job = _record(harness, "running")
+    store.save(job)
+    work = store.work_dir(harness.workspace_id, job.job_id)
+    work.mkdir(parents=True)
+    registry = EnsembleRegistry()
+    registry.claim(job.job_id)
+    assert registry.begin(job.job_id)
+    runner = EnsembleJobRunner(store, registry)
+
+    def _interrupt(*_args: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "_outcome", _interrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        runner.settle(job, _paths(tmp_path), 0, None, deque())
+
+    assert not work.exists()
+
+
 @pytest.mark.parametrize(
     ("simulation", "detail"),
     [
