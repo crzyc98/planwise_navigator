@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- An ensemble job now removes its temporary work folder before it reports that it has finished (#1215). Before, a job could read as completed for a moment while the folder was still there.
+
 ## [3.5.0] - 2026-11-19
 
 ### Added
