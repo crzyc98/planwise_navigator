@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Database, Check, AlertTriangle, Loader2, FileUp } from 'lucide-react';
+import { Database, Check, AlertTriangle, Loader2, FileUp, HelpCircle } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { useWorkspacePath } from '../../hooks/useWorkspaceNavigation';
 
 export function DataSourcesSection() {
   const importPath = useWorkspacePath('/import');
+  const guidePath = useWorkspacePath('/import/census-guide');
   const { formData, scenarioLoading } = useConfigContext();
   const loading = scenarioLoading || formData.censusDataStatus === 'validating';
   const error = formData.censusDataStatus === 'error' ? 'Census file could not be read' : null;
@@ -92,6 +93,11 @@ export function DataSourcesSection() {
             >
               <FileUp size={14} /> Import Data
             </Link>
+            <div>
+              <Link to={guidePath} className="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline">
+                <HelpCircle size={14} /> What should the census include?
+              </Link>
+            </div>
           </div>
         )}
       </div>

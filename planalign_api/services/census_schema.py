@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Optional
 import re
 
+from planalign_orchestrator.census_hourly_rate import hourly_rate_bounds
+
 BOOLEAN_TRUE_ALIASES = frozenset(
     {
         "y",
@@ -104,13 +106,71 @@ def census_date_order_is_ambiguous(values: list[str], formats: tuple[str, ...]) 
     )
 
 
+# Optional-column groups for the Studio census guide, in display order. A field
+# whose group is not listed here (or that sets none) shows under "other".
+CENSUS_FIELD_GROUPS: tuple[tuple[str, str], ...] = (
+    ("status", "Identity and status"),
+    ("pay", "Pay"),
+    ("participation", "Plan participation and contributions"),
+    ("eligibility", "Eligibility"),
+    ("hours", "Hours"),
+    ("other", "Other columns"),
+)
+
+# The bounds are filled in by guide_when_missing, not here: reading the dbt
+# project at import time breaks importing this module from an installed wheel.
+_RATE_CHECK = (
+    "A rate below ${rate_min:g} or above ${rate_max:g} an hour is flagged at "
+    "import, and the person is kept with no rate."
+)
+
+
+def guide_when_missing(definition: "CensusFieldDefinition") -> str:
+    """A field's when-missing sentence with the configured rate bounds filled in."""
+    if "{rate_min" not in definition.when_missing:
+        return definition.when_missing
+    rate_min, rate_max = hourly_rate_bounds()
+    return definition.when_missing.format(rate_min=rate_min, rate_max=rate_max)
+
+
+_EXAMPLE_BY_TYPE = {
+    "string": "EXAMPLE",
+    "date": "2020-01-15",
+    "decimal": "0",
+    "boolean": "true",
+}
+
+
 @dataclass(frozen=True)
 class CensusFieldDefinition:
+    """One census column.
+
+    ``label``, ``group``, ``example`` and ``when_missing`` only feed the Studio
+    census guide and template; they never change ingestion. They default so a
+    field added without them still renders (label from the name, group
+    "other", an example by type, and no when-missing sentence).
+    """
+
     field_name: str
     required: bool
     data_type: str  # "string" | "date" | "decimal" | "boolean"
     description: str
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    label: str = ""
+    group: str = "other"
+    # None means "use the type's example"; "" means the template leaves it blank.
+    example: Optional[str] = None
+    when_missing: str = ""
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.field_name.replace("_", " ").capitalize()
+
+    @property
+    def example_value(self) -> str:
+        if self.example is not None:
+            return self.example
+        return _EXAMPLE_BY_TYPE.get(self.data_type, "")
 
 
 FIELDS: tuple[CensusFieldDefinition, ...] = (
@@ -118,7 +178,10 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         field_name="employee_id",
         required=True,
         data_type="string",
-        description="Unique employee identifier — the primary key used across all simulation events",
+        description=(
+            "A unique ID for each employee. Studio uses it to follow each person from "
+            "year to year."
+        ),
         aliases=(
             "empid",
             "emp_id",
@@ -133,12 +196,15 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "worker_id",
             "workerid",
         ),
+        label="Employee ID",
+        example="SAMPLE-0001",
+        when_missing="Every row needs one. The import stops if any row is blank.",
     ),
     CensusFieldDefinition(
         field_name="employee_birth_date",
         required=True,
         data_type="date",
-        description="Date of birth — used to calculate age bands and age-based simulation parameters",
+        description="Date of birth. Used for age, age bands and age-based plan rules.",
         aliases=(
             "dob",
             "date_of_birth",
@@ -149,12 +215,16 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "bdate",
             "born",
         ),
+        label="Birth date",
+        example="1985-04-12",
     ),
     CensusFieldDefinition(
         field_name="employee_hire_date",
         required=True,
         data_type="date",
-        description="Original hire date — used to calculate service tenure and plan eligibility",
+        description=(
+            "Original hire date. Used for length of service and plan eligibility."
+        ),
         aliases=(
             "hire_date",
             "hiredate",
@@ -167,14 +237,17 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "employmentdate",
             "date_hired",
         ),
+        label="Hire date",
+        example="2015-06-01",
     ),
     CensusFieldDefinition(
         field_name="employee_gross_compensation",
         required=True,
         data_type="decimal",
         description=(
-            "Annual salary rate (not prorated) — used to calculate compensation growth "
-            "and DC plan contributions"
+            "Pay earned in the census year, as the sponsor reports it. People hired or "
+            "leaving during the year show part-year pay; Studio estimates a yearly "
+            "rate for new hires."
         ),
         aliases=(
             "salary",
@@ -196,12 +269,14 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "total_comp",
             "totalcomp",
         ),
+        label="Pay",
+        example="72000.00",
     ),
     CensusFieldDefinition(
         field_name="active",
         required=True,
         data_type="boolean",
-        description="Whether the employee is currently employed — filters active workforce for simulation",
+        description="Whether the person still works there: yes or no.",
         aliases=(
             "status",
             "is_active",
@@ -213,22 +288,35 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "active_flag",
             "activeflag",
         ),
+        label="Active",
+        example="true",
+        when_missing=(
+            "Census Analysis uses it to count current employees. The simulation starts "
+            "from everyone without a termination date, so give leavers a termination "
+            "date too."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employee_ssn",
         required=False,
         data_type="string",
         description=(
-            "Synthetic SSN-style identifier (e.g., SSN-00000001) — not a real SSN; "
-            "used as an alternative unique identifier"
+            "A second made-up ID in SSN style. Never a real Social Security number."
         ),
         aliases=("ssn", "social_security", "ssn_id", "socialsecurity"),
+        label="SSN-style ID",
+        group="status",
+        example="SSN-00000001",
+        when_missing=(
+            "Leave it out: Studio makes a placeholder from the employee ID. If you "
+            "send one, Studio stores it as given, so it must not be a real SSN."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employee_termination_date",
         required=False,
         data_type="date",
-        description="Termination date for separated employees — null for active employees",
+        description="Date the person left. Leave blank for current employees.",
         aliases=(
             "term_date",
             "termination_date",
@@ -242,15 +330,20 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "date_terminated",
             "dateterminated",
         ),
+        label="Termination date",
+        group="status",
+        example="",
+        when_missing=(
+            "Without it, every row starts the simulation as a current employee, even "
+            "rows marked inactive. With it, people who left are kept out of the "
+            "starting workforce."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employee_capped_compensation",
         required=False,
         data_type="decimal",
-        description=(
-            "IRS 401(a)(17) capped compensation — compensation subject to annual IRS limit; "
-            "defaults to gross compensation if not provided"
-        ),
+        description="Pay after the IRS annual pay limit.",
         aliases=(
             "capped_comp",
             "cappedcomp",
@@ -259,12 +352,19 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "plan_year_compensation",
             "capped_compensation",
         ),
+        label="Capped pay",
+        group="pay",
+        example="72000.00",
+        when_missing=(
+            "Not used today. Studio applies the IRS pay limit itself, so leaving this "
+            "out changes nothing."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employee_deferral_rate",
         required=False,
         data_type="decimal",
-        description="Current deferral rate as a decimal (0.00–1.00, e.g., 0.06 = 6%)",
+        description="Share of pay the employee saves, as a decimal: 0.06 means 6%.",
         aliases=(
             "deferral_rate",
             "deferralrate",
@@ -274,12 +374,20 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "deferral",
             "deferral_percent",
         ),
+        label="Deferral rate",
+        group="participation",
+        example="0.06",
+        when_missing=(
+            "Without it, everyone starts at 0% and not enrolled, so savers come only "
+            "from auto-enrollment and modeled sign-ups. With it, current savers start "
+            "at their real rate."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employee_contribution",
         required=False,
         data_type="decimal",
-        description="Total employee contribution dollar amount for the plan year",
+        description="Total dollars the employee contributed in the plan year.",
         aliases=(
             "total_ee_contribution",
             "employee_contribution",
@@ -288,12 +396,19 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "total_contribution",
             "totalcontribution",
         ),
+        label="Employee contributions",
+        group="participation",
+        example="4320.00",
+        when_missing=(
+            "Not used today. Studio works out contributions from pay and the deferral "
+            "rate, so leaving this out changes nothing."
+        ),
     ),
     CensusFieldDefinition(
         field_name="pre_tax_contribution",
         required=False,
         data_type="decimal",
-        description="Pre-tax (traditional) 401(k) deferral amount",
+        description="Pre-tax (traditional) 401(k) dollars for the plan year.",
         aliases=(
             "pre_tax",
             "pretax",
@@ -302,31 +417,54 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "pretax_contribution",
             "pre_tax_deferral",
         ),
+        label="Pre-tax contributions",
+        group="participation",
+        example="3000.00",
+        when_missing=(
+            "Not used today. Studio works out contributions from pay and the deferral "
+            "rate, so leaving this out changes nothing."
+        ),
     ),
     CensusFieldDefinition(
         field_name="roth_contribution",
         required=False,
         data_type="decimal",
-        description="Roth 401(k) after-tax deferral amount",
+        description="Roth 401(k) dollars for the plan year.",
         aliases=("roth", "roth_401k", "roth401k", "roth_deferral"),
+        label="Roth contributions",
+        group="participation",
+        example="1320.00",
+        when_missing=(
+            "Not used today. Studio works out contributions from pay and the deferral "
+            "rate, so leaving this out changes nothing."
+        ),
     ),
     CensusFieldDefinition(
         field_name="after_tax_contribution",
         required=False,
         data_type="decimal",
-        description="After-tax (non-Roth) contribution amount",
+        description="After-tax (non-Roth) dollars for the plan year.",
         aliases=(
             "after_tax",
             "aftertax",
             "after_tax_voluntary",
             "aftertaxcontribution",
         ),
+        label="After-tax contributions",
+        group="participation",
+        example="0.00",
+        when_missing=(
+            "Not used today. Studio works out contributions from pay and the deferral "
+            "rate, so leaving this out changes nothing."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employer_core_contribution",
         required=False,
         data_type="decimal",
-        description="Employer non-elective (core/profit-sharing) contribution amount",
+        description=(
+            "Employer non-elective (core or profit-sharing) dollars for the plan year."
+        ),
         aliases=(
             "er_core",
             "ercore",
@@ -337,12 +475,20 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "profitsharing",
             "core_contribution",
         ),
+        label="Employer core dollars",
+        group="participation",
+        example="2160.00",
+        when_missing=(
+            "The simulation works out core from the plan rules. With this column, "
+            "Census Analysis and the census tie-out show the census year's core "
+            "dollars beside the model's."
+        ),
     ),
     CensusFieldDefinition(
         field_name="employer_match_contribution",
         required=False,
         data_type="decimal",
-        description="Employer matching contribution amount",
+        description="Employer matching dollars for the plan year.",
         aliases=(
             "er_match",
             "ermatch",
@@ -352,15 +498,20 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "matchcontribution",
             "employer_matching",
         ),
+        label="Employer match dollars",
+        group="participation",
+        example="2880.00",
+        when_missing=(
+            "The simulation works out match from the plan rules. With this column, "
+            "Census Analysis and the census tie-out show the census year's match "
+            "dollars beside the model's."
+        ),
     ),
     CensusFieldDefinition(
         field_name="eligibility_entry_date",
         required=False,
         data_type="date",
-        description=(
-            "Override for plan eligibility entry date — if provided, used instead of "
-            "the calculated hire-date + waiting-period date"
-        ),
+        description="Date the employee entered, or will enter, the plan.",
         aliases=(
             "entry_date",
             "entrydate",
@@ -370,6 +521,14 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
             "planentry",
             "eligibility_entry",
         ),
+        label="Plan entry date",
+        group="eligibility",
+        example="2015-07-01",
+        when_missing=(
+            "The simulation works out eligibility from hire date and plan rules, not "
+            "this date. With it, Census Analysis and the census tie-out count who is "
+            "eligible; without it, every active employee counts."
+        ),
     ),
     # Hourly pay (#1230). One per person is enough; when several are filled the
     # first of hourly_rate, hours_worked, scheduled_hours_per_week wins.
@@ -378,31 +537,52 @@ FIELDS: tuple[CensusFieldDefinition, ...] = (
         required=False,
         data_type="decimal",
         description=(
-            "Base hourly rate in dollars — preferred source of an hourly rate for a "
-            "minimum wage change; unaffected by overtime and bonuses"
+            "Base pay per hour in dollars, for hourly employees. Leave blank for "
+            "anyone who is not hourly."
         ),
         aliases=("hourly_pay_rate", "hourly_wage", "rate_per_hour"),
+        label="Hourly rate",
+        group="hours",
+        example="34.62",
+        when_missing=(
+            "A minimum wage change needs an hourly rate from this column, hours "
+            "worked or weekly hours. Someone with all three blank has no rate, so a "
+            "minimum wage leaves their pay alone; if nobody has a rate, a run with "
+            "a minimum wage stops. This column is the best source, because overtime "
+            "and bonuses don't change it. " + _RATE_CHECK
+        ),
     ),
     CensusFieldDefinition(
         field_name="hours_worked",
         required=False,
         data_type="decimal",
-        description=(
-            "All paid hours in the census year, overtime included — hourly rate is "
-            "census pay / hours; overstates the base rate when pay includes overtime "
-            "premium or bonuses, so hourly_rate is preferred"
-        ),
+        description="All paid hours in the census year, overtime included.",
         aliases=("annual_hours_worked", "paid_hours", "hours_paid"),
+        label="Hours worked",
+        group="hours",
+        example="2080",
+        when_missing=(
+            "Used when hourly rate is blank: the hourly rate is the year's pay "
+            "divided by these hours. Overtime and bonuses push that rate up, so send "
+            "hourly rate when you can. Someone with all three hours columns blank "
+            "has no hourly rate."
+        ),
     ),
     CensusFieldDefinition(
         field_name="scheduled_hours_per_week",
         required=False,
         data_type="decimal",
-        description=(
-            "Scheduled weekly hours — used for part-time eligibility; hourly rate is "
-            "annual pay rate / (hours x 52), right only when census pay is an annual rate"
-        ),
+        description="Usual scheduled hours in a week.",
         aliases=("hours_per_week", "scheduled_hours", "weekly_hours"),
+        label="Weekly hours",
+        group="hours",
+        example="40",
+        when_missing=(
+            "Without it, every census employee counts as working 40 hours a week "
+            "for the employer match and core hours rule (often 1,000 a year), and "
+            "Studio can't suggest a part-time share for new hires. It is also the "
+            "last source of an hourly rate: yearly pay divided by (weekly hours x 52)."
+        ),
     ),
 )
 

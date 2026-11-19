@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target, ClipboardCheck, Shuffle, History
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target, ClipboardCheck, Shuffle, History, FileText
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -1171,6 +1171,14 @@ export default function Layout() {
                     </div>
 
                     <div className="border-t border-border p-2 space-y-1">
+                       <NavLink
+                         to={`${workspaceBase}/import/census-guide`}
+                         onClick={() => setIsSettingsOpen(false)}
+                         className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center"
+                       >
+                          <FileText size={16} className="mr-3 text-ink-subtle" />
+                          Census file guide
+                       </NavLink>
                        <button className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center">
                           <HelpCircle size={16} className="mr-3 text-ink-subtle" />
                           Help & Support

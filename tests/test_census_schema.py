@@ -117,3 +117,13 @@ def test_required_fields_have_date_and_decimal_and_boolean_and_string():
     assert required["employee_hire_date"].data_type == "date"
     assert required["employee_gross_compensation"].data_type == "decimal"
     assert required["active"].data_type == "boolean"
+
+
+def test_every_field_is_documented_in_census_file_format_guide():
+    from pathlib import Path
+
+    doc = (
+        Path(__file__).parents[1] / "docs" / "guides" / "census_file_format.md"
+    ).read_text(encoding="utf-8")
+    missing = [f.field_name for f in FIELDS if f"| `{f.field_name}` |" not in doc]
+    assert not missing, f"Add these census fields to census_file_format.md: {missing}"
