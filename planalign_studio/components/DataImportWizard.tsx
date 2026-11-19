@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, Map, Eye, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Upload, Map, Eye, CheckCircle2, ArrowLeft, HelpCircle } from 'lucide-react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { ImportSession, FieldMapping, ParquetFile, SuggestionsResponse } from '../services/importService';
@@ -48,6 +48,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
 
 export default function DataImportWizard() {
   const configPath = useWorkspacePath('/config');
+  const guidePath = useWorkspacePath('/import/census-guide');
   const { activeWorkspace, refreshActiveWorkspace } = useOutletContext<LayoutContextType>();
   const [step, setStep] = useState<WizardStep>('upload');
   const [session, setSession] = useState<ImportSession | null>(null);
@@ -134,12 +135,17 @@ export default function DataImportWizard() {
           <h1 className="text-xl font-bold text-ink">Import Data</h1>
           <p className="text-sm text-ink-muted mt-0.5">Import census data from CSV, Excel, or Parquet</p>
         </div>
-        <button
-          onClick={() => setShowFilesView(true)}
-          className="text-sm text-brand-ink hover:underline"
-        >
-          View Imported Files
-        </button>
+        <div className="flex flex-col items-end gap-1 text-sm">
+          <Link to={guidePath} className="inline-flex items-center gap-1 text-brand-ink hover:underline">
+            <HelpCircle size={14} /> What should the census include?
+          </Link>
+          <button
+            onClick={() => setShowFilesView(true)}
+            className="text-brand-ink hover:underline"
+          >
+            View Imported Files
+          </button>
+        </div>
       </div>
 
       <CensusRollForwardBanner workspaceId={workspaceId} censusPath={censusPath} onRolledForward={handleRolledForward} />

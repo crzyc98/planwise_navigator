@@ -67,6 +67,7 @@ from .routers.optimizer import router as optimizer_router
 from .routers.ensembles import router as ensembles_router
 from .routers.param_fits import router as param_fits_router
 from .routers.census_rollforward import router as census_rollforward_router
+from .routers.census_guide import router as census_guide_router
 from .websocket.handlers import simulation_websocket, batch_websocket
 from .services.current_result import CurrentResultIntegrityError
 from .services.scenario_read_warning import (
@@ -365,6 +366,12 @@ def create_app() -> FastAPI:
         comparison_router,
         prefix="/api/workspaces",
         tags=["Comparison"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        census_guide_router,
+        prefix="/api",
+        tags=["Files"],
         dependencies=protected_dependencies,
     )
     app.include_router(

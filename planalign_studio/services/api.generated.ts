@@ -151,6 +151,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/census/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Census columns and file rules for the Studio census guide */
+        get: operations["get_census_schema_api_census_schema_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config/defaults": {
         parameters: {
             query?: never;
@@ -4635,6 +4652,57 @@ export interface components {
              * @description Percentage of eligible employees in this bucket
              */
             percentage: number;
+        };
+        /** CensusFileRules */
+        CensusFileRules: {
+            /** Date Formats */
+            date_formats: string[];
+            /** False Values */
+            false_values: string[];
+            /** Import File Types */
+            import_file_types: string[];
+            /** Import Max Mb */
+            import_max_mb: number;
+            /** Parquet Max Mb */
+            parquet_max_mb: number;
+            /** True Values */
+            true_values: string[];
+        };
+        /** CensusGuideField */
+        CensusGuideField: {
+            /** Aliases */
+            aliases: string[];
+            /** Data Type */
+            data_type: string;
+            /** Description */
+            description: string;
+            /** Example */
+            example: string;
+            /** Field Name */
+            field_name: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+            /** When Missing */
+            when_missing: string;
+        };
+        /** CensusGuideGroup */
+        CensusGuideGroup: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** CensusGuideResponse */
+        CensusGuideResponse: {
+            /** Fields */
+            fields: components["schemas"]["CensusGuideField"][];
+            file_rules: components["schemas"]["CensusFileRules"];
+            /** Groups */
+            groups: components["schemas"]["CensusGuideGroup"][];
         };
         /**
          * CensusHourlyRateSummary
@@ -12970,6 +13038,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_census_schema_api_census_schema_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CensusGuideResponse"];
                 };
             };
         };

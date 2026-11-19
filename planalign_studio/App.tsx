@@ -19,6 +19,7 @@ import VestingAnalysis from './components/VestingAnalysis';
 import NDTTesting from './components/NDTTesting';
 import WinnersLosersTab from './components/WinnersLosersTab';
 import DataImportWizard from './components/DataImportWizard';
+import CensusGuide from './components/CensusGuide';
 import CalibrationPanel from './components/CalibrationPanel';
 import OptimizerPanel from './components/OptimizerPanel';
 import EnsemblesPage from './components/EnsemblesPage';
@@ -173,6 +174,7 @@ export default function App() {
             <Route path="batch" element={<BatchProcessing />} />
             <Route path="workspaces" element={<WorkspaceManager />} />
             <Route path="import" element={<DataImportWizard />} />
+            <Route path="import/census-guide" element={<CensusGuide />} />
             <Route path="timeline" element={<EmployeeTimelinePage />} />
             <Route path="timeline/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
             <Route path="events" element={<EventExplorerPage />} />

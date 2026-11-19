@@ -3632,6 +3632,158 @@
         "title": "CensusDeferralRateBucket",
         "type": "object"
       },
+      "CensusFileRules": {
+        "properties": {
+          "date_formats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Date Formats",
+            "type": "array"
+          },
+          "false_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "False Values",
+            "type": "array"
+          },
+          "import_file_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Import File Types",
+            "type": "array"
+          },
+          "import_max_mb": {
+            "title": "Import Max Mb",
+            "type": "integer"
+          },
+          "parquet_max_mb": {
+            "title": "Parquet Max Mb",
+            "type": "integer"
+          },
+          "true_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "True Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "import_file_types",
+          "import_max_mb",
+          "parquet_max_mb",
+          "date_formats",
+          "true_values",
+          "false_values"
+        ],
+        "title": "CensusFileRules",
+        "type": "object"
+      },
+      "CensusGuideField": {
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "data_type": {
+            "title": "Data Type",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "example": {
+            "title": "Example",
+            "type": "string"
+          },
+          "field_name": {
+            "title": "Field Name",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "when_missing": {
+            "title": "When Missing",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field_name",
+          "label",
+          "required",
+          "data_type",
+          "description",
+          "aliases",
+          "group",
+          "example",
+          "when_missing"
+        ],
+        "title": "CensusGuideField",
+        "type": "object"
+      },
+      "CensusGuideGroup": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "CensusGuideGroup",
+        "type": "object"
+      },
+      "CensusGuideResponse": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CensusGuideField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "file_rules": {
+            "$ref": "#/components/schemas/CensusFileRules"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CensusGuideGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields",
+          "groups",
+          "file_rules"
+        ],
+        "title": "CensusGuideResponse",
+        "type": "object"
+      },
       "CensusHourlyRateSummary": {
         "description": "Import report on census hourly rates (#1230).",
         "properties": {
@@ -22021,6 +22173,27 @@
         "summary": "Cancel Calibration Run",
         "tags": [
           "Calibration"
+        ]
+      }
+    },
+    "/api/census/schema": {
+      "get": {
+        "operationId": "get_census_schema_api_census_schema_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CensusGuideResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Census columns and file rules for the Studio census guide",
+        "tags": [
+          "Files"
         ]
       }
     },
