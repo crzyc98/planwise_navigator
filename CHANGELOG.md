@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-19
+
 ### Added
 
 - The census can give each hourly person an hourly rate as `hourly_rate`, `hours_worked` (all paid hours in the census year) or `scheduled_hours_per_week`, for the coming minimum wage change (#1230). `hourly_rate` is preferred and wins when a row has more than one. Studio's census import maps the new columns and reports how many people have a rate, how many have none, and how many rates fall below $7.25 or above $500 an hour; those people stay in the census with no rate. A census roll-forward carries each rate, moved with pay. A census without these columns gives the same results as before.
