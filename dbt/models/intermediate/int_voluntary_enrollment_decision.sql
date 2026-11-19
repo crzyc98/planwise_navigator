@@ -102,7 +102,8 @@ new_hires_current_year AS (
     he.effective_date::DATE AS employee_hire_date,
     {{ var('simulation_year') }} as simulation_year,
     he.employee_age AS current_age,
-    0 AS current_tenure,
+    -- #1227: 0 for organic hires; acquired members carry credited service
+    he.employee_tenure AS current_tenure,
     he.level_id,
     he.compensation_amount AS employee_compensation,
     'active' AS employment_status
@@ -357,10 +358,12 @@ enrollment_decisions AS (
         ROW_NUMBER() OVER (
           PARTITION BY simulation_year,
                        (EXTRACT(YEAR FROM employee_hire_date) = simulation_year)
+                       {{ acquisition_cohort('employee_id') }}
           ORDER BY enrollment_random, employee_id
         ) <= ROUND({{ flat_new_hire_voluntary_rate }} * COUNT(*) OVER (
           PARTITION BY simulation_year,
                        (EXTRACT(YEAR FROM employee_hire_date) = simulation_year)
+                       {{ acquisition_cohort('employee_id') }}
         ))
       ELSE enrollment_random < final_enrollment_probability
     END as will_enroll,

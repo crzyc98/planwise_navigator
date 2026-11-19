@@ -13,12 +13,68 @@
         'id': item['id'],
         'headcount': item['headcount'] | int,
         'effective_date': item['effective_date'] | string,
-        'ordinal': loop.index
+        'ordinal': loop.index,
+        'service_credit': item.get('service_credit', 'prior_service')
       }) -%}
     {%- endif -%}
   {%- endfor -%}
   {{ return(joining) }}
 {% endmacro %}
+
+
+{% macro acquisitions_where(setting, value, default) %}
+  {#- Configured acquisitions (#1227) whose plan setting equals value. -#}
+  {%- set matched = [] -%}
+  {%- for item in var('acquisitions', []) -%}
+    {%- if item.get(setting, default) == value -%}
+      {%- do matched.append(item) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ return(matched) }}
+{% endmacro %}
+
+
+{% macro acquisitions_with_starting_participation() %}
+  {#- Acquisitions (#1227) whose members start with a set participation. -#}
+  {%- set matched = [] -%}
+  {%- for item in var('acquisitions', []) -%}
+    {%- if item.get('starting_participation_rate') is not none -%}
+      {%- do matched.append(item) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ return(matched) }}
+{% endmacro %}
+
+
+{% macro acquisition_member_id(acquisition_id, member_seq) -%}
+  'ACQ_' || {{ acquisition_id }} || '_' || LPAD(CAST({{ member_seq }} AS VARCHAR), 6, '0')
+{%- endmacro %}
+
+
+{% macro acquisition_id_of(employee_id, acquisitions=none) -%}
+  {#-
+    The acquisition a member joined with, or NULL (#1227). Matches the exact
+    id form acquisition_member_id builds, for the given acquisitions (all
+    configured ones by default). Plan-stage models read employees from tables
+    that do not carry acquisition_id, so membership is read from the id.
+  -#}
+  {%- set items = var('acquisitions', []) if acquisitions is none else acquisitions -%}
+  {%- if items -%}
+  NULLIF(regexp_extract({{ employee_id }}, '^ACQ_({{ items | map(attribute='id') | join('|') }})_[0-9]{6}$', 1), '')
+  {%- else -%}
+  CAST(NULL AS VARCHAR)
+  {%- endif -%}
+{%- endmacro %}
+
+
+{% macro acquisition_cohort(employee_id) -%}
+  {#-
+    Extra PARTITION BY key that keeps acquired members (#1227) in a cohort of
+    their own, so cohort-normalized draws for everyone else match a run
+    without the acquisition. Renders nothing when no acquisition is set.
+  -#}
+  {%- if var('acquisitions', []) -%}, {{ acquisition_id_of(employee_id) }}{%- endif -%}
+{%- endmacro %}
 
 
 {% macro carried_tenure_at(hire_date_column, year_end_tenure_column, simulation_year, end_date) %}

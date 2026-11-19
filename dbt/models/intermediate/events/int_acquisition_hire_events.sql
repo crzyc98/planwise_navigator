@@ -10,8 +10,9 @@
   effective date, on top of organic hiring. Members resample the sponsor's
   active staff at the start of the year (with replacement, seeded hash) and
   copy age, service, level, pay and scheduled hours. Prior service travels as
-  employee_tenure. acquisition_id marks them so new-hire-only logic can skip
-  them.
+  employee_tenure, or starts at zero when the acquisition's service_credit is
+  acquisition_date (#1227). acquisition_id marks them so new-hire-only logic
+  can skip them.
 -#}
 
 {% set simulation_year = var('simulation_year') | int %}
@@ -53,19 +54,20 @@ donor_pool AS (
 
 acquisitions AS (
   {% if joining %}
-  SELECT acquisition_id, headcount, effective_date, ordinal
+  SELECT acquisition_id, headcount, effective_date, ordinal, service_credit
   FROM (
     VALUES
     {% for item in joining %}
-      ('{{ item.id }}', {{ item.headcount }}, DATE '{{ item.effective_date }}', {{ item.ordinal }}){% if not loop.last %},{% endif %}
+      ('{{ item.id }}', {{ item.headcount }}, DATE '{{ item.effective_date }}', {{ item.ordinal }}, '{{ item.service_credit }}'){% if not loop.last %},{% endif %}
     {% endfor %}
-  ) AS a(acquisition_id, headcount, effective_date, ordinal)
+  ) AS a(acquisition_id, headcount, effective_date, ordinal, service_credit)
   {% else %}
   SELECT
     NULL::VARCHAR AS acquisition_id,
     0 AS headcount,
     NULL::DATE AS effective_date,
-    0 AS ordinal
+    0 AS ordinal,
+    NULL::VARCHAR AS service_credit
   WHERE FALSE
   {% endif %}
 ),
@@ -75,6 +77,7 @@ member_slots AS (
     a.acquisition_id,
     a.effective_date,
     a.ordinal,
+    a.service_credit,
     seq.i AS member_seq
   FROM acquisitions a
   CROSS JOIN UNNEST(range(1::BIGINT, CAST(a.headcount AS BIGINT) + 1)) AS seq(i)
@@ -99,7 +102,7 @@ SELECT
   CASE
     WHEN p.donor_index IS NULL
       THEN error('Acquisition ' || d.acquisition_id || ' has no active employees to sample members from')
-    ELSE 'ACQ_' || d.acquisition_id || '_' || LPAD(CAST(d.member_seq AS VARCHAR), 6, '0')
+    ELSE {{ acquisition_member_id('d.acquisition_id', 'd.member_seq') }}
   END AS employee_id,
   -- 910M + a 100k block per acquisition: above census SSNs (real, or the staging
   -- fallback below 900M) and above NH_ hires (900M + 100k per simulated year).
@@ -114,10 +117,10 @@ SELECT
   NULL::DECIMAL(5,4) AS employee_deferral_rate,
   NULL::DECIMAL(5,4) AS prev_employee_deferral_rate,
   p.current_age AS employee_age,
-  CAST(p.current_tenure AS DECIMAL(12,2)) AS employee_tenure,
+  CAST(credited.tenure AS DECIMAL(12,2)) AS employee_tenure,
   p.level_id,
   {{ assign_age_band('p.current_age') }} AS age_band,
-  {{ assign_tenure_band('p.current_tenure') }} AS tenure_band,
+  {{ assign_tenure_band('credited.tenure') }} AS tenure_band,
   1.0 AS event_probability,
   'hire' AS event_category,
   CAST(p.scheduled_hours_per_week AS DECIMAL(5,2)) AS scheduled_hours_per_week,
@@ -125,3 +128,8 @@ SELECT
 FROM draws d
 LEFT JOIN donor_pool p
   ON d.donor_index = p.donor_index
+-- #1227: service the plan credits; everything reads it through current_tenure
+CROSS JOIN LATERAL (
+  SELECT CASE WHEN d.service_credit = 'acquisition_date' THEN 0
+    ELSE p.current_tenure END AS tenure
+) credited

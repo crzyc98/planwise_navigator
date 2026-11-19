@@ -77,7 +77,8 @@ WITH new_hire_source AS (
     he.effective_date::DATE AS employee_hire_date,
     he.simulation_year,
     he.employee_age AS current_age,
-    0.0 AS current_tenure,
+    -- #1227: 0 for organic hires; acquired members carry credited service
+    he.employee_tenure AS current_tenure,
     he.level_id,
     he.compensation_amount AS employee_compensation,
     'active' AS employment_status
@@ -93,7 +94,8 @@ WITH new_hire_source AS (
     he.effective_date::DATE AS employee_hire_date,
     he.simulation_year,
     he.employee_age AS current_age,
-    0.0 AS current_tenure,
+    -- #1227: 0 for organic hires; acquired members carry credited service
+    he.employee_tenure AS current_tenure,
     he.level_id,
     he.compensation_amount AS employee_compensation,
     'active' AS employment_status

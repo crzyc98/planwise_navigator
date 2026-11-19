@@ -15,6 +15,11 @@
    dimension -- so it clusters hardest of the three sites. #}
 {% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
 
+{# #1227: acquired groups whose members enter already deferring
+   (acquisitions_with_starting_participation). In the year a member enters the
+   plan they get only the starting-participation path below. The macro is called
+   inline so slices of this model render on their own. #}
+
 {%- set yoy_spread_random -%}
 ((ABS(PLANALIGN_HASH(aw.employee_id || '-deferral-spread-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0)
 {%- endset -%}
@@ -73,6 +78,69 @@ CASE
 */
 
 WITH {{ reenrollment_sweep_inputs() }},
+
+{% if acquisitions_with_starting_participation() %}
+-- #1227: members of a starting-participation acquisition entering the plan this
+-- year. They skip auto-enrollment and voluntary paths in their entry year.
+acquisition_entry_cohort AS (
+  SELECT
+    aw.*,
+    {{ acquisition_id_of('aw.employee_id', acquisitions_with_starting_participation()) }} AS acquisition_id
+  FROM active_workforce aw
+  WHERE {{ acquisition_id_of('aw.employee_id', acquisitions_with_starting_participation()) }} IS NOT NULL
+    AND EXTRACT(YEAR FROM aw.plan_eligibility_date) = aw.simulation_year
+),
+
+acquisition_participation_settings AS (
+  SELECT acquisition_id, participation_rate, deferral_rate
+  FROM (
+    VALUES
+    {% for item in acquisitions_with_starting_participation() %}
+      ('{{ item.id }}', {{ item.starting_participation_rate }}::DOUBLE, {{ item.starting_deferral_rate }}::DOUBLE){% if not loop.last %},{% endif %}
+    {% endfor %}
+  ) AS s(acquisition_id, participation_rate, deferral_rate)
+),
+
+-- Exact count: the top ROUND(rate * N) of the entering cohort by a seeded draw.
+acquisition_participation_events AS (
+  SELECT
+    ranked.employee_id,
+    ranked.employee_ssn,
+    'enrollment' AS event_type,
+    ranked.simulation_year,
+    CAST(ranked.plan_eligibility_date AS TIMESTAMP) AS effective_date,
+    'Acquisition starting participation - '
+      || CAST(ROUND(settings.deferral_rate * 100, 1) AS VARCHAR) || '% deferral rate' AS event_details,
+    ranked.current_compensation AS compensation_amount,
+    NULL AS previous_compensation,
+    settings.deferral_rate AS employee_deferral_rate,
+    0.00 AS prev_employee_deferral_rate,
+    ranked.current_age AS employee_age,
+    ranked.current_tenure AS employee_tenure,
+    ranked.level_id,
+    ranked.age_band,
+    ranked.tenure_band,
+    settings.participation_rate AS event_probability,
+    'acquisition_enrollment' AS event_category
+  FROM (
+    SELECT
+      cohort.*,
+      ROW_NUMBER() OVER (
+        PARTITION BY cohort.acquisition_id
+        ORDER BY PLANALIGN_HASH(cohort.employee_id || '|ACQUISITION_PARTICIPATION|{{ subsystem_seed('enrollment') }}'),
+          cohort.employee_id
+      ) AS participation_rank,
+      COUNT(*) OVER (PARTITION BY cohort.acquisition_id) AS cohort_size
+    FROM acquisition_entry_cohort cohort
+    -- Rank only members who can enter, so ineligible ones take no slots
+    WHERE cohort.is_plan_eligible
+      AND NOT cohort.is_plan_ineligible_override
+  ) ranked
+  INNER JOIN acquisition_participation_settings settings
+    ON ranked.acquisition_id = settings.acquisition_id
+  WHERE ranked.participation_rank <= ROUND(settings.participation_rate * ranked.cohort_size)
+),
+{% endif %}
 
 auto_enrollment_eligible_population AS (
   -- Single source of truth for auto-enrollment eligibility
@@ -143,6 +211,9 @@ eligible_for_enrollment AS (
     END AS optout_random
   FROM active_workforce aw
   LEFT JOIN previous_enrollment_state pe ON aw.employee_id = pe.employee_id
+  {% if acquisitions_with_starting_participation() %}
+  WHERE aw.employee_id NOT IN (SELECT employee_id FROM acquisition_entry_cohort)
+  {% endif %}
 ),
 
 -- Generate enrollment events using simplified demographics-based logic
@@ -458,11 +529,13 @@ opt_out_candidates_raw AS (
     ROW_NUMBER() OVER (
       PARTITION BY efo.simulation_year,
                    (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
+                   {{ acquisition_cohort('efo.employee_id') }}
       ORDER BY efo.optout_random, efo.employee_id
     ) AS optout_rank,
     COUNT(*) OVER (
       PARTITION BY efo.simulation_year,
                    (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
+                   {{ acquisition_cohort('efo.employee_id') }}
     ) AS optout_cohort_size
   FROM eligible_for_enrollment efo
   WHERE
@@ -503,6 +576,7 @@ opt_out_candidates AS (
     LEAST(1.0, {{ var('opt_out_rate_target', 0.09) }} * COALESCE(
       optout_weight / NULLIF(AVG(optout_weight ORDER BY employee_id) OVER (
         PARTITION BY simulation_year, is_hire_year_new_hire
+          {{ acquisition_cohort('employee_id') }}
       ), 0), 1.0)) AS optout_probability
   FROM opt_out_candidates_weighted efo
 ),
@@ -680,6 +754,30 @@ all_enrollment_events AS (
     event_probability,
     event_category
   FROM year_over_year_enrollment_events
+  {% if acquisitions_with_starting_participation() %}
+
+  UNION ALL
+
+  SELECT
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM acquisition_participation_events
+  {% endif %}
 ),
 
 -- Apply the employment boundary before category priority. If a later,
@@ -708,8 +806,13 @@ sequence_eligible_events AS (
   LEFT JOIN {{ ref('int_employee_termination_dates') }} t
     ON a.employee_id = t.employee_id
     AND a.simulation_year = t.simulation_year
-  WHERE t.termination_date IS NULL
-    OR a.effective_date <= t.termination_date
+  WHERE (t.termination_date IS NULL
+    OR a.effective_date <= t.termination_date)
+  {% if acquisitions_with_starting_participation() %}
+    -- #1227: the entering cohort gets only its starting-participation events
+    AND (a.event_category = 'acquisition_enrollment'
+      OR a.employee_id NOT IN (SELECT employee_id FROM acquisition_entry_cohort))
+  {% endif %}
 ),
 
 -- Deduplication with event category prioritization

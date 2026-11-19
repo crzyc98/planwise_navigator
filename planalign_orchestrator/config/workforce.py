@@ -37,6 +37,48 @@ class AcquisitionSettings(BaseModel):
     # 99,999 keeps each acquisition inside its own member SSN block.
     headcount: int = Field(gt=0, le=99_999, strict=True)
     effective_date: date
+    # #1227: how the DC plan treats the group. Unset keeps the defaults.
+    service_credit: Literal["prior_service", "acquisition_date"] = Field(
+        default="prior_service",
+        description=(
+            "prior_service carries members' service into current_tenure; "
+            "acquisition_date starts it at zero on the effective date"
+        ),
+    )
+    plan_entry: Literal["acquisition_date", "waiting_period"] = Field(
+        default="acquisition_date",
+        description=(
+            "acquisition_date enters members on the effective date; "
+            "waiting_period applies the plan's waiting period from that date"
+        ),
+    )
+    starting_participation_rate: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "Share of members already deferring when they enter the plan. "
+            "Unset sends them through auto-enrollment like new entrants"
+        ),
+    )
+    starting_deferral_rate: Optional[float] = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="Deferral rate for members who start as participants",
+    )
+
+    @model_validator(mode="after")
+    def validate_starting_participation(self) -> "AcquisitionSettings":
+        """Participation and deferral rate are set together or not at all."""
+        if (self.starting_participation_rate is None) != (
+            self.starting_deferral_rate is None
+        ):
+            raise ValueError(
+                "starting_participation_rate and starting_deferral_rate "
+                "must be set together"
+            )
+        return self
 
 
 class WorkforceSettings(BaseModel):

@@ -15,6 +15,11 @@ from planalign_orchestrator.config.workforce import ReenrollmentSweepSettings
 
 pytestmark = pytest.mark.fast
 DBT = Path(__file__).resolve().parents[2] / "dbt"
+# #1227 acquisition macros as they render for a scenario without acquisitions.
+NO_ACQUISITIONS: dict[str, Any] = {
+    "acquisitions_with_starting_participation": lambda: [],
+    "acquisition_cohort": lambda employee_id: "",
+}
 
 
 def render(source: str, **variables: Any) -> str:
@@ -28,6 +33,7 @@ def render(source: str, **variables: Any) -> str:
         .render(
             var=lambda name, default=None: variables.get(name, default),
             **{"return": lambda value: value},
+            **NO_ACQUISITIONS,
         )
     )
 
@@ -231,6 +237,7 @@ def render_events(source: str, **variables: Any) -> str:
             target={"schema": "main"},
             is_incremental=lambda: False,
             **{"return": lambda value: value},
+            **NO_ACQUISITIONS,
         )
     )
 

@@ -53,11 +53,12 @@ new_hires_current_year AS (
     he.effective_date::DATE AS employee_hire_date,
     he.simulation_year,
     he.employee_age AS current_age,
-    0.0 AS current_tenure,
+    -- #1227: 0 for organic hires; acquired members carry credited service
+    he.employee_tenure AS current_tenure,
     he.level_id,
     he.compensation_amount AS current_compensation,
     {{ assign_age_band('he.employee_age') }} AS age_band,
-    {{ assign_tenure_band('0') }} AS tenure_band,
+    {{ assign_tenure_band('he.employee_tenure') }} AS tenure_band,
     'active' AS employment_status
   FROM {{ ref('int_hiring_events') }} he
   WHERE he.simulation_year = {{ var('simulation_year') }}
