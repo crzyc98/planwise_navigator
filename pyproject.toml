@@ -1,6 +1,6 @@
 [project]
 name = "planalign-engine"
-version = "3.5.0"
+version = "3.5.1"
 description = "PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
 readme = "README.md"
 requires-python = ">=3.12"
