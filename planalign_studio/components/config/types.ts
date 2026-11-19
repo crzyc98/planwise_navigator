@@ -45,6 +45,34 @@ export interface MinimumWageRow {
   effectiveDate: string;
 }
 
+/** How an acquired group's pay is set: like staff, a percent of staff pay, or an amount. */
+export type AcquisitionPay =
+  | { kind: 'mirror' }
+  | { kind: 'relative'; percentOfStaff: number }
+  | { kind: 'amount'; averagePay: number };
+
+/** A group that joins on a date (workforce.acquisitions); id is the saved key. */
+export interface AcquisitionRow {
+  /** Client-only React key, assigned on create or load; never saved. */
+  rowKey: string;
+  id: string;
+  name: string;
+  headcount: number;
+  effectiveDate: string;
+  // Plan settings (#1227)
+  serviceCredit: 'prior_service' | 'acquisition_date';
+  planEntry: 'acquisition_date' | 'waiting_period';
+  /** Percents; both null sends members through auto-enrollment like new hires. */
+  startingParticipationPct: number | null;
+  startingDeferralPct: number | null;
+  // Who they are (#1228); null mirrors existing staff
+  pay: AcquisitionPay;
+  averageAge: number | null;
+  averageService: number | null;
+  /** Saved keys Studio does not edit, written back unchanged. */
+  extra: Record<string, unknown>;
+}
+
 export interface LevelMarketAdjustmentRow {
   level: number;
   adjustment: number;
@@ -165,6 +193,7 @@ export interface FormData {
   // Turnover
   totalTerminationRate: number;
   newHireTerminationRate: number;
+  acquisitions: AcquisitionRow[];
 
   // DC Plan - Basic
   dcEligibilityMonths: number;

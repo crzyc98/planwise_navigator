@@ -433,7 +433,7 @@ def _required_findings(e: ReportEvidence, capture_state: str) -> list[EvidenceFi
         hires = reconciliation.hires
         terminations = reconciliation.terminations
         if opening is not None and hires is not None and terminations is not None:
-            expected = opening + hires - terminations
+            expected = opening + hires + (reconciliation.acquired or 0) - terminations
             if reconciliation.expected_closing_workforce != expected:
                 findings.append(
                     _finding(

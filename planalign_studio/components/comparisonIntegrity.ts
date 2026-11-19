@@ -8,6 +8,7 @@ import type {
   UnevaluatedCheck,
 } from '../services/api';
 import { describeMinimumWage, minimumWageFromConfig } from './config/minimumWage';
+import { acquisitionsFromConfig, listAcquisitions } from './config/acquisitions';
 
 /** Plain-words copy for the like-for-like verdict (#1179, #1180). */
 
@@ -36,6 +37,7 @@ const SETTING_LABELS: Record<string, string> = {
   'workforce.total_termination_rate': 'Turnover',
   'workforce.new_hire_termination_rate': 'New-hire turnover',
   'workforce.part_time_new_hire_pct': 'Part-time share of new hires',
+  'workforce.acquisitions': 'Acquisitions',
   'compensation.target_compensation_growth_percent': 'Pay growth target',
   'compensation.merit_budget_percent': 'Merit budget',
   'compensation.cola_rate_percent': 'Cost-of-living raise',
@@ -145,6 +147,8 @@ const DECIMAL_PERCENT_KEYS = new Set(['max_voluntary_deferral_percent', 'match_c
 export function formatSetting(path: string, value: unknown): string | null {
   // One side without a minimum wage reads "none", never "not set".
   if (path === 'compensation.minimum_wage') return describeMinimumWage(minimumWageFromConfig(value) ?? []);
+  // One side without acquisitions reads "none", never "not set".
+  if (path === 'workforce.acquisitions') return listAcquisitions(acquisitionsFromConfig(value) ?? []);
   if (value === null || value === undefined) return 'not set';
   if (typeof value === 'boolean') return value ? 'on' : 'off';
   if (typeof value === 'string') return value;

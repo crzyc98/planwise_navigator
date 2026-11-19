@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import duckdb
 
 from planalign_core.constants import (
+    EVENT_HIRE,
     TABLE_FCT_WORKFORCE_SNAPSHOT,
     TABLE_FCT_YEARLY_EVENTS,
 )
@@ -78,6 +79,10 @@ def read_results(
         )
         event_trends = _query_event_trends(conn, config_start_year, config_end_year)
         minimum_wage = _query_minimum_wage(conn, config_start_year, config_end_year)
+        acquired_hires = _query_acquired_hires(conn, config_start_year, config_end_year)
+        acquisition_split = _query_acquisition_split(
+            conn, config_start_year, config_end_year, pop_filter
+        )
         participation_rate = _query_participation_rate(
             conn, config_end_year, pop_filter
         )
@@ -101,6 +106,8 @@ def read_results(
         workforce_progression=workforce_progression,
         event_trends=event_trends,
         minimum_wage=minimum_wage,
+        acquired_hires=acquired_hires,
+        acquisition_split=acquisition_split,
         growth_analysis={
             "total_growth_pct": summary["total_growth_pct"],
             "cagr": summary["cagr"],
@@ -312,6 +319,111 @@ def _query_minimum_wage(
         )
         for year in range(start_year, end_year + 1)
     ]
+
+
+def _has_acquisition_column(
+    conn: duckdb.DuckDBPyConnection, table: str = TABLE_FCT_YEARLY_EVENTS
+) -> bool:
+    """Whether the table carries acquisition_id; results before #1226 do not."""
+    row = conn.execute(
+        "SELECT COUNT(*) > 0 FROM information_schema.columns "
+        "WHERE table_schema = 'main' AND table_name = ? "
+        "AND column_name = 'acquisition_id'",
+        [table],
+    ).fetchone()
+    return bool(row and row[0])
+
+
+def _query_acquired_hires(
+    conn: duckdb.DuckDBPyConnection, start_year: int, end_year: int
+) -> List[int]:
+    """Hire events per year for acquired members, aligned with event_trends.
+
+    Empty when the run added nobody by acquisition, including results whose
+    events predate the acquisition_id column.
+    """
+    try:
+        if not _has_acquisition_column(conn):
+            return []
+        rows = conn.execute(
+            f"""
+            SELECT simulation_year, COUNT(*)
+            FROM {TABLE_FCT_YEARLY_EVENTS}
+            WHERE event_type = ?
+              AND acquisition_id IS NOT NULL
+              AND simulation_year BETWEEN ? AND ?
+            GROUP BY simulation_year
+        """,
+            [EVENT_HIRE, start_year, end_year],
+        ).fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching acquired hires: {e}")
+        return []
+    if not rows:
+        return []
+    counts = [0] * (end_year - start_year + 1)
+    for year, count in rows:
+        counts[int(year) - start_year] = int(count)
+    return counts
+
+
+def _query_acquisition_split(
+    conn: duckdb.DuckDBPyConnection,
+    start_year: int,
+    end_year: int,
+    pop_filter: str = "",
+) -> List[Dict[str, Any]]:
+    """Pay and employer cost by year for acquired versus existing staff.
+
+    Empty when no snapshot row belongs to an acquired group, including results
+    built before the acquisition_id column existed.
+    """
+    try:
+        if not _has_acquisition_column(conn, TABLE_FCT_WORKFORCE_SNAPSHOT):
+            return []
+        rows = conn.execute(
+            f"""
+            SELECT
+                simulation_year,
+                acquisition_id IS NOT NULL AS acquired,
+                COUNT(DISTINCT employee_id),
+                COALESCE(SUM(prorated_annual_compensation), 0),
+                COALESCE(SUM(COALESCE(employer_match_amount, 0)
+                  + COALESCE(employer_core_amount, 0)), 0)
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+            WHERE simulation_year BETWEEN ? AND ?
+              {pop_filter}
+            GROUP BY ALL
+        """,
+            [start_year, end_year],
+        ).fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching acquisition split: {e}")
+        return []
+    if not any(acquired for _, acquired, *_ in rows):
+        return []
+    return _pivot_acquisition_split(rows)
+
+
+def _pivot_acquisition_split(rows: List[Any]) -> List[Dict[str, Any]]:
+    """One row per year with acquired_* and existing_* headcount, pay and cost."""
+    empty = {"headcount": 0, "compensation": 0.0, "employer_cost": 0.0}
+    years: Dict[int, Dict[str, Any]] = {}
+    for year, acquired, headcount, pay, cost in rows:
+        side = "acquired" if acquired else "existing"
+        row = years.setdefault(
+            int(year),
+            {"simulation_year": int(year)}
+            | {
+                f"{s}_{k}": v
+                for s in ("acquired", "existing")
+                for k, v in empty.items()
+            },
+        )
+        row[f"{side}_headcount"] = int(headcount)
+        row[f"{side}_compensation"] = float(pay)
+        row[f"{side}_employer_cost"] = float(cost)
+    return [years[year] for year in sorted(years)]
 
 
 def _query_participation_rate(

@@ -151,6 +151,8 @@ export default function RunProvenanceReport() {
 
   const { report } = envelope;
   const { evidence } = report;
+  // #1228: acquired members are their own step, shown only when a group joined.
+  const hasAcquired = evidence.workforce_reconciliations.some(item => (item.acquired ?? 0) > 0);
 
   return (
     <div className="space-y-6 pb-8">
@@ -310,9 +312,9 @@ export default function RunProvenanceReport() {
       <Section title="Annual Workforce Reconciliation">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-3 py-2">Year</th><th className="px-3 py-2 text-right">Opening</th><th className="px-3 py-2">Source</th><th className="px-3 py-2 text-right">Hires</th><th className="px-3 py-2 text-right">Terminations</th><th className="px-3 py-2 text-right">Expected</th><th className="px-3 py-2 text-right">Actual</th><th className="px-3 py-2 text-right">Variance</th></tr></thead>
+            <thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-3 py-2">Year</th><th className="px-3 py-2 text-right">Opening</th><th className="px-3 py-2">Source</th><th className="px-3 py-2 text-right">Hires</th>{hasAcquired && <th className="px-3 py-2 text-right">Acquired</th>}<th className="px-3 py-2 text-right">Terminations</th><th className="px-3 py-2 text-right">Expected</th><th className="px-3 py-2 text-right">Actual</th><th className="px-3 py-2 text-right">Variance</th></tr></thead>
             <tbody>
-              {evidence.workforce_reconciliations.map(item => <tr key={item.simulation_year} className="border-t border-border"><td className="px-3 py-2">{item.simulation_year}</td><td className="px-3 py-2 text-right">{display(item.opening_workforce)}</td><td className="px-3 py-2">{display(item.opening_source)}</td><td className="px-3 py-2 text-right">{display(item.hires)}</td><td className="px-3 py-2 text-right">{display(item.terminations)}</td><td className="px-3 py-2 text-right">{display(item.expected_closing_workforce)}</td><td className="px-3 py-2 text-right">{display(item.actual_closing_workforce)}</td><td className="px-3 py-2 text-right">{display(item.variance)}</td></tr>)}
+              {evidence.workforce_reconciliations.map(item => <tr key={item.simulation_year} className="border-t border-border"><td className="px-3 py-2">{item.simulation_year}</td><td className="px-3 py-2 text-right">{display(item.opening_workforce)}</td><td className="px-3 py-2">{display(item.opening_source)}</td><td className="px-3 py-2 text-right">{display(item.hires)}</td>{hasAcquired && <td className="px-3 py-2 text-right">{display(item.acquired ?? 0)}</td>}<td className="px-3 py-2 text-right">{display(item.terminations)}</td><td className="px-3 py-2 text-right">{display(item.expected_closing_workforce)}</td><td className="px-3 py-2 text-right">{display(item.actual_closing_workforce)}</td><td className="px-3 py-2 text-right">{display(item.variance)}</td></tr>)}
               {evidence.workforce_reconciliations.length === 0 && <tr><td colSpan={8} className="px-3 py-4 text-center text-ink-muted">No workforce reconciliation available.</td></tr>}
             </tbody>
           </table>

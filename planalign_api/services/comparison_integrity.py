@@ -25,6 +25,8 @@ from typing import Any, Optional, cast, get_args
 import yaml
 from pydantic import ValidationError
 
+from planalign_orchestrator.config.workforce import AcquisitionSettings
+
 from ..models.comparison import (
     ComparisonIntegrityResponse,
     ComparisonVerdict,
@@ -600,7 +602,7 @@ def _config_reasons(
     reasons: list[IntegrityReason] = []
     plan_differences: list[ConfigDelta] = []
     for delta in differences:
-        if _ignored_delta(delta):
+        if _ignored_delta(delta) or _same_engine_acquisitions(delta):
             continue
         group = config_group(delta.path)
         if group == "plan_design":
@@ -617,6 +619,44 @@ def _config_reasons(
             )
         )
     return reasons, plan_differences
+
+
+def _same_engine_acquisitions(delta: ConfigDelta) -> bool:
+    """Acquisitions the engine runs the same: ``name`` is display-only, a key
+    left at its default means the same as unset (Studio omits defaults), and
+    the ``[]`` Studio saves when every group is removed means the same as unset."""
+    if delta.path != "workforce.acquisitions":
+        return False
+    return _engine_acquisitions(delta.a) == _engine_acquisitions(delta.b)
+
+
+def _engine_acquisitions(value: Any) -> Any:
+    if not value:
+        return []
+    if not isinstance(value, list):
+        return value
+    return [_engine_fields(item) for item in value]
+
+
+# Optional AcquisitionSettings fields and their defaults.
+_ACQUISITION_DEFAULTS = {
+    name: info.default
+    for name, info in AcquisitionSettings.model_fields.items()
+    if not info.is_required()
+}
+
+
+def _engine_fields(item: Any) -> Any:
+    if not isinstance(item, Mapping):
+        return item
+    return {
+        key: item_value
+        for key, item_value in item.items()
+        if key != "name"
+        and not (
+            key in _ACQUISITION_DEFAULTS and _ACQUISITION_DEFAULTS[key] == item_value
+        )
+    }
 
 
 def _notes(scenario_id: str, trust: RunTrustResult) -> list[IntegrityReason]:

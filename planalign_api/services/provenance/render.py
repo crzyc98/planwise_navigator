@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from planalign_api.models.provenance import (
+    AnnualWorkforceReconciliation,
     ProvenanceReport,
     ReportDigest,
     ReviewSignOff,
@@ -131,6 +132,37 @@ def render_json(report: ProvenanceReport) -> str:
     return report.model_dump_json(indent=2) + "\n"
 
 
+def _reconciliation_rows(items: list[AnnualWorkforceReconciliation]) -> str:
+    """The reconciliation table; an Acquired step only when a group joined."""
+    acquired = any(x.acquired for x in items)
+    header = ["Year", "Opening", "Hires"] + (["Acquired"] if acquired else [])
+    header += [
+        "Terminations",
+        "Expected close",
+        "Actual close",
+        "Variance",
+        "Opening source",
+    ]
+    rows: list[list[object]] = [
+        [x.simulation_year, x.opening_workforce, x.hires]
+        + ([x.acquired or 0] if acquired else [])
+        + [
+            x.terminations,
+            x.expected_closing_workforce,
+            x.actual_closing_workforce,
+            x.variance,
+            x.opening_source,
+        ]
+        for x in items
+    ] or [["—"] * len(header)]
+    lines = [
+        "| " + " | ".join(header) + " |",
+        "|" + "---:|" * (len(header) - 1) + "---|",
+    ]
+    lines += ["| " + " | ".join(str(cell) for cell in row) + " |" for row in rows]
+    return "\n".join(lines)
+
+
 def render_markdown(report: ProvenanceReport) -> str:
     e = report.evidence
     missing = (
@@ -155,13 +187,7 @@ def render_markdown(report: ProvenanceReport) -> str:
         )
         or "| — | — | — |"
     )
-    recs = (
-        "\n".join(
-            f"| {x.simulation_year} | {x.opening_workforce} | {x.hires} | {x.terminations} | {x.expected_closing_workforce} | {x.actual_closing_workforce} | {x.variance} | {x.opening_source} |"
-            for x in e.workforce_reconciliations
-        )
-        or "| — | — | — | — | — | — | — | — |"
-    )
+    recs = _reconciliation_rows(e.workforce_reconciliations)
     validations = (
         "\n".join(
             f"| {x.simulation_year} | {x.check_name} | {x.severity} | {'PASS' if x.passed else 'FAIL'} | {x.affected_record_count} |"
@@ -241,8 +267,6 @@ def render_markdown(report: ProvenanceReport) -> str:
 
 ## Annual Workforce Reconciliation
 
-| Year | Opening | Hires | Terminations | Expected close | Actual close | Variance | Opening source |
-|---:|---:|---:|---:|---:|---:|---:|---|
 {recs}
 
 ## Captured Validation Results

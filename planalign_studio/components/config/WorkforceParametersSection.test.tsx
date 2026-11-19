@@ -19,11 +19,11 @@ beforeEach(() => {
 
 it('orders setup tasks and keeps detailed assumptions collapsed with current values', () => {
   const html = renderToStaticMarkup(<WorkforceParametersSection />);
-  const headings = ['Projection period', 'Headcount and turnover', 'Compensation growth', 'Minimum wage', 'New-hire assumptions', 'Advanced workforce assumptions'];
+  const headings = ['Projection period', 'Headcount and turnover', 'Acquisitions', 'Compensation growth', 'Minimum wage', 'New-hire assumptions', 'Advanced workforce assumptions'];
   const positions = headings.map(heading => html.indexOf(heading));
   expect(positions.every(position => position >= 0)).toBe(true);
   expect(positions).toEqual([...positions].sort((a, b) => a - b));
-  expect(html.match(/<details/g)).toHaveLength(3);
+  expect(html.match(/<details/g)).toHaveLength(4);
   expect(html).not.toContain('<details open');
   expect(html).toContain('Part-time:');
   expect(html).toContain('Pay ranges (5 levels)');
