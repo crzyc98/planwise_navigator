@@ -24,7 +24,7 @@ function FieldRow({ field }: Readonly<{ field: CensusGuideField }>) {
         <code className="text-xs font-mono text-ink-muted break-all">{field.field_name}</code>
       </div>
       <p className="text-sm text-ink-muted">{field.description}</p>
-      <p className="text-xs text-ink-subtle">
+      <p className="text-xs text-ink-muted">
         {formatLabel(field.data_type)}
         {field.example && (
           <>
@@ -37,7 +37,7 @@ function FieldRow({ field }: Readonly<{ field: CensusGuideField }>) {
         <p className="text-sm text-ink border-l-2 border-brand-green pl-3">{field.when_missing}</p>
       )}
       {field.aliases.length > 0 && (
-        <details className="text-xs text-ink-subtle">
+        <details className="text-xs text-ink-muted">
           <summary className="cursor-pointer hover:text-ink-muted">
             Other header names Studio recognises ({field.aliases.length})
           </summary>
@@ -138,7 +138,7 @@ function GuideHeader({ guide, requiredCount }: Readonly<{ guide: CensusGuideData
         <div>
           <h1 className="text-xl font-bold text-ink">What should the census include?</h1>
           <p className="text-sm text-ink-muted mt-0.5">
-            One row per employee. {requiredCount} columns are required; everything else is optional and adds detail.
+            One row per employee. {requiredCount} columns are required; everything else is optional.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
