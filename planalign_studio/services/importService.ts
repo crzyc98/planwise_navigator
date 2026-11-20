@@ -129,6 +129,8 @@ export interface MappedPreviewResponse extends PreviewResponse {
   transformation_warnings: TransformationWarning[];
   /** Whole-file checks; null when the file can't be converted with this mapping. */
   data_quality: DataQualityResult | null;
+  /** Why some or all whole-file checks didn't run; null when they all ran. */
+  data_quality_skipped_reason: string | null;
 }
 
 export interface GenerateResponse {

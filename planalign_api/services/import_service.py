@@ -17,7 +17,6 @@ from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 from ..config import get_settings
 from ..models.files import CensusHourlyRateSummary
 from ..models.imports import (
-    DataQualityResult,
     DetectedColumn,
     FieldMapping,
     ImportSession,
@@ -29,7 +28,7 @@ from ..models.imports import (
     TransformationWarning,
 )
 from .census_analysis_service import CensusAnalysisService
-from .import_quality import flagged_rows_csv, scan_data_quality
+from .import_quality import FullFileQuality, flagged_rows_csv, scan_data_quality
 from .mapping_engine import MappingEngine
 
 logger = logging.getLogger(__name__)
@@ -266,7 +265,7 @@ class ImportService:
             )
 
         source_path = self._source_parquet_path(workspace_id, import_id)
-        df = self._read_source(workspace_id, import_id)
+        df = self.read_source(workspace_id, import_id)
 
         try:
             transformed = self._engine.apply(df, mappings)
@@ -570,26 +569,42 @@ class ImportService:
         return df
 
     def get_mapped_preview(
-        self, workspace_id: str, import_id: str, limit: int = 100
+        self,
+        workspace_id: str,
+        import_id: str,
+        limit: int = 100,
+        source: Optional[pd.DataFrame] = None,
     ) -> tuple[pd.DataFrame, List[TransformationWarning]]:
-        source_path = self._source_parquet_path(workspace_id, import_id)
-        conn = duckdb.connect(":memory:")
-        df = conn.execute(
-            f"SELECT * FROM read_parquet('{source_path}') LIMIT {limit}"
-        ).df()
-        conn.close()
+        """Map the first ``limit`` rows; pass ``source`` to reuse a frame
+        already read with ``read_source``."""
+        if source is None:
+            source_path = self._source_parquet_path(workspace_id, import_id)
+            with duckdb.connect(":memory:") as conn:
+                source = conn.execute(
+                    f"SELECT * FROM read_parquet(?) LIMIT {int(limit)}",
+                    [str(source_path)],
+                ).df()
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
             raise ValueError("No mapping saved")
-        return self._engine.apply_preview(df.head(limit), mappings)
+        return self._engine.apply_preview(source.head(limit), mappings)
 
-    def _read_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
+    def read_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
+        """The whole uploaded file, as stored at upload.
+
+        Raises duckdb.IOException once generating has removed it.
+        """
         source_path = self._source_parquet_path(workspace_id, import_id)
         with duckdb.connect(":memory:") as conn:
             df = conn.execute("SELECT * FROM read_parquet(?)", [str(source_path)]).df()
         return _normalize_dtypes_for_duckdb(df)
 
-    def _mapped_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
+    def _mapped_source(
+        self,
+        workspace_id: str,
+        import_id: str,
+        source: Optional[pd.DataFrame] = None,
+    ) -> pd.DataFrame:
         """The whole file as ``generate_parquet`` would write it.
 
         Raises ValueError when no mapping is saved or the file can't be
@@ -598,23 +613,34 @@ class ImportService:
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
             raise ValueError("No mapping saved")
-        transformed = self._engine.apply(
-            self._read_source(workspace_id, import_id), mappings
-        )
-        return _normalize_dtypes_for_duckdb(transformed)
+        if source is None:
+            source = self.read_source(workspace_id, import_id)
+        return _normalize_dtypes_for_duckdb(self._engine.apply(source, mappings))
 
-    def get_data_quality(self, workspace_id: str, import_id: str) -> DataQualityResult:
+    def get_data_quality(
+        self,
+        workspace_id: str,
+        import_id: str,
+        source: Optional[pd.DataFrame] = None,
+    ) -> FullFileQuality:
         """Whole-file checks matching what Census Analysis shows after import.
 
-        Raises ValueError when the mapped file can't be built or checked.
+        When the mapping can't convert the file, the result is None and the
+        reason is the same message generating would fail with.
         """
-        return scan_data_quality(
-            self._mapped_source(workspace_id, import_id),
-            CensusAnalysisService(self._root),
-        )
+        try:
+            mapped = self._mapped_source(workspace_id, import_id, source)
+        except ValueError as exc:
+            logger.info("Import %s: whole-file checks skipped", import_id)
+            return FullFileQuality(None, f"Whole-file checks didn't run: {exc}")
+        return scan_data_quality(mapped, CensusAnalysisService(self._root))
 
     def get_flagged_rows_csv(self, workspace_id: str, import_id: str) -> str:
-        """Rows breaking a plausibility rule, as row number, ID and rule names."""
+        """Rows breaking a plausibility rule, as row number, ID and rule names.
+
+        Raises ValueError when the file can't be checked and duckdb.IOException
+        once generating has removed the upload.
+        """
         return flagged_rows_csv(
             self._mapped_source(workspace_id, import_id),
             CensusAnalysisService(self._root),

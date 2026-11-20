@@ -8,7 +8,9 @@ import re
 import shutil
 from pathlib import Path
 from typing import List
+from urllib.parse import quote
 
+import duckdb
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
@@ -17,7 +19,6 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_error
 from ..models.imports import (
     ApplyTemplateRequest,
-    DataQualityResult,
     DetectedColumn,
     GenerateResponse,
     ImportSession,
@@ -563,7 +564,10 @@ def get_mapped_preview(
         raise HTTPException(
             status_code=409, detail="No mapping saved yet; save a mapping first"
         )
-    df, warnings = service.get_mapped_preview(workspace_id, import_id)
+    # One read of the upload serves both the preview and the whole-file checks.
+    source = service.read_source(workspace_id, import_id)
+    df, warnings = service.get_mapped_preview(workspace_id, import_id, source=source)
+    quality = service.get_data_quality(workspace_id, import_id, source=source)
     rows = _df_to_records(df)
     return MappedPreviewResponse(
         import_id=import_id,
@@ -572,25 +576,9 @@ def get_mapped_preview(
         total_row_count=session.row_count,
         preview_row_count=len(rows),
         transformation_warnings=warnings,
-        data_quality=_full_file_quality(service, workspace_id, import_id),
+        data_quality=quality.result,
+        data_quality_skipped_reason=quality.skipped_reason,
     )
-
-
-def _full_file_quality(
-    service: ImportService, workspace_id: str, import_id: str
-) -> DataQualityResult | None:
-    """Whole-file checks, or None when the mapping can't convert the file.
-
-    Generating reports the conversion error itself, so the preview stays usable.
-    """
-    try:
-        return service.get_data_quality(workspace_id, import_id)
-    except ValueError:
-        logger.info(
-            "Import %s: whole-file checks skipped; the mapped file can't be built",
-            import_id,
-        )
-        return None
 
 
 @router.get(
@@ -608,19 +596,21 @@ def download_flagged_rows(
     session = _check_session(workspace_id, import_id, service)
     try:
         content = service.get_flagged_rows_csv(workspace_id, import_id)
-    except ValueError as exc:
+    except (ValueError, duckdb.IOException) as exc:
+        # ValueError: the mapping can't convert the file, or no census year;
+        # IOException: generating has already removed the upload.
         raise HTTPException(
             status_code=409,
-            detail="Rows can't be checked until the file converts with this mapping",
+            detail="Flagged rows aren't available for this import",
         ) from exc
-    stem = Path(session.original_filename).stem
-    safe_stem = "".join(c if c.isalnum() or c in "-_" else "_" for c in stem)
+    filename = f"{Path(session.original_filename).stem}_flagged_rows.csv"
     return Response(
         content=content,
         media_type="text/csv",
+        # RFC 5987 form: upload names may hold quotes or non-ASCII text.
         headers={
             "Content-Disposition": (
-                f'attachment; filename="{safe_stem}_flagged_rows.csv"'
+                f"attachment; filename*=utf-8''{quote(filename, safe='')}"
             )
         },
     )

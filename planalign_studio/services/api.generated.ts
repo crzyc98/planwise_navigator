@@ -8558,8 +8558,13 @@ export interface components {
         MappedPreviewResponse: {
             /** Columns */
             columns: string[];
-            /** @description Whole-file checks; null when the file can't be converted with this mapping (generating will fail with the reason). */
+            /** @description Whole-file checks; null when the file can't be converted with this mapping (see data_quality_skipped_reason). */
             data_quality: components["schemas"]["DataQualityResult"] | null;
+            /**
+             * Data Quality Skipped Reason
+             * @description Why whole-file checks didn't fully run: all of them when data_quality is null (the conversion error generating would fail with), or only the plausibility rules when it isn't.
+             */
+            data_quality_skipped_reason: string | null;
             /** Import Id */
             import_id: string;
             /** Preview Row Count */

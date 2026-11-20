@@ -97,10 +97,12 @@ def client(workspaces: Path):
     app.dependency_overrides.clear()
 
 
-def _mapped_import(client: TestClient, content: str) -> str:
+def _mapped_import(
+    client: TestClient, content: str, filename: str = "census.csv"
+) -> str:
     response = client.post(
         f"/api/workspaces/{WS}/imports/upload",
-        files={"file": ("census.csv", io.BytesIO(content.encode()), "text/csv")},
+        files={"file": (filename, io.BytesIO(content.encode()), "text/csv")},
     )
     assert response.status_code == 201, response.text
     import_id = response.json()["import_id"]
@@ -112,10 +114,20 @@ def _mapped_import(client: TestClient, content: str) -> str:
     return import_id
 
 
-def _data_quality(client: TestClient, import_id: str) -> dict:
+def _preview(client: TestClient, import_id: str) -> dict:
     response = client.get(f"/api/workspaces/{WS}/imports/{import_id}/mapped-preview")
     assert response.status_code == 200, response.text
-    return response.json()["data_quality"]
+    return response.json()
+
+
+def _data_quality(client: TestClient, import_id: str) -> dict:
+    preview = _preview(client, import_id)
+    assert preview["data_quality_skipped_reason"] is None
+    return preview["data_quality"]
+
+
+def _flagged_rows(client: TestClient, import_id: str):
+    return client.get(f"/api/workspaces/{WS}/imports/{import_id}/flagged-rows")
 
 
 def _rule_counts(data_quality: dict) -> dict[str, int]:
@@ -180,40 +192,72 @@ def test_wizard_counts_match_census_analysis_after_import(
 
 def test_flagged_rows_download_has_only_row_id_and_rules(client: TestClient) -> None:
     import_id = _mapped_import(client, _census())
-    response = client.get(f"/api/workspaces/{WS}/imports/{import_id}/flagged-rows")
+    response = _flagged_rows(client, import_id)
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert "census_flagged_rows.csv" in response.headers["content-disposition"]
 
     rows = list(csv.reader(io.StringIO(response.text)))
     assert tuple(rows[0]) == FLAGGED_ROWS_HEADER
-    # Spreadsheet lines: the header is line 1, so data row n is line n + 1.
-    by_line = {int(line): (employee_id, rules) for line, employee_id, rules in rows[1:]}
-    assert set(by_line) == {121, 131, 141, 151}
-    assert by_line[121][0] == "E0120"
-    assert RULE_LABELS["employee_contribution_above_pay"] in by_line[121][1]
-    assert by_line[141] == ("E0140", RULE_LABELS["birth_on_or_after_hire"])
+    # Data-row ordinals as read: 1 is the first row after the header.
+    by_row = {int(row): (employee_id, rules) for row, employee_id, rules in rows[1:]}
+    assert set(by_row) == {120, 130, 140, 150}
+    assert by_row[120][0] == "E0120"
+    assert RULE_LABELS["employee_contribution_above_pay"] in by_row[120][1]
+    assert by_row[140] == ("E0140", RULE_LABELS["birth_on_or_after_hire"])
     assert all(len(row) == 3 for row in rows)
 
 
-def test_unconvertible_file_skips_checks_without_blocking_preview(
-    client: TestClient,
-) -> None:
+def test_flagged_rows_download_names_non_latin_files(client: TestClient) -> None:
+    import_id = _mapped_import(client, _census(), filename="census_日本.csv")
+    response = _flagged_rows(client, import_id)
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == (
+        "attachment; filename*=utf-8''census_%E6%97%A5%E6%9C%AC_flagged_rows.csv"
+    )
+
+
+def test_unconvertible_file_says_why_checks_were_skipped(client: TestClient) -> None:
     import_id = _mapped_import(
         client,
         _census(bad_rows={130: "E0130,03/15/1980,06/15/2015,unknown,0.05,$0.00,Y"}),
     )
-    assert _data_quality(client, import_id) is None
-    response = client.get(f"/api/workspaces/{WS}/imports/{import_id}/flagged-rows")
-    assert response.status_code == 409
+    preview = _preview(client, import_id)
+    assert preview["data_quality"] is None
+    reason = preview["data_quality_skipped_reason"]
+    assert reason.startswith("Whole-file checks didn't run:")
+    assert "'Salary'" in reason and "1 value(s)" in reason
+    assert _flagged_rows(client, import_id).status_code == 409
+
+
+def test_blank_hire_dates_skip_only_the_rules(client: TestClient) -> None:
+    # No hire date to set the census year; E0001 appears twice.
+    ids = [f"E{n:04d}" for n in range(1, 151)] + ["E0001"]
+    content = "\n".join(
+        [HEADER] + [f'{i},03/15/1980,,"$60,000.00",0.05,"$3,000.00",Y' for i in ids]
+    )
+    preview = _preview(client, _mapped_import(client, content))
+    dq = preview["data_quality"]
+    assert dq["plausibility"] == []
+    assert dq["duplicate_employee_id_count"] == 1
+    assert dq["null_required_field_counts"] == {"employee_hire_date": 151}
+    assert preview["data_quality_skipped_reason"].startswith(
+        "Cross-field checks didn't run"
+    )
+
+
+def test_flagged_rows_after_generate_is_a_conflict(client: TestClient) -> None:
+    import_id = _mapped_import(client, _census())
+    generated = client.post(f"/api/workspaces/{WS}/imports/{import_id}/generate")
+    assert generated.status_code == 202
+    assert _flagged_rows(client, import_id).status_code == 409
 
 
 def test_formula_like_employee_ids_are_neutralised(client: TestClient) -> None:
     bad = {101: '=1+1,03/15/2016,06/15/2015,"$60,000.00",0.05,"$3,000.00",Y'}
     import_id = _mapped_import(client, _census(bad_rows=bad))
-    response = client.get(f"/api/workspaces/{WS}/imports/{import_id}/flagged-rows")
-    rows = list(csv.reader(io.StringIO(response.text)))
-    assert rows[1][:2] == ["102", "'=1+1"]
+    rows = list(csv.reader(io.StringIO(_flagged_rows(client, import_id).text)))
+    assert rows[1][:2] == ["101", "'=1+1"]
 
 
 def test_every_rule_has_a_download_label() -> None:

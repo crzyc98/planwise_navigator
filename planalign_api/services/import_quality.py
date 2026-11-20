@@ -13,12 +13,18 @@ import csv
 import io
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Optional
 
 import duckdb
 import pandas as pd
 
 from ..models.imports import DataQualityResult, PlausibilityRuleCount
-from .census_analysis_service import CensusAnalysisService, count_duplicate_id_rows
+from .census_analysis_service import (
+    CensusAnalysisService,
+    PlausibilityScope,
+    count_duplicate_id_rows,
+)
 from .census_plausibility import count_violations, flagged_rows
 from .census_schema import get_required_fields
 
@@ -52,7 +58,12 @@ RULE_LABELS: dict[str, str] = {
     "compensation_outlier": "Compensation far above the rest of the file",
 }
 
-FLAGGED_ROWS_HEADER = ("file_line", "employee_id", "rules_broken")
+FLAGGED_ROWS_HEADER = ("row_number", "employee_id", "rules_broken")
+
+RULES_SKIPPED = (
+    "Cross-field checks didn't run: no hire or termination date could be read "
+    "to set the census year."
+)
 
 # Leading characters spreadsheet apps read as a formula.
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
@@ -73,45 +84,68 @@ def _census_table(df: pd.DataFrame) -> Iterator[duckdb.DuckDBPyConnection]:
         conn.close()
 
 
+@dataclass(frozen=True)
+class FullFileQuality:
+    """Whole-file checks, and why some or all of them didn't run."""
+
+    result: Optional[DataQualityResult]
+    """None when the file couldn't be checked at all."""
+    skipped_reason: Optional[str] = None
+
+
 def scan_data_quality(
     df: pd.DataFrame, analysis: CensusAnalysisService
-) -> DataQualityResult:
+) -> FullFileQuality:
     """Duplicate IDs, missing required values and rule counts for the whole file.
 
-    Raises ValueError when no hire or termination date can set the census year.
+    The rules need a census year; when none can be inferred they are skipped
+    and the other counts still returned.
     """
     with _census_table(df) as conn:
-        scope = analysis.plausibility_scope(conn)
-        id_col = scope.columns.get("employee_id")
-        rules = [
-            PlausibilityRuleCount(
-                rule_id=result.rule.rule_id,
-                field=result.rule.field,
-                severity=result.rule.severity,
-                count=result.count,
-                message=result.rule.format_message(result.count),
-            )
-            for result in count_violations(
-                conn, "census", scope.columns, scope.census_year, scope.limits
-            )
-            if result.count
-        ]
+        columns = analysis.plausibility_columns(conn)
+        id_col = columns.get("employee_id")
         duplicates = count_duplicate_id_rows(conn, id_col) if id_col else 0
-    return DataQualityResult(
+        scope: Optional[PlausibilityScope]
+        try:
+            scope = analysis.plausibility_scope(conn, columns)
+        except ValueError:
+            scope = None  # Reported through ``skipped_reason`` below.
+        rules = _rule_counts(conn, scope) if scope else []
+    result = DataQualityResult(
         duplicate_employee_id_count=duplicates,
         null_required_field_counts=_null_required_counts(df),
         plausibility=rules,
     )
+    return FullFileQuality(result, None if scope else RULES_SKIPPED)
+
+
+def _rule_counts(
+    conn: duckdb.DuckDBPyConnection, scope: PlausibilityScope
+) -> list[PlausibilityRuleCount]:
+    return [
+        PlausibilityRuleCount(
+            rule_id=result.rule.rule_id,
+            field=result.rule.field,
+            severity=result.rule.severity,
+            count=result.count,
+            message=result.rule.format_message(result.count),
+        )
+        for result in count_violations(
+            conn, "census", scope.columns, scope.census_year, scope.limits
+        )
+        if result.count
+    ]
 
 
 def flagged_rows_csv(df: pd.DataFrame, analysis: CensusAnalysisService) -> str:
-    """CSV of rows breaking any rule: file line, employee ID and rule names.
+    """CSV of rows breaking any rule: row number, employee ID and rule names.
 
-    ``file_line`` is the row's line in the uploaded spreadsheet, with the
-    header on line 1. Raises ValueError like ``scan_data_quality``.
+    ``row_number`` counts data rows as read from the upload, 1 for the first,
+    so rows a mapping drops keep their place. Raises ValueError when no
+    census year can be inferred.
     """
     with _census_table(df) as conn:
-        scope = analysis.plausibility_scope(conn)
+        scope = analysis.plausibility_scope(conn, analysis.plausibility_columns(conn))
         rows = flagged_rows(
             conn, "census", scope.columns, scope.census_year, scope.limits
         )
@@ -121,7 +155,7 @@ def flagged_rows_csv(df: pd.DataFrame, analysis: CensusAnalysisService) -> str:
     for row in rows:
         writer.writerow(
             (
-                _file_line(df, row.row_number),
+                _source_row_number(df, row.row_number),
                 _safe_cell(row.employee_id or ""),
                 "; ".join(RULE_LABELS.get(rule, rule) for rule in row.rule_ids),
             )
@@ -138,12 +172,9 @@ def _null_required_counts(df: pd.DataFrame) -> dict[str, int]:
     return counts
 
 
-def _file_line(df: pd.DataFrame, table_row: int) -> int:
-    """Map a ``census`` row to its uploaded-file line, past any dropped rows.
-
-    The header is line 1, so data row ``i`` (0-based) is line ``i + 2``.
-    """
-    return int(df.index[table_row - 1]) + 2
+def _source_row_number(df: pd.DataFrame, table_row: int) -> int:
+    """Map a ``census`` row to its 1-based data row in the upload."""
+    return int(df.index[table_row - 1]) + 1
 
 
 def _safe_cell(value: str) -> str:

@@ -191,14 +191,15 @@ class CensusAnalysisService:
             self._load_file(conn, safe_path, resolved.suffix.lower())
             columns = self._census_columns(conn)
 
-            id_col = "employee_id" if "employee_id" in columns else None
-            birth_col = self._optional_column(columns, CENSUS_BIRTH_DATE_COLUMNS)
-            hire_col = self._optional_column(columns, CENSUS_HIRE_DATE_COLUMNS)
-            term_col = self._optional_column(columns, CENSUS_TERMINATION_DATE_COLUMNS)
-            comp_col = self._optional_column(columns, CENSUS_COMPENSATION_COLUMNS)
-            deferral_col = self._optional_column(columns, CENSUS_DEFERRAL_COLUMNS)
-            match_col = self._optional_column(columns, CENSUS_EMPLOYER_MATCH_COLUMNS)
-            core_col = self._optional_column(columns, CENSUS_EMPLOYER_CORE_COLUMNS)
+            rule_columns = self._rule_columns(columns)
+            id_col = rule_columns.get("employee_id")
+            birth_col = rule_columns.get("employee_birth_date")
+            hire_col = rule_columns.get("employee_hire_date")
+            term_col = rule_columns.get("employee_termination_date")
+            comp_col = rule_columns.get("employee_gross_compensation")
+            deferral_col = rule_columns.get("employee_deferral_rate")
+            match_col = rule_columns.get("employer_match_contribution")
+            core_col = rule_columns.get("employer_core_contribution")
             eligibility_col = self._optional_column(
                 columns, CENSUS_ELIGIBILITY_DATE_COLUMNS
             )
@@ -289,7 +290,7 @@ class CensusAnalysisService:
             )
             data_quality_issues.extend(
                 self._plausibility_issues(
-                    conn, self.plausibility_scope(conn, as_of_date)
+                    conn, self.plausibility_scope(conn, rule_columns, resolved_as_of)
                 )
             )
 
@@ -753,15 +754,11 @@ class CensusAnalysisService:
             return as_of.date.year
         return census_year_from_hires(conn, "census", hire_col) or as_of.date.year
 
-    def plausibility_scope(
-        self, conn: duckdb.DuckDBPyConnection, as_of_date: Optional[date] = None
-    ) -> PlausibilityScope:
-        """Resolve rule columns and the census year for ``census`` as ``analyze`` does.
+    def _rule_columns(self, columns: set[str]) -> dict[str, str]:
+        """Canonical census field -> ``census`` column, for the fields found.
 
-        The import wizard calls this too, so its counts match this page.
-        Raises ValueError when no hire or termination date can set the year.
+        The one place ``analyze`` and the import wizard resolve these fields.
         """
-        columns = self._census_columns(conn)
         candidates = {
             "employee_id": "employee_id" if "employee_id" in columns else None,
             "employee_birth_date": self._optional_column(
@@ -787,14 +784,32 @@ class CensusAnalysisService:
             ),
             **self._schema_columns(columns, _PLAUSIBILITY_ONLY_FIELDS),
         }
-        mapped = {name: col for name, col in candidates.items() if col is not None}
-        hire_col = mapped.get("employee_hire_date")
-        as_of = resolve_as_of_date(
-            conn, hire_col, mapped.get("employee_termination_date"), as_of_date
-        )
+        return {name: col for name, col in candidates.items() if col is not None}
+
+    def plausibility_columns(self, conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
+        """Rule columns of a loaded ``census`` table, resolved as ``analyze`` does."""
+        return self._rule_columns(self._census_columns(conn))
+
+    def plausibility_scope(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        columns: dict[str, str],
+        as_of: Optional[ResolvedAsOf] = None,
+    ) -> PlausibilityScope:
+        """The census year and limits the rules run with, as ``analyze`` sets them.
+
+        ``as_of`` defaults to the date ``analyze`` infers when none is given,
+        so the import wizard's counts match Census Analysis. Raises
+        ValueError when no hire or termination date can set the year.
+        """
+        hire_col = columns.get("employee_hire_date")
+        if as_of is None:
+            as_of = resolve_as_of_date(
+                conn, hire_col, columns.get("employee_termination_date")
+            )
         year = self._plausibility_year(conn, hire_col, as_of)
         return PlausibilityScope(
-            mapped, year, deferral_limits_for_year(year, IRS_LIMITS_SEED)
+            columns, year, deferral_limits_for_year(year, IRS_LIMITS_SEED)
         )
 
     def _plausibility_issues(

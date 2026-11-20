@@ -12031,7 +12031,19 @@
                 "type": "null"
               }
             ],
-            "description": "Whole-file checks; null when the file can't be converted with this mapping (generating will fail with the reason)."
+            "description": "Whole-file checks; null when the file can't be converted with this mapping (see data_quality_skipped_reason)."
+          },
+          "data_quality_skipped_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why whole-file checks didn't fully run: all of them when data_quality is null (the conversion error generating would fail with), or only the plausibility rules when it isn't.",
+            "title": "Data Quality Skipped Reason"
           },
           "import_id": {
             "title": "Import Id",
@@ -12068,7 +12080,8 @@
           "total_row_count",
           "preview_row_count",
           "transformation_warnings",
-          "data_quality"
+          "data_quality",
+          "data_quality_skipped_reason"
         ],
         "title": "MappedPreviewResponse",
         "type": "object"

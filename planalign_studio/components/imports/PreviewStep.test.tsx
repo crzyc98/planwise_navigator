@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { DataQualityNotice } from './PreviewStep';
+import { ChecksSkippedNotice, DataQualityNotice } from './PreviewStep';
 import { DataQualityResult } from '../../services/importService';
 
 vi.mock('../../services/importService', () => ({}));
@@ -47,5 +47,13 @@ describe('Import data-quality notice', () => {
     const html = render({ ...clean, duplicate_employee_id_count: 1 });
     expect(html).toContain('1 duplicate employee ID row(s)');
     expect(html).not.toContain('Download flagged rows');
+  });
+
+  it('shows why whole-file checks were skipped as a warning', () => {
+    const html = renderToStaticMarkup(
+      <ChecksSkippedNotice reason="Whole-file checks didn't run: Column 'Salary' contains 1 value(s) that cannot be parsed as a number." />,
+    );
+    expect(html).toContain('bg-warning-surface');
+    expect(html).toContain('Whole-file checks didn&#x27;t run');
   });
 });

@@ -17,6 +17,16 @@ interface Props {
   onGenerated: (file: ParquetFile) => void;
 }
 
+/** Says why whole-file checks didn't run, so a gap doesn't read as a clean file. */
+export function ChecksSkippedNotice({ reason }: { reason: string }) {
+  return (
+    <div className="flex items-start gap-2 text-warning-ink text-sm bg-warning-surface border border-warning-border rounded-lg p-3">
+      <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+      <div>{reason}</div>
+    </div>
+  );
+}
+
 interface DataQualityNoticeProps {
   workspaceId: string;
   importId: string;
@@ -150,6 +160,9 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
         <div className="text-sm text-danger-ink bg-danger-surface border border-danger-border rounded-lg p-3">{previewError}</div>
       ) : preview && (
         <>
+          {preview.data_quality_skipped_reason && (
+            <ChecksSkippedNotice reason={preview.data_quality_skipped_reason} />
+          )}
           {preview.data_quality && (
             <DataQualityNotice
               workspaceId={workspaceId}

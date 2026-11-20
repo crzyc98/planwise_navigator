@@ -232,7 +232,15 @@ class MappedPreviewResponse(APIModel):
         default=None,
         description=(
             "Whole-file checks; null when the file can't be converted with "
-            "this mapping (generating will fail with the reason)."
+            "this mapping (see data_quality_skipped_reason)."
+        ),
+    )
+    data_quality_skipped_reason: Optional[str] = Field(
+        default=None,
+        description=(
+            "Why whole-file checks didn't fully run: all of them when "
+            "data_quality is null (the conversion error generating would "
+            "fail with), or only the plausibility rules when it isn't."
         ),
     )
 
