@@ -42,7 +42,7 @@ def merge_durations(artifacts: Path, shard_count: int) -> dict[str, float]:
         if not durations or not isinstance(durations, dict):
             raise ValueError(f"Empty or invalid shard timings: {path}")
         if duplicate := merged.keys() & durations.keys():
-            raise ValueError(f"Duplicate tests across shards: {sorted(duplicate)}")
+            raise ValueError(f"Files run in more than one shard: {sorted(duplicate)}")
         for nodeid, duration in durations.items():
             if (
                 not isinstance(duration, (int, float))
@@ -62,7 +62,7 @@ def main() -> None:
     args = parser.parse_args()
     before = read_run(args.run)
     durations = merge_durations(args.artifacts, len(before["test_step_seconds"]))
-    provenance = {"source": before, "test_count": len(durations)}
+    provenance = {"source": before, "file_count": len(durations)}
     if args.compare_run:
         after = read_run(args.compare_run)
         provenance["comparison"] = after

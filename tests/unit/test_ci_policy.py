@@ -100,9 +100,9 @@ def test_integration_shards_match_the_split_count() -> None:
     shards = job["strategy"]["matrix"]["shard"]
     assert shards == list(range(1, len(shards) + 1))
     command = next(
-        step["run"] for step in job["steps"] if "--splits" in step.get("run", "")
+        step["run"] for step in job["steps"] if "--file-shard" in step.get("run", "")
     )
-    assert f"--splits {len(shards)} --group" in command
+    assert f"--file-shard ${{{{ matrix.shard }}}}/{len(shards)} " in command
     assert job["timeout-minutes"] <= 90
 
 

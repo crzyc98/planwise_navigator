@@ -26,7 +26,7 @@ def test_merge_requires_disjoint_complete_shard_observations(tmp_path: Path) -> 
     assert refresh.merge_durations(tmp_path, 4) == {f"test_{i}": i for i in range(1, 5)}
     path = tmp_path / "test-durations-4/.test_durations"
     path.write_text('{"test_1": 4}')
-    with pytest.raises(ValueError, match="Duplicate"):
+    with pytest.raises(ValueError, match="more than one shard"):
         refresh.merge_durations(tmp_path, 4)
     path.unlink()
     with pytest.raises(FileNotFoundError):

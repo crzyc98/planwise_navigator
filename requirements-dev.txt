@@ -1,14 +1,11 @@
 # Testing
 # pytest 9.1.1 (was 7.4.0) fixes PYSEC-2026-1845; plugin versions bumped
 # alongside it for compatibility (#705). Verified: full fast suite (2,776
-# tests) plus --splits/--group/--cov flags used by CI all pass unchanged.
+# tests) plus the --cov flags used by CI all pass unchanged.
 pytest==9.2.0
 pytest-cov==7.1.0
 pytest-mock==3.17.0
 pytest-xdist==3.8.0
-# Partitions the suite across CI runners (--splits/--group); see the sharded
-# `test` job in .github/workflows/ci.yml.
-pytest-split==0.11.0
 hypothesis>=6.0.0
 factory-boy==3.3.3
 Faker==40.54.0

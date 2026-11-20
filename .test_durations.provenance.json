@@ -1,17 +1,8 @@
 {
+  "estimate": "Seconds per test file, estimated from the logs of the source run. That run split by single test, so a file spread over several shards rebuilt its shared fixtures in each; such a file is weighed by its busiest shard. Replace with measured values from the first file-sharded run.",
+  "file_count": 387,
   "source": {
-    "head_sha": "44fe9d33d4b5415782c4ad0a7a475ecf3db3cc75",
-    "test_step_seconds": {
-      "test (1)": 2237.0,
-      "test (2)": 1735.0,
-      "test (3)": 2239.0,
-      "test (4)": 3117.0,
-      "test (5)": 2090.0,
-      "test (6)": 2772.0,
-      "test (7)": 1778.0,
-      "test (8)": 2593.0
-    },
-    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/44645859007"
-  },
-  "test_count": 6007
+    "head_sha": "583df42b",
+    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/44653147239"
+  }
 }

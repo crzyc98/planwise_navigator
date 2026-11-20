@@ -90,16 +90,27 @@ It does not preinstall a separate engine version.
 
 ## Refresh timings using GitHub-hosted runners
 
-The suite runs on eight shards. Four had grown to 60-70 minutes each by
-2026-11-19. To change the count, edit the `shard` list and `--splits` in
-`ci.yml` together; `tests/unit/test_ci_policy.py` checks they agree.
+The suite runs on eight shards, split by test file (`tests/file_shards.py`). To
+change the count, edit the `shard` list and `--file-shard` in `ci.yml` together;
+`tests/unit/test_ci_policy.py` checks they agree.
 
-Each successful test shard uploads `test-durations-N/.test_durations`.
-`--store-durations --clean-durations` first reads the committed durations to
-assign tests, then writes only that shard's observations. Without cleaning,
-inherited observations would create duplicate tests and preserve stale entries.
-The merge script rejects missing/failed shards, empty artifacts, duplicate test
-IDs, and invalid timings. It records the source SHA, run URL, test count, and
+Whole files are assigned because the heavy files each share one simulation
+fixture that takes about ten minutes to build. Until 2026-11-20 `pytest-split`
+assigned single tests, which spread `test_backtest_harness.py` over six shards
+and `test_employer_eligibility_tenure.py` over five, and each shard rebuilt the
+fixture. In run 44653147239 the shards spent 294 minutes on work estimated at
+about 137 when each file runs once. `pytest-split` also dropped any setup
+longer than ten minutes from its timings, so rebalancing could not see the cost.
+
+`.test_durations` holds seconds per test file, fixtures included. Each shard
+reads the committed file to pick its files, then overwrites it with its own
+measurements and uploads it as `test-durations-N/.test_durations`. The merge
+script rejects missing or failed shards, empty artifacts, a file measured in
+more than one shard, and invalid timings.
+
+If one shard stays slow after a refresh, a single file is the floor. Split that
+file, or move its simulation to a `multi_year_invariants` suite so it gets its
+own runner. It records the source SHA, run URL, test count, and
 actual test-step elapsed seconds separately from pytest's per-test durations.
 
 After committing this workflow on an authorized branch:
@@ -135,8 +146,9 @@ Do not use timings from failed, interrupted, or partial shards as a baseline.
 Run [44645859007](https://github.com/crzyc98/planwise_navigator/actions/runs/44645859007)
 (PR #1259) was the first on eight shards, still assigned by the four-shard
 timings. Test steps took 29 to 52 minutes (shard 4 was the critical path), down
-from 60-70 on four shards. `.test_durations` was refreshed from this run: 6,007
-tests summing to 243 minutes, against 309 minutes of shard time.
+from 60-70 on four shards. Rebalancing on that run's timings (run 44653147239)
+left seven shards at 32-38 minutes and one at 50, which led to the switch to
+file shards described above.
 
 ## Issue #874 measurement status
 

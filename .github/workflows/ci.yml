@@ -300,29 +300,26 @@ jobs:
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-shard-${{ matrix.shard }}.duckdb
         run: |
           # The simulation suites are excluded here: they run in the
-          # simulation-suites job, one runner per file. Lighter integration tests that drive
-          # a real dbt run stay here and rely on the dbt deps installed above.
+          # simulation-suites job, one runner per file. Lighter integration
+          # tests that drive a real dbt run stay here and rely on the dbt deps
+          # installed above.
           #
-          # --splits/--group partitions the suite deterministically, so every
-          # test runs exactly once across the shards.
+          # --file-shard (tests/file_shards.py) assigns whole test files, so
+          # every file runs in exactly one shard and a simulation fixture its
+          # tests share is built once. Splitting by single test spread such
+          # files over five or six shards, and each rebuilt the fixture.
           #
-          # least_duration balances by the measured times in .test_durations,
-          # not by test count. Count-based splitting does NOT work here: the
-          # suite is extremely top-heavy (the two slowest tests are 29% of total
-          # runtime), so an even split by count still put ~40 minutes of work in
-          # one shard while the others finished in under 5.
-          #
-          # Read the committed timings for assignment, then replace them with
-          # this shard's observations only. Never merge inherited stale entries.
-          # Download every timing artifact to refresh (see CI guide).
+          # Files are weighed by the seconds in .test_durations, fixtures
+          # included. The run reads the committed weights, then overwrites the
+          # file with this shard's own measurements for the next refresh
+          # (see docs/guides/ci_measurements.md).
           #
           # No --cov-fail-under here: a single shard only ever sees part of
           # the suite and would fail the gate spuriously. The threshold is
           # enforced once, on the combined data, in the `coverage` job.
           pytest tests/ -v -m "not multi_year_invariants and not edge_config_matrix" \
-            --splits 8 --group ${{ matrix.shard }} \
-            --splitting-algorithm least_duration \
-            --store-durations --clean-durations \
+            --file-shard ${{ matrix.shard }}/8 \
+            --store-file-durations .test_durations \
             --cov --cov-config=pyproject.toml \
             --cov-report=
 

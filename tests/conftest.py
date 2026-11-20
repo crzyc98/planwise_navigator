@@ -38,6 +38,8 @@ from tests.fixtures import (  # noqa: F401
     enrollment_history_rows,
 )
 
+pytest_plugins = ["tests.file_shards", "pytester"]
+
 SHARED_DEV_DB = Path(__file__).resolve().parents[1] / "dbt" / "simulation.duckdb"
 FileSignature = tuple[int, str] | None
 
