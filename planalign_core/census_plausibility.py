@@ -355,8 +355,9 @@ def deferral_limits_for_year(
         )
     except FileNotFoundError:
         return None
-    except (KeyError, ValueError, OSError) as exc:
-        # min() over an empty seed raises ValueError too.
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        # min() over an empty seed raises ValueError too; a short row reads
+        # missing fields as None, so int()/float() raise TypeError.
         logger.warning("IRS limits seed unreadable; skipping 402(g) rules: %s", exc)
         return None
 

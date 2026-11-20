@@ -425,8 +425,13 @@ def test_deferral_limits_missing_seed(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "content",
-    ["", "limit_year,base_limit\n2025,23500\n", "limit_year\nnot-a-year\n"],
-    ids=["empty", "missing-columns", "bad-year"],
+    [
+        "",
+        "limit_year,base_limit\n2025,23500\n",
+        "limit_year\nnot-a-year\n",
+        "limit_year,base_limit,catch_up_limit,super_catch_up_limit\n2025,23500\n",
+    ],
+    ids=["empty", "missing-columns", "bad-year", "short-row"],
 )
 def test_deferral_limits_unreadable_seed(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, content: str

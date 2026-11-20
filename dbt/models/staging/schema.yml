@@ -52,13 +52,6 @@ models:
         data_type: date
         constraints:
           - type: not_null
-        data_tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "< employee_hire_date"
-              config:
-                severity: warn
-              name: "census_birth_before_hire"
       - name: employee_hire_date
         description: "Employee hire date for tenure calculations and baseline establishment."
         data_type: date
@@ -67,13 +60,6 @@ models:
       - name: employee_termination_date
         description: "Termination date if applicable. NULL for active employees."
         data_type: date
-        data_tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: ">= employee_hire_date"
-              config:
-                severity: warn
-              name: "census_termination_not_before_hire"
       - name: employee_gross_compensation
         description: "Gross annual compensation used for level assignment and simulation baseline."
         data_type: double
@@ -111,120 +97,27 @@ models:
       - name: employee_capped_compensation
         description: "Capped compensation for benefit calculations."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_capped_comp_not_above_gross"
       - name: employee_deferral_rate
         description: "Employee deferral rate for benefit modeling."
         data_type: decimal(7,5)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-                max_value: 1
-              config:
-                severity: warn
-              name: "census_deferral_rate_within_0_1"
       - name: employee_contribution
         description: "Employee contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_employee_contribution_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_employee_contribution_not_above_gross"
       - name: pre_tax_contribution
         description: "Employee pre-tax contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_pre_tax_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_pre_tax_not_above_gross"
       - name: roth_contribution
         description: "Employee Roth contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_roth_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_roth_not_above_gross"
       - name: after_tax_contribution
         description: "Employee after-tax contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_after_tax_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_after_tax_not_above_gross"
       - name: employer_core_contribution
         description: "Employer core contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_employer_core_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_employer_core_not_above_gross"
       - name: employer_match_contribution
         description: "Employer match contribution amount."
         data_type: decimal(12,2)
-        data_tests:
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 0
-              config:
-                severity: warn
-              name: "census_employer_match_non_negative"
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "<= employee_gross_compensation + 1"
-              config:
-                severity: warn
-              name: "census_employer_match_not_above_gross"
       - name: eligibility_entry_date
         description: "Optional override for plan eligibility entry date. NULL when not provided."
         data_type: date
