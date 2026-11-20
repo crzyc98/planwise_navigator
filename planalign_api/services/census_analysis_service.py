@@ -25,7 +25,8 @@ from ..models.census_analysis import (
 )
 from .band_service import BandService
 from .census_as_of import resolve_as_of_date
-from .census_schema import active_filter_sql
+from .census_plausibility import count_violations, deferral_limits_for_year
+from .census_schema import active_filter_sql, get_field
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
     CENSUS_COMPENSATION_COLUMNS,
@@ -36,6 +37,7 @@ from .sql_security import (
     CENSUS_HIRE_DATE_COLUMNS,
     CENSUS_JOB_LEVEL_COLUMNS,
     CENSUS_TERMINATION_DATE_COLUMNS,
+    VALID_IDENTIFIER_PATTERN,
     SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,
@@ -48,6 +50,15 @@ IRS_LIMITS_SEED = (
 )
 
 _DEPARTMENT_COLUMNS = frozenset({"department"})
+
+# Census fields only the plausibility rules read, matched by schema name or alias.
+_PLAUSIBILITY_ONLY_FIELDS = (
+    "employee_contribution",
+    "pre_tax_contribution",
+    "roth_contribution",
+    "after_tax_contribution",
+    "employee_capped_compensation",
+)
 
 # Mirrors AnalyticsService._get_deferral_distribution's bucket scheme so the
 # census-side histogram reads the same way as the post-simulation DC Plan one.
@@ -252,7 +263,23 @@ class CensusAnalysisService:
                 birth_col=birth_col,
                 hire_col=hire_col,
                 comp_col=comp_col,
-                deferral_col=deferral_col,
+            )
+            data_quality_issues.extend(
+                self._plausibility_issues(
+                    conn,
+                    {
+                        "employee_id": id_col,
+                        "employee_birth_date": birth_col,
+                        "employee_hire_date": hire_col,
+                        "employee_termination_date": term_col,
+                        "employee_gross_compensation": comp_col,
+                        "employee_deferral_rate": deferral_col,
+                        "employer_match_contribution": match_col,
+                        "employer_core_contribution": core_col,
+                        **self._schema_columns(columns, _PLAUSIBILITY_ONLY_FIELDS),
+                    },
+                    resolved_as_of.date.year,
+                )
             )
 
             deferral_distribution = (
@@ -599,7 +626,6 @@ class CensusAnalysisService:
         birth_col: Optional[str],
         hire_col: Optional[str],
         comp_col: Optional[str],
-        deferral_col: Optional[str],
     ) -> list[CensusDataQualityIssue]:
         issues: list[CensusDataQualityIssue] = []
 
@@ -687,46 +713,49 @@ class CensusAnalysisService:
                     )
                 )
 
-        if comp_col:
-            out_of_range = self._scalar(
-                conn,
-                f"SELECT COUNT(*) FROM census WHERE TRY_CAST({comp_col} AS DOUBLE) IS NOT NULL AND TRY_CAST({comp_col} AS DOUBLE) <= 0",
-            )
-            if out_of_range:
-                issues.append(
-                    CensusDataQualityIssue(
-                        issue_type="out_of_range_value",
-                        field="employee_gross_compensation",
-                        severity="warning",
-                        count=out_of_range,
-                        message=f"{out_of_range} row(s) have compensation <= 0.",
-                    )
-                )
-
-        if deferral_col:
-            out_of_range = self._scalar(
-                conn,
-                f"""
-                SELECT COUNT(*) FROM census
-                WHERE TRY_CAST({deferral_col} AS DOUBLE) IS NOT NULL
-                  AND (TRY_CAST({deferral_col} AS DOUBLE) < 0 OR TRY_CAST({deferral_col} AS DOUBLE) > 1)
-                """,
-            )
-            if out_of_range:
-                issues.append(
-                    CensusDataQualityIssue(
-                        issue_type="out_of_range_value",
-                        field="employee_deferral_rate",
-                        severity="warning",
-                        count=out_of_range,
-                        message=(
-                            f"{out_of_range} row(s) have a deferral rate outside 0-1 "
-                            "(expected a decimal fraction, e.g. 0.06 for 6%)."
-                        ),
-                    )
-                )
-
         return issues
+
+    def _schema_columns(
+        self, existing: set[str], fields: tuple[str, ...]
+    ) -> dict[str, str]:
+        """Resolve census fields by schema name first, then by alias."""
+        resolved: dict[str, str] = {}
+        for name in fields:
+            definition = get_field(name)
+            assert definition is not None, name
+            # Aliases such as "415_limit" aren't plain SQL identifiers.
+            allowed = tuple(
+                col
+                for col in (name, *definition.aliases)
+                if VALID_IDENTIFIER_PATTERN.match(col)
+            )
+            column = next((col for col in allowed if col in existing), None)
+            if column is not None:
+                resolved[name] = validate_column_name_from_set(
+                    column, set(allowed), "census column"
+                )
+        return resolved
+
+    def _plausibility_issues(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        columns: dict[str, Optional[str]],
+        census_year: int,
+    ) -> list[CensusDataQualityIssue]:
+        """Cross-field checks shared with the import wizard and the engine."""
+        mapped = {name: col for name, col in columns.items() if col is not None}
+        limits = deferral_limits_for_year(census_year, IRS_LIMITS_SEED)
+        return [
+            CensusDataQualityIssue(
+                issue_type=result.rule.issue_type,
+                field=result.rule.field,
+                severity=result.rule.severity,
+                count=result.count,
+                message=result.rule.format_message(result.count),
+            )
+            for result in count_violations(conn, "census", mapped, census_year, limits)
+            if result.count
+        ]
 
     def _scalar(self, conn: duckdb.DuckDBPyConnection, sql: str):
         row = conn.execute(sql).fetchone()

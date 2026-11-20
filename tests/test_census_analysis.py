@@ -452,6 +452,59 @@ class TestDataQuality:
         assert len(out_of_range) == 1
         assert out_of_range[0].count == 1
 
+    def test_cross_field_plausibility_flags_surface(self, service, workspace_dir):
+        # total_ee_contribution is a schema alias of employee_contribution.
+        rows = [
+            _employee(total_ee_contribution=4800),
+            _employee(match=90000, total_ee_contribution=4800),
+            _employee(hire_date="1980-01-01", total_ee_contribution=99000),
+        ]
+        result = _analyze(service, workspace_dir, rows)
+
+        flags = {
+            (i.issue_type, i.field, i.severity, i.count, i.message)
+            for i in result.data_quality_issues
+        }
+        assert flags == {
+            (
+                "impossible_value",
+                "employer_match_contribution",
+                "error",
+                1,
+                "1 row(s) have an employer match above gross compensation.",
+            ),
+            (
+                "impossible_value",
+                "employee_contribution",
+                "error",
+                1,
+                "1 row(s) have an employee contribution above gross compensation.",
+            ),
+            (
+                "impossible_value",
+                "employee_birth_date",
+                "error",
+                1,
+                "1 row(s) have a birth date on or after the hire date.",
+            ),
+            (
+                "implausible_value",
+                "employee_deferral_rate",
+                "warning",
+                1,
+                "1 row(s) have employee contributions that differ from the "
+                "stated deferral rate by more than 10 percentage points of pay.",
+            ),
+            (
+                "implausible_value",
+                "employee_contribution",
+                "warning",
+                1,
+                "1 row(s) have pre-tax and Roth contributions above the IRS "
+                "402(g) limit plus catch-up for the census year.",
+            ),
+        }
+
     def test_clean_census_has_no_issues(self, service, workspace_dir):
         rows = [_employee(), _employee()]
         result = _analyze(service, workspace_dir, rows)
