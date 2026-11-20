@@ -150,6 +150,13 @@ from 60-70 on four shards. Rebalancing on that run's timings (run 44653147239)
 left seven shards at 32-38 minutes and one at 50, which led to the switch to
 file shards described above.
 
+Run [44744381092](https://github.com/crzyc98/planwise_navigator/actions/runs/44744381092)
+was the first split by file, on weights estimated from logs. Test steps took 11
+to 29 minutes and the whole pipeline 30, against 70-85 before. The shards spent
+153 minutes in total, down from 294. `.test_durations` now holds that run's
+measured values (388 files); they predict seven shards near 19 minutes and one
+at 23, which is `test_integrated_core_contributions.py` on its own.
+
 ## Issue #874 measurement status
 
 The BEFORE baseline is nightly main run
