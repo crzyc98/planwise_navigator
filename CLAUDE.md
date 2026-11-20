@@ -54,9 +54,10 @@ Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible
 ## Testing & CI
 
 - Markers: `fast`, `integration`, `multi_year_invariants`, `edge_config_matrix`, plus area markers (`orchestrator`, `events`, `config`, `dbt`, ...). They're registered in `pyproject.toml` with `--strict-markers`.
+- CI gives each `multi_year_invariants` or `edge_config_matrix` test file its own runner with a 20-minute limit. Put a new simulation suite in its own file, and split a file that gets slow.
 - Integration tests run against an isolated `DATABASE_PATH`.
 - The fast suite warns above 540s on CI but never fails on time, because runner speed swings it widely. Coverage is a 75% gate that only ratchets up. Local Mac timings are unreliable, so measure timing on CI.
-- **Don't add the `full-ci` label by default.** PRs run lint, Studio, fast tests, the dependency audit and model validation. Simulations, integration shards and coverage run on every push to `main` and nightly, and a failed nightly run opens an issue. Add `full-ci` at creation only for a risky engine change. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
+- **Don't add the `full-ci` label by default.** PRs run lint, Studio, fast tests, the dependency audit and model validation. Simulations, integration shards and coverage run on every push to `main` and nightly, and a failed run on `main` opens an issue. Add `full-ci` at creation only for a risky engine change. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
 
 ## Review
 

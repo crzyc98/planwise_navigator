@@ -30,8 +30,8 @@ def results() -> dict[str, dict]:
 def test_skips_allowed_only_when_not_required() -> None:
     jobs = results()
     assert not policy.gate_errors(jobs, simulation=False, full=False)
-    assert len(policy.gate_errors(jobs, simulation=True, full=False)) == 2
-    assert len(policy.gate_errors(jobs, simulation=True, full=True)) == 4
+    assert len(policy.gate_errors(jobs, simulation=True, full=False)) == 1
+    assert len(policy.gate_errors(jobs, simulation=True, full=True)) == 3
     for job in jobs.values():
         job["result"] = "success"
     assert not policy.gate_errors(jobs, simulation=True, full=True)
@@ -65,24 +65,54 @@ def test_full_run_needs_no_diff(
     monkeypatch.setenv("GITHUB_EVENT_NAME", event_name)
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     policy.select()
-    assert output.read_text() == "full=true\nsimulation=true\n"
+    assert output.read_text().startswith("full=true\nsimulation=true\nsuites=[")
 
 
 def test_workflow_gate_observes_every_job() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     jobs = workflow["jobs"]
-    assert set(jobs["ci-gate"]["needs"]) == set(jobs) - {"ci-gate", "nightly-alert"}
+    assert set(jobs["ci-gate"]["needs"]) == set(jobs) - {"ci-gate", "main-alert"}
     assert jobs["ci-gate"]["if"] == "always()"
     for name in policy.SIMULATION_JOBS:
         assert jobs[name]["if"] == "needs.ci-scope.outputs.simulation == 'true'"
     assert jobs["test"]["if"] == "needs.ci-scope.outputs.full == 'true'"
 
 
-def test_a_failed_nightly_run_opens_an_issue() -> None:
+def test_every_simulation_suite_gets_its_own_runner(tmp_path: Path) -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
-    alert = workflow["jobs"]["nightly-alert"]
+    job = workflow["jobs"]["simulation-suites"]
+    assert job["strategy"] == {
+        "fail-fast": False,
+        "matrix": {"suite": "${{ fromJSON(needs.ci-scope.outputs.suites) }}"},
+    }
+    assert job["timeout-minutes"] <= 20
+    suites = policy.simulation_suites()
+    assert "tests/integration/test_multi_year_invariants.py" in suites
+    assert "tests/integration/test_edge_config_matrix.py" in suites
+    assert all((ROOT / suite).is_file() for suite in suites)
+    with pytest.raises(SystemExit, match="No simulation suites"):
+        policy.simulation_suites(tmp_path)
+
+
+def test_integration_shards_match_the_split_count() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    job = workflow["jobs"]["test"]
+    shards = job["strategy"]["matrix"]["shard"]
+    assert shards == list(range(1, len(shards) + 1))
+    command = next(
+        step["run"] for step in job["steps"] if "--file-shard" in step.get("run", "")
+    )
+    assert f"--file-shard ${{{{ matrix.shard }}}}/{len(shards)} " in command
+    assert job["timeout-minutes"] <= 90
+
+
+def test_a_failed_run_on_main_opens_an_issue() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    alert = workflow["jobs"]["main-alert"]
     assert alert["needs"] == ["ci-gate"]
     assert "github.event_name == 'schedule'" in alert["if"]
+    assert "github.event_name == 'push'" in alert["if"]
+    assert "github.ref == 'refs/heads/main'" in alert["if"]
     assert "needs.ci-gate.result == 'failure'" in alert["if"]
     assert alert["permissions"] == {"issues": "write"}
 
@@ -111,7 +141,7 @@ def test_plain_pull_requests_skip_simulations(
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     policy.select()
-    assert output.read_text() == "full=false\nsimulation=false\n"
+    assert output.read_text().startswith("full=false\nsimulation=false\nsuites=[")
 
 
 def test_gate_rejects_missing_selection(monkeypatch: pytest.MonkeyPatch) -> None:

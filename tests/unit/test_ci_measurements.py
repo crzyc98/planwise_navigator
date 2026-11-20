@@ -23,14 +23,14 @@ def test_merge_requires_disjoint_complete_shard_observations(tmp_path: Path) -> 
         directory = tmp_path / f"test-durations-{index}"
         directory.mkdir()
         (directory / ".test_durations").write_text(json.dumps({f"test_{index}": index}))
-    assert refresh.merge_durations(tmp_path) == {f"test_{i}": i for i in range(1, 5)}
+    assert refresh.merge_durations(tmp_path, 4) == {f"test_{i}": i for i in range(1, 5)}
     path = tmp_path / "test-durations-4/.test_durations"
     path.write_text('{"test_1": 4}')
-    with pytest.raises(ValueError, match="Duplicate"):
-        refresh.merge_durations(tmp_path)
+    with pytest.raises(ValueError, match="more than one shard"):
+        refresh.merge_durations(tmp_path, 4)
     path.unlink()
     with pytest.raises(FileNotFoundError):
-        refresh.merge_durations(tmp_path)
+        refresh.merge_durations(tmp_path, 4)
 
 
 def test_failed_shard_cannot_supply_baseline(monkeypatch: pytest.MonkeyPatch) -> None:

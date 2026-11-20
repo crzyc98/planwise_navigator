@@ -1,23 +1,17 @@
 {
-  "comparison": {
-    "head_sha": "c21324da5caf304ad36c526204ba220a6171ec26",
-    "test_step_seconds": {
-      "test (1)": 4082.0,
-      "test (2)": 2771.0,
-      "test (3)": 1705.0,
-      "test (4)": 3573.0
-    },
-    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/40013973725"
-  },
+  "file_count": 388,
   "source": {
-    "head_sha": "04bff1eb332837e8a25c16f0ec0c7b06f0a166a7",
+    "head_sha": "6c8a640d37eadb31104d0278dc336da43cf37708",
     "test_step_seconds": {
-      "test (1)": 4308.0,
-      "test (2)": 2927.0,
-      "test (3)": 3835.0,
-      "test (4)": 2547.0
+      "test (1)": 1514.0,
+      "test (2)": 644.0,
+      "test (3)": 964.0,
+      "test (4)": 1381.0,
+      "test (5)": 961.0,
+      "test (6)": 1726.0,
+      "test (7)": 1342.0,
+      "test (8)": 931.0
     },
-    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/39954102337"
-  },
-  "test_count": 4345
+    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/44744381092"
+  }
 }

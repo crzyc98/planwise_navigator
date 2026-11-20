@@ -16,6 +16,8 @@ import warnings
 import duckdb
 import pytest
 
+from scripts import ci_policy as _ci_policy
+
 # Register fixtures here for pytest auto-discovery so individual test modules
 # don't need to import them (which would trigger F811 redefinition on the test
 # parameters). Not referenced directly here, hence the noqa.
@@ -35,6 +37,8 @@ from tests.fixtures import (  # noqa: F401
     census_enrollment_rows,
     enrollment_history_rows,
 )
+
+pytest_plugins = ["tests.file_shards", "pytester"]
 
 SHARED_DEV_DB = Path(__file__).resolve().parents[1] / "dbt" / "simulation.duckdb"
 FileSignature = tuple[int, str] | None
@@ -87,8 +91,37 @@ def _default_duckdb_to_one_thread() -> None:
     duckdb.connect = single_threaded
 
 
+def _reject_simulation_suite_drift(items: list[pytest.Item]) -> None:
+    """Fail collection when CI's simulation suite list disagrees with pytest.
+
+    CI finds simulation suites by searching test files for the marker
+    (scripts/ci_policy.py) and gives each its own runner. A marked test in a
+    file the search misses would never run there, and a listed file with no
+    marked test would fail its runner with "no tests collected". Simulations
+    only run after merge, so catch both here, in every PR's fast suite.
+    """
+    seen = {item.nodeid.split("::")[0] for item in items}
+    marked = {
+        item.nodeid.split("::")[0]
+        for item in items
+        if any(item.get_closest_marker(m) for m in _ci_policy.SIMULATION_MARKERS)
+    }
+    listed = set(_ci_policy.simulation_suites())
+    if unlisted := sorted(marked - listed):
+        raise pytest.UsageError(
+            "Simulation-marked tests that CI would not run. Put "
+            f"pytest.mark.<marker> in a test_*.py file: {unlisted}"
+        )
+    if empty := sorted((listed & seen) - marked):
+        raise pytest.UsageError(
+            "Files that mention a simulation marker but have no marked test; "
+            f"CI would give each an empty runner: {empty}"
+        )
+
+
 def pytest_collection_modifyitems(config, items):
     """Automatically add markers based on test location."""
+    _reject_simulation_suite_drift(items)
     for item in items:
         # Add markers based on test file paths
         if "/unit/" in item.nodeid:

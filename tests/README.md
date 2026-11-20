@@ -262,7 +262,7 @@ Located in `tests/utils/json_validators.py`:
 ### GitHub Actions
 
 The `.github/workflows/ci.yml` workflow runs automatically on push to `main`/`develop`
-and on pull requests to `main`, with `lint`, `test`, `multi-year-invariants`, and
+and on pull requests to `main`, with `lint`, `test`, `simulation-suites`, and
 `validate-models` jobs. See that file for the current steps.
 
 ### Pre-commit Hook
