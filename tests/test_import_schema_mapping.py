@@ -157,19 +157,6 @@ def test_suggestions_offer_order_for_manually_mapped_date(client: TestClient):
     assert suggestion["format_detection"]["is_ambiguous"] is True
 
 
-def test_suggestions_data_quality_has_expected_keys(client: TestClient):
-    csv = "EmpID,Hire Date,DOB,Salary,Active\nE001,2020-01-01,1980-01-01,95000,Y\n"
-    session = _upload_csv(client, csv)
-    resp = client.get(
-        f"/api/workspaces/ws-test/imports/{session['import_id']}/suggestions"
-    )
-    data = resp.json()
-    dq = data["data_quality"]
-    assert "duplicate_employee_id_count" in dq
-    assert "null_required_field_counts" in dq
-    assert "compensation_outlier_count" in dq
-
-
 # ---------------------------------------------------------------------------
 # Canonical field validation (US2)
 # ---------------------------------------------------------------------------

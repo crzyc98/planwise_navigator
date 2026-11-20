@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Census Analysis now flags rows whose columns contradict each other (#1260): contributions above pay, negative contributions, a birth date on or after the hire date, a termination before the hire, dates after the census year, ages at hire under 14 or over 100, contributions well above the stated deferral rate or not matching the pre-tax/Roth/after-tax split, contributions above the IRS 402(g) limit with catch-up, and pay far above the rest of the file. Each flag shows a row count only.
 - Simulation runs now warn when the census has impossible or implausible values (#1262), using the same row checks as Census Analysis. The run's Activity Feed and log show one warning naming the rules that flagged rows, with row counts only. Results do not change.
+- The census import wizard now checks the whole file, not just the first 100 rows (#1261). The preview step lists each Census Analysis check that found problems, with impossible values shown apart from warnings, and the counts match Census Analysis after import. You can download the flagged rows as a CSV of spreadsheet line number, employee ID and the checks each row failed. None of these checks block the import. The old fixed compensation range ($1,000 to $10M) is gone; the shared checks for pay at or below zero and pay far above the rest of the file replace it.
 
 ### Fixed
 

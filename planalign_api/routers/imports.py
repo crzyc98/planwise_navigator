@@ -11,12 +11,13 @@ from typing import List
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_error
 from ..models.imports import (
     ApplyTemplateRequest,
+    DataQualityResult,
     DetectedColumn,
     GenerateResponse,
     ImportSession,
@@ -525,8 +526,6 @@ def get_suggestions(
                 suggestion.confidence_score = 1.0
                 suggestion.reason = "prior_mapping"
 
-    data_quality = engine.scan_data_quality(session, suggestions)
-
     schema_payload = [
         {
             "field_name": f.field_name,
@@ -540,7 +539,6 @@ def get_suggestions(
     return SuggestionsResponse(
         import_id=import_id,
         suggestions=suggestions,
-        data_quality=data_quality,
         canonical_schema=schema_payload,
     )
 
@@ -574,6 +572,57 @@ def get_mapped_preview(
         total_row_count=session.row_count,
         preview_row_count=len(rows),
         transformation_warnings=warnings,
+        data_quality=_full_file_quality(service, workspace_id, import_id),
+    )
+
+
+def _full_file_quality(
+    service: ImportService, workspace_id: str, import_id: str
+) -> DataQualityResult | None:
+    """Whole-file checks, or None when the mapping can't convert the file.
+
+    Generating reports the conversion error itself, so the preview stays usable.
+    """
+    try:
+        return service.get_data_quality(workspace_id, import_id)
+    except ValueError:
+        logger.info(
+            "Import %s: whole-file checks skipped; the mapped file can't be built",
+            import_id,
+        )
+        return None
+
+
+@router.get(
+    "/{workspace_id}/imports/{import_id}/flagged-rows",
+    summary="Download rows that broke a census plausibility rule (CSV)",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}}},
+)
+def download_flagged_rows(
+    workspace_id: str,
+    import_id: str,
+    service: ImportService = Depends(get_import_service),
+) -> Response:
+    """Row number, employee ID and the rules broken; no other row contents."""
+    session = _check_session(workspace_id, import_id, service)
+    try:
+        content = service.get_flagged_rows_csv(workspace_id, import_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Rows can't be checked until the file converts with this mapping",
+        ) from exc
+    stem = Path(session.original_filename).stem
+    safe_stem = "".join(c if c.isalnum() or c in "-_" else "_" for c in stem)
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_stem}_flagged_rows.csv"'
+            )
+        },
     )
 
 

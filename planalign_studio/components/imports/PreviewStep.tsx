@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, CheckCircle2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle2, X, XCircle, Download } from 'lucide-react';
 import {
   ImportSession,
   MappedPreviewResponse,
@@ -8,17 +8,90 @@ import {
   getMappedPreview,
   generateParquet,
   getImportStatus,
+  downloadFlaggedRows,
 } from '../../services/importService';
 
 interface Props {
   workspaceId: string;
   session: ImportSession;
   onGenerated: (file: ParquetFile) => void;
-  dataQuality?: DataQualityResult | null;
 }
 
-export default function PreviewStep({ workspaceId, session, onGenerated, dataQuality }: Props) {
-  const [dqDismissed, setDqDismissed] = useState(false);
+interface DataQualityNoticeProps {
+  workspaceId: string;
+  importId: string;
+  dataQuality: DataQualityResult;
+}
+
+/** Whole-file checks. Nothing here blocks generating the file. */
+export function DataQualityNotice({ workspaceId, importId, dataQuality }: DataQualityNoticeProps) {
+  const [dismissed, setDismissed] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const errors = dataQuality.plausibility.filter((r) => r.severity === 'error');
+  const warnings = dataQuality.plausibility.filter((r) => r.severity === 'warning');
+  const nulls = Object.entries(dataQuality.null_required_field_counts).filter(([, n]) => n > 0);
+  const hasWarnings = warnings.length > 0 || nulls.length > 0 || dataQuality.duplicate_employee_id_count > 0;
+  if (dismissed || (errors.length === 0 && !hasWarnings)) return null;
+
+  const handleDownload = () => {
+    setDownloadError(null);
+    downloadFlaggedRows(workspaceId, importId).catch((err) =>
+      setDownloadError(err instanceof Error ? err.message : 'Download failed'),
+    );
+  };
+  const dismiss = (
+    <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="shrink-0">
+      <X size={14} />
+    </button>
+  );
+
+  return (
+    <div className="space-y-2">
+      {errors.length > 0 && (
+        <div className="flex items-start gap-3 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
+          <XCircle size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-medium">Impossible values. You can still generate, but fix the source file if you can:</div>
+            {errors.map((r) => <div key={r.rule_id}>{r.message}</div>)}
+          </div>
+          {dismiss}
+        </div>
+      )}
+      {hasWarnings && (
+        <div className="flex items-start gap-3 text-warning-ink text-sm bg-warning-surface border border-warning-border rounded-lg p-3">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-medium">Data quality notice — review before generating:</div>
+            {dataQuality.duplicate_employee_id_count > 0 && (
+              <div>
+                {dataQuality.duplicate_employee_id_count} duplicate employee ID row(s) —
+                the simulation engine will automatically keep the row with the most recent hire date.
+              </div>
+            )}
+            {nulls.map(([field, count]) => (
+              <div key={field}>
+                {count} row(s) have null <span className="font-mono">{field}</span> (required field).
+              </div>
+            ))}
+            {warnings.map((r) => <div key={r.rule_id}>{r.message}</div>)}
+          </div>
+          {errors.length === 0 && dismiss}
+        </div>
+      )}
+      {dataQuality.plausibility.length > 0 && (
+        <div className="flex items-center gap-3 text-sm">
+          <button onClick={handleDownload} className="flex items-center gap-1.5 text-brand-ink hover:underline">
+            <Download size={14} />
+            Download flagged rows (CSV)
+          </button>
+          {downloadError && <span className="text-danger-ink">{downloadError}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PreviewStep({ workspaceId, session, onGenerated }: Props) {
   const [preview, setPreview] = useState<MappedPreviewResponse | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -66,45 +139,8 @@ export default function PreviewStep({ workspaceId, session, onGenerated, dataQua
     }
   };
 
-  const hasDqIssues = dataQuality && !dqDismissed && (
-    dataQuality.duplicate_employee_id_count > 0 ||
-    dataQuality.compensation_outlier_count > 0 ||
-    Object.values(dataQuality.null_required_field_counts).some((n) => n > 0)
-  );
-
   return (
     <div className="space-y-5">
-      {hasDqIssues && dataQuality && (
-        <div className="flex items-start gap-3 text-warning-ink text-sm bg-warning-surface border border-warning-border rounded-lg p-3">
-          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-warning-ink" />
-          <div className="flex-1 space-y-1">
-            <div className="font-medium">Data quality notice — review before generating:</div>
-            {dataQuality.duplicate_employee_id_count > 0 && (
-              <div>
-                {dataQuality.duplicate_employee_id_count} duplicate employee ID(s) detected —
-                the simulation engine will automatically keep the row with the most recent hire date.
-              </div>
-            )}
-            {Object.entries(dataQuality.null_required_field_counts).map(([field, count]) =>
-              count > 0 ? (
-                <div key={field}>
-                  {count} row(s) have null <span className="font-mono">{field}</span> (required field).
-                </div>
-              ) : null
-            )}
-            {dataQuality.compensation_outlier_count > 0 && (
-              <div>
-                {dataQuality.compensation_outlier_count} row(s) have unusual compensation values
-                (&lt;$1,000 or &gt;$10M) — please verify.
-              </div>
-            )}
-          </div>
-          <button onClick={() => setDqDismissed(true)} className="text-warning-ink hover:text-warning-ink shrink-0">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {isLoadingPreview ? (
         <div className="flex items-center gap-2 text-sm text-ink-muted">
           <Loader2 size={16} className="animate-spin" />
@@ -114,6 +150,13 @@ export default function PreviewStep({ workspaceId, session, onGenerated, dataQua
         <div className="text-sm text-danger-ink bg-danger-surface border border-danger-border rounded-lg p-3">{previewError}</div>
       ) : preview && (
         <>
+          {preview.data_quality && (
+            <DataQualityNotice
+              workspaceId={workspaceId}
+              importId={session.import_id}
+              dataQuality={preview.data_quality}
+            />
+          )}
           {preview.transformation_warnings.length > 0 && (
             <div className="space-y-2">
               {preview.transformation_warnings.map((w, i) => (

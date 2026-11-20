@@ -17,6 +17,7 @@ from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 from ..config import get_settings
 from ..models.files import CensusHourlyRateSummary
 from ..models.imports import (
+    DataQualityResult,
     DetectedColumn,
     FieldMapping,
     ImportSession,
@@ -27,6 +28,8 @@ from ..models.imports import (
     ParquetFile,
     TransformationWarning,
 )
+from .census_analysis_service import CensusAnalysisService
+from .import_quality import flagged_rows_csv, scan_data_quality
 from .mapping_engine import MappingEngine
 
 logger = logging.getLogger(__name__)
@@ -263,10 +266,7 @@ class ImportService:
             )
 
         source_path = self._source_parquet_path(workspace_id, import_id)
-        conn = duckdb.connect(":memory:")
-        df = conn.execute(f"SELECT * FROM read_parquet('{source_path}')").df()
-        conn.close()
-        df = _normalize_dtypes_for_duckdb(df)
+        df = self._read_source(workspace_id, import_id)
 
         try:
             transformed = self._engine.apply(df, mappings)
@@ -582,6 +582,43 @@ class ImportService:
         if not mappings:
             raise ValueError("No mapping saved")
         return self._engine.apply_preview(df.head(limit), mappings)
+
+    def _read_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
+        source_path = self._source_parquet_path(workspace_id, import_id)
+        with duckdb.connect(":memory:") as conn:
+            df = conn.execute("SELECT * FROM read_parquet(?)", [str(source_path)]).df()
+        return _normalize_dtypes_for_duckdb(df)
+
+    def _mapped_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
+        """The whole file as ``generate_parquet`` would write it.
+
+        Raises ValueError when no mapping is saved or the file can't be
+        converted with it.
+        """
+        mappings = self.get_mapping(workspace_id, import_id)
+        if not mappings:
+            raise ValueError("No mapping saved")
+        transformed = self._engine.apply(
+            self._read_source(workspace_id, import_id), mappings
+        )
+        return _normalize_dtypes_for_duckdb(transformed)
+
+    def get_data_quality(self, workspace_id: str, import_id: str) -> DataQualityResult:
+        """Whole-file checks matching what Census Analysis shows after import.
+
+        Raises ValueError when the mapped file can't be built or checked.
+        """
+        return scan_data_quality(
+            self._mapped_source(workspace_id, import_id),
+            CensusAnalysisService(self._root),
+        )
+
+    def get_flagged_rows_csv(self, workspace_id: str, import_id: str) -> str:
+        """Rows breaking a plausibility rule, as row number, ID and rule names."""
+        return flagged_rows_csv(
+            self._mapped_source(workspace_id, import_id),
+            CensusAnalysisService(self._root),
+        )
 
     def get_source_column_values(
         self, workspace_id: str, import_id: str, column: str

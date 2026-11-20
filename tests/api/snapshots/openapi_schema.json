@@ -7343,14 +7343,11 @@
         "type": "object"
       },
       "DataQualityResult": {
+        "description": "Whole-file checks on the census as it will be after the saved mapping.",
         "properties": {
-          "compensation_outlier_count": {
-            "default": 0,
-            "title": "Compensation Outlier Count",
-            "type": "integer"
-          },
           "duplicate_employee_id_count": {
             "default": 0,
+            "description": "Rows beyond the first for each repeated employee ID.",
             "title": "Duplicate Employee Id Count",
             "type": "integer"
           },
@@ -7360,12 +7357,20 @@
             },
             "title": "Null Required Field Counts",
             "type": "object"
+          },
+          "plausibility": {
+            "description": "Rules with at least one flagged row, in rule order.",
+            "items": {
+              "$ref": "#/components/schemas/PlausibilityRuleCount"
+            },
+            "title": "Plausibility",
+            "type": "array"
           }
         },
         "required": [
           "duplicate_employee_id_count",
           "null_required_field_counts",
-          "compensation_outlier_count"
+          "plausibility"
         ],
         "title": "DataQualityResult",
         "type": "object"
@@ -12017,6 +12022,17 @@
             "title": "Columns",
             "type": "array"
           },
+          "data_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataQualityResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole-file checks; null when the file can't be converted with this mapping (generating will fail with the reason)."
+          },
           "import_id": {
             "title": "Import Id",
             "type": "string"
@@ -12051,7 +12067,8 @@
           "rows",
           "total_row_count",
           "preview_row_count",
-          "transformation_warnings"
+          "transformation_warnings",
+          "data_quality"
         ],
         "title": "MappedPreviewResponse",
         "type": "object"
@@ -14460,6 +14477,45 @@
           "memory_mb"
         ],
         "title": "PerformanceSample",
+        "type": "object"
+      },
+      "PlausibilityRuleCount": {
+        "description": "Rows in the whole file that broke one census plausibility rule.",
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "field",
+          "severity",
+          "count",
+          "message"
+        ],
+        "title": "PlausibilityRuleCount",
         "type": "object"
       },
       "PopulationEvidence": {
@@ -19362,9 +19418,6 @@
             "title": "Canonical Schema",
             "type": "array"
           },
-          "data_quality": {
-            "$ref": "#/components/schemas/DataQualityResult"
-          },
           "import_id": {
             "title": "Import Id",
             "type": "string"
@@ -19380,7 +19433,6 @@
         "required": [
           "import_id",
           "suggestions",
-          "data_quality",
           "canonical_schema"
         ],
         "title": "SuggestionsResponse",
@@ -28917,6 +28969,54 @@
           }
         },
         "summary": "Apply a saved template to this import session",
+        "tags": [
+          "Data Import"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/imports/{import_id}/flagged-rows": {
+      "get": {
+        "description": "Row number, employee ID and the rules broken; no other row contents.",
+        "operationId": "download_flagged_rows_api_workspaces__workspace_id__imports__import_id__flagged_rows_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download rows that broke a census plausibility rule (CSV)",
         "tags": [
           "Data Import"
         ]

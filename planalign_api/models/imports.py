@@ -37,16 +37,32 @@ class ColumnSuggestion(APIModel):
     format_detection: Optional[FormatDetectionResult] = None
 
 
+class PlausibilityRuleCount(APIModel):
+    """Rows in the whole file that broke one census plausibility rule."""
+
+    rule_id: str
+    field: str
+    severity: Literal["error", "warning"]
+    count: int = Field(..., ge=0)
+    message: str
+
+
 class DataQualityResult(APIModel):
-    duplicate_employee_id_count: int = 0
+    """Whole-file checks on the census as it will be after the saved mapping."""
+
+    duplicate_employee_id_count: int = Field(
+        default=0, description="Rows beyond the first for each repeated employee ID."
+    )
     null_required_field_counts: Dict[str, int] = Field(default_factory=dict)
-    compensation_outlier_count: int = 0
+    plausibility: List[PlausibilityRuleCount] = Field(
+        default_factory=list,
+        description="Rules with at least one flagged row, in rule order.",
+    )
 
 
 class SuggestionsResponse(APIModel):
     import_id: str
     suggestions: List[ColumnSuggestion]
-    data_quality: DataQualityResult
     canonical_schema: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -212,6 +228,13 @@ class MappedPreviewResponse(APIModel):
     total_row_count: int
     preview_row_count: int
     transformation_warnings: List[TransformationWarning] = Field(default_factory=list)
+    data_quality: Optional[DataQualityResult] = Field(
+        default=None,
+        description=(
+            "Whole-file checks; null when the file can't be converted with "
+            "this mapping (generating will fail with the reason)."
+        ),
+    )
 
 
 class GenerateResponse(APIModel):

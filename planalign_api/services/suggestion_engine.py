@@ -14,9 +14,7 @@ import pandas as pd
 
 from ..models.imports import (
     ColumnSuggestion,
-    DataQualityResult,
     FormatDetectionResult,
-    ImportSession,
 )
 from ..models.imports import DetectedColumn
 from .census_schema import (
@@ -26,7 +24,6 @@ from .census_schema import (
     FIELDS,
     CensusFieldDefinition,
     census_date_order_is_ambiguous,
-    get_required_fields,
     matching_census_date_formats,
 )
 
@@ -210,71 +207,6 @@ class SuggestionEngine:
             parsed_sample_values=[alias_display],
             is_ambiguous=False,
             format_options=None,
-        )
-
-    def scan_data_quality(
-        self,
-        session: ImportSession,
-        suggestions: list[ColumnSuggestion],
-    ) -> DataQualityResult:
-        """Scan session preview rows and detected columns for data quality issues."""
-        suggestion_map = {
-            s.input_column: s.suggested_canonical_field for s in suggestions
-        }
-        canonical_to_input = {v: k for k, v in suggestion_map.items() if v}
-
-        # Duplicate employee_id count (from preview rows — sample of up to 100)
-        duplicate_count = 0
-        emp_id_col = canonical_to_input.get("employee_id")
-        if emp_id_col and session.preview_rows:
-            ids = [
-                row.get(emp_id_col)
-                for row in session.preview_rows
-                if row.get(emp_id_col)
-            ]
-            seen: set = set()
-            dupes: set = set()
-            for v in ids:
-                if v in seen:
-                    dupes.add(v)
-                seen.add(v)
-            duplicate_count = len(dupes)
-
-        # Null counts for required fields (full-file count from DetectedColumn.null_count)
-        col_null_map = {c.name: c.null_count for c in session.detected_columns}
-        null_required: dict[str, int] = {}
-        for req_field in get_required_fields():
-            input_col = canonical_to_input.get(req_field)
-            if input_col is not None:
-                null_count = col_null_map.get(input_col, 0)
-                if null_count > 0:
-                    null_required[req_field] = null_count
-            else:
-                # Required field has no mapping — entire column missing
-                null_required[req_field] = session.row_count
-
-        # Compensation outliers (from preview rows)
-        outlier_count = 0
-        comp_col = canonical_to_input.get("employee_gross_compensation")
-        if comp_col and session.preview_rows:
-            for row in session.preview_rows:
-                raw = row.get(comp_col)
-                if raw is None:
-                    continue
-                try:
-                    cleaned = _CURRENCY_RE.sub("", str(raw))
-                    m = _PAREN_NEG_RE.match(cleaned)
-                    cleaned = f"-{m.group(1)}" if m else cleaned
-                    val = float(cleaned)
-                    if val < 1_000 or val > 10_000_000:
-                        outlier_count += 1
-                except (ValueError, TypeError):
-                    pass
-
-        return DataQualityResult(
-            duplicate_employee_id_count=duplicate_count,
-            null_required_field_counts=null_required,
-            compensation_outlier_count=outlier_count,
         )
 
     @staticmethod

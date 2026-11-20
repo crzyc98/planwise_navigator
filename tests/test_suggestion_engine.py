@@ -1,15 +1,10 @@
-"""Unit tests for suggestion_engine — scoring, format detection, DQ scan."""
+"""Unit tests for suggestion_engine — scoring and format detection."""
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from planalign_api.models.imports import (
-    DetectedColumn,
-    ImportSession,
-)
+from planalign_api.models.imports import DetectedColumn
 from planalign_api.services.suggestion_engine import SuggestionEngine
 
 pytestmark = pytest.mark.fast
@@ -23,22 +18,6 @@ def _col(
         inferred_type="string",
         null_count=null_count,
         sample_values=samples or [],
-    )
-
-
-def _session(
-    detected: list[DetectedColumn],
-    preview_rows: list[dict[str, Any]] | None = None,
-    row_count: int = 100,
-) -> ImportSession:
-    return ImportSession(
-        workspace_id="ws-test",
-        original_filename="test.csv",
-        source_format="csv",
-        detected_columns=detected,
-        row_count=row_count,
-        column_count=len(detected),
-        preview_rows=preview_rows or [],
     )
 
 
@@ -242,74 +221,3 @@ def test_mixed_unrecognized_boolean_returns_none():
     field_def = get_field("active")
     result = engine.detect_format(col, field_def)
     assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Data quality scan tests
-# ---------------------------------------------------------------------------
-
-
-def test_duplicate_employee_id_count():
-    cols = [_col("EmpID")]
-    preview = [
-        {"EmpID": "E001"},
-        {"EmpID": "E002"},
-        {"EmpID": "E001"},  # duplicate
-        {"EmpID": "E001"},  # duplicate (same ID)
-        {"EmpID": "E003"},
-    ]
-    sess = _session(cols, preview_rows=preview, row_count=5)
-    suggestions = engine.suggest(cols)
-    dq = engine.scan_data_quality(sess, suggestions)
-    assert dq.duplicate_employee_id_count == 1  # 1 unique ID that is duplicated
-
-
-def test_null_required_field_counts_from_detected_columns():
-    cols = [
-        _col("EmpID", null_count=0),
-        _col("Hire Date", null_count=2),
-        _col("DOB", null_count=0),
-        _col("Salary", null_count=0),
-        _col("Active", null_count=0),
-    ]
-    sess = _session(cols, row_count=100)
-    suggestions = engine.suggest(cols)
-    dq = engine.scan_data_quality(sess, suggestions)
-    assert dq.null_required_field_counts.get("employee_hire_date", 0) == 2
-
-
-def test_compensation_outlier_detected():
-    cols = [_col("Salary")]
-    preview = [
-        {"Salary": "95000"},
-        {"Salary": "500"},  # outlier — too low
-        {"Salary": "72000"},
-    ]
-    sess = _session(cols, preview_rows=preview, row_count=3)
-    suggestions = engine.suggest(cols)
-    dq = engine.scan_data_quality(sess, suggestions)
-    assert dq.compensation_outlier_count == 1
-
-
-def test_no_issues_returns_zeros():
-    cols = [
-        _col("EmpID"),
-        _col("DOB"),
-        _col("Hire Date"),
-        _col("Salary"),
-        _col("Active"),
-    ]
-    preview = [
-        {
-            "EmpID": "E001",
-            "DOB": "1980-01-01",
-            "Hire Date": "2020-01-01",
-            "Salary": "80000",
-            "Active": "Y",
-        }
-    ]
-    sess = _session(cols, preview_rows=preview, row_count=1)
-    suggestions = engine.suggest(cols)
-    dq = engine.scan_data_quality(sess, suggestions)
-    assert dq.duplicate_employee_id_count == 0
-    assert dq.compensation_outlier_count == 0

@@ -2198,6 +2198,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/imports/{import_id}/flagged-rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download rows that broke a census plausibility rule (CSV)
+         * @description Row number, employee ID and the rules broken; no other row contents.
+         */
+        get: operations["download_flagged_rows_api_workspaces__workspace_id__imports__import_id__flagged_rows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/imports/{import_id}/generate": {
         parameters: {
             query?: never;
@@ -6350,15 +6370,14 @@ export interface components {
              */
             total_employer_match: number;
         };
-        /** DataQualityResult */
+        /**
+         * DataQualityResult
+         * @description Whole-file checks on the census as it will be after the saved mapping.
+         */
         DataQualityResult: {
             /**
-             * Compensation Outlier Count
-             * @default 0
-             */
-            compensation_outlier_count: number;
-            /**
              * Duplicate Employee Id Count
+             * @description Rows beyond the first for each repeated employee ID.
              * @default 0
              */
             duplicate_employee_id_count: number;
@@ -6366,6 +6385,11 @@ export interface components {
             null_required_field_counts: {
                 [key: string]: number;
             };
+            /**
+             * Plausibility
+             * @description Rules with at least one flagged row, in rule order.
+             */
+            plausibility: components["schemas"]["PlausibilityRuleCount"][];
         };
         /**
          * DataQualitySample
@@ -8534,6 +8558,8 @@ export interface components {
         MappedPreviewResponse: {
             /** Columns */
             columns: string[];
+            /** @description Whole-file checks; null when the file can't be converted with this mapping (generating will fail with the reason). */
+            data_quality: components["schemas"]["DataQualityResult"] | null;
             /** Import Id */
             import_id: string;
             /** Preview Row Count */
@@ -9526,6 +9552,25 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * PlausibilityRuleCount
+         * @description Rows in the whole file that broke one census plausibility rule.
+         */
+        PlausibilityRuleCount: {
+            /** Count */
+            count: number;
+            /** Field */
+            field: string;
+            /** Message */
+            message: string;
+            /** Rule Id */
+            rule_id: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning";
         };
         /** PopulationEvidence */
         PopulationEvidence: {
@@ -11546,7 +11591,6 @@ export interface components {
             canonical_schema: {
                 [key: string]: unknown;
             }[];
-            data_quality: components["schemas"]["DataQualityResult"];
             /** Import Id */
             import_id: string;
             /** Suggestions */
@@ -16546,6 +16590,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MappingSaveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_flagged_rows_api_workspaces__workspace_id__imports__import_id__flagged_rows_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */
