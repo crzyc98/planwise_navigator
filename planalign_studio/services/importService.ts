@@ -2,7 +2,13 @@
  * Import Service — API client for all data import endpoints.
  */
 
-import { CensusHourlyRateSummary, fetchWithAuth, saveBrowserDownload } from './api';
+import type { components } from './api.generated';
+import {
+  CensusHourlyRateSummary,
+  fetchWithAuth,
+  filenameFromContentDisposition,
+  saveBrowserDownload,
+} from './api';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -116,8 +122,15 @@ export interface PreviewResponse {
   preview_row_count: number;
 }
 
+export type DataQualityResult = components['schemas']['DataQualityResult'];
+export type PlausibilityRuleCount = components['schemas']['PlausibilityRuleCount'];
+
 export interface MappedPreviewResponse extends PreviewResponse {
   transformation_warnings: TransformationWarning[];
+  /** Whole-file checks; null when the file can't be converted with this mapping. */
+  data_quality: DataQualityResult | null;
+  /** Why some or all whole-file checks didn't run; null when they all ran. */
+  data_quality_skipped_reason: string | null;
 }
 
 export interface GenerateResponse {
@@ -170,16 +183,9 @@ export interface ColumnSuggestion {
   format_detection: FormatDetectionResult | null;
 }
 
-export interface DataQualityResult {
-  duplicate_employee_id_count: number;
-  null_required_field_counts: Record<string, number>;
-  compensation_outlier_count: number;
-}
-
 export interface SuggestionsResponse {
   import_id: string;
   suggestions: ColumnSuggestion[];
-  data_quality: DataQualityResult;
   canonical_schema: CensusField[];
 }
 
@@ -254,6 +260,16 @@ export async function getRawPreview(workspaceId: string, importId: string): Prom
 export async function getMappedPreview(workspaceId: string, importId: string): Promise<MappedPreviewResponse> {
   const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/mapped-preview`);
   return handleResponse<MappedPreviewResponse>(res);
+}
+
+/** CSV of rows that broke a plausibility rule: row number, employee ID, rules. */
+export async function downloadFlaggedRows(workspaceId: string, importId: string): Promise<void> {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/flagged-rows`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  saveBrowserDownload(await res.blob(), filenameFromContentDisposition(res, 'flagged_rows.csv'));
 }
 
 export async function getImportStatus(workspaceId: string, importId: string): Promise<ImportSession> {

@@ -27,6 +27,7 @@ from .band_service import BandService
 from .census_as_of import ResolvedAsOf, resolve_as_of_date
 from .census_plausibility import (
     IRS_LIMITS_SEED,
+    DeferralLimits,
     census_year_from_hires,
     count_violations,
     deferral_limits_for_year,
@@ -60,6 +61,27 @@ _PLAUSIBILITY_ONLY_FIELDS = (
     "after_tax_contribution",
     "employee_capped_compensation",
 )
+
+
+@dataclass(frozen=True)
+class PlausibilityScope:
+    """What the plausibility rules run with on a loaded ``census`` table."""
+
+    columns: dict[str, str]
+    """Canonical census field -> the table's column, for mapped fields only."""
+    census_year: int
+    limits: Optional[DeferralLimits]
+
+
+def count_duplicate_id_rows(conn: duckdb.DuckDBPyConnection, id_col: str) -> int:
+    """Rows beyond the first for each repeated employee ID in ``census``."""
+    row = conn.execute(f"""
+        SELECT COALESCE(SUM(cnt - 1), 0) FROM (
+          SELECT COUNT(*) AS cnt FROM census GROUP BY {id_col} HAVING COUNT(*) > 1
+        )
+        """).fetchone()
+    return int(row[0]) if row else 0
+
 
 # Mirrors AnalyticsService._get_deferral_distribution's bucket scheme so the
 # census-side histogram reads the same way as the post-simulation DC Plan one.
@@ -169,14 +191,15 @@ class CensusAnalysisService:
             self._load_file(conn, safe_path, resolved.suffix.lower())
             columns = self._census_columns(conn)
 
-            id_col = "employee_id" if "employee_id" in columns else None
-            birth_col = self._optional_column(columns, CENSUS_BIRTH_DATE_COLUMNS)
-            hire_col = self._optional_column(columns, CENSUS_HIRE_DATE_COLUMNS)
-            term_col = self._optional_column(columns, CENSUS_TERMINATION_DATE_COLUMNS)
-            comp_col = self._optional_column(columns, CENSUS_COMPENSATION_COLUMNS)
-            deferral_col = self._optional_column(columns, CENSUS_DEFERRAL_COLUMNS)
-            match_col = self._optional_column(columns, CENSUS_EMPLOYER_MATCH_COLUMNS)
-            core_col = self._optional_column(columns, CENSUS_EMPLOYER_CORE_COLUMNS)
+            rule_columns = self._rule_columns(columns)
+            id_col = rule_columns.get("employee_id")
+            birth_col = rule_columns.get("employee_birth_date")
+            hire_col = rule_columns.get("employee_hire_date")
+            term_col = rule_columns.get("employee_termination_date")
+            comp_col = rule_columns.get("employee_gross_compensation")
+            deferral_col = rule_columns.get("employee_deferral_rate")
+            match_col = rule_columns.get("employer_match_contribution")
+            core_col = rule_columns.get("employer_core_contribution")
             eligibility_col = self._optional_column(
                 columns, CENSUS_ELIGIBILITY_DATE_COLUMNS
             )
@@ -267,19 +290,7 @@ class CensusAnalysisService:
             )
             data_quality_issues.extend(
                 self._plausibility_issues(
-                    conn,
-                    {
-                        "employee_id": id_col,
-                        "employee_birth_date": birth_col,
-                        "employee_hire_date": hire_col,
-                        "employee_termination_date": term_col,
-                        "employee_gross_compensation": comp_col,
-                        "employee_deferral_rate": deferral_col,
-                        "employer_match_contribution": match_col,
-                        "employer_core_contribution": core_col,
-                        **self._schema_columns(columns, _PLAUSIBILITY_ONLY_FIELDS),
-                    },
-                    self._plausibility_year(conn, hire_col, resolved_as_of),
+                    conn, self.plausibility_scope(conn, rule_columns, resolved_as_of)
                 )
             )
 
@@ -663,14 +674,7 @@ class CensusAnalysisService:
                 )
 
         if id_col:
-            dupe_count = self._scalar(
-                conn,
-                f"""
-                SELECT COALESCE(SUM(cnt - 1), 0) FROM (
-                  SELECT COUNT(*) AS cnt FROM census GROUP BY {id_col} HAVING COUNT(*) > 1
-                )
-                """,
-            )
+            dupe_count = count_duplicate_id_rows(conn, id_col)
             if dupe_count:
                 issues.append(
                     CensusDataQualityIssue(
@@ -750,15 +754,68 @@ class CensusAnalysisService:
             return as_of.date.year
         return census_year_from_hires(conn, "census", hire_col) or as_of.date.year
 
-    def _plausibility_issues(
+    def _rule_columns(self, columns: set[str]) -> dict[str, str]:
+        """Canonical census field -> ``census`` column, for the fields found.
+
+        The one place ``analyze`` and the import wizard resolve these fields.
+        """
+        candidates = {
+            "employee_id": "employee_id" if "employee_id" in columns else None,
+            "employee_birth_date": self._optional_column(
+                columns, CENSUS_BIRTH_DATE_COLUMNS
+            ),
+            "employee_hire_date": self._optional_column(
+                columns, CENSUS_HIRE_DATE_COLUMNS
+            ),
+            "employee_termination_date": self._optional_column(
+                columns, CENSUS_TERMINATION_DATE_COLUMNS
+            ),
+            "employee_gross_compensation": self._optional_column(
+                columns, CENSUS_COMPENSATION_COLUMNS
+            ),
+            "employee_deferral_rate": self._optional_column(
+                columns, CENSUS_DEFERRAL_COLUMNS
+            ),
+            "employer_match_contribution": self._optional_column(
+                columns, CENSUS_EMPLOYER_MATCH_COLUMNS
+            ),
+            "employer_core_contribution": self._optional_column(
+                columns, CENSUS_EMPLOYER_CORE_COLUMNS
+            ),
+            **self._schema_columns(columns, _PLAUSIBILITY_ONLY_FIELDS),
+        }
+        return {name: col for name, col in candidates.items() if col is not None}
+
+    def plausibility_columns(self, conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
+        """Rule columns of a loaded ``census`` table, resolved as ``analyze`` does."""
+        return self._rule_columns(self._census_columns(conn))
+
+    def plausibility_scope(
         self,
         conn: duckdb.DuckDBPyConnection,
-        columns: dict[str, Optional[str]],
-        census_year: int,
+        columns: dict[str, str],
+        as_of: Optional[ResolvedAsOf] = None,
+    ) -> PlausibilityScope:
+        """The census year and limits the rules run with, as ``analyze`` sets them.
+
+        ``as_of`` defaults to the date ``analyze`` infers when none is given,
+        so the import wizard's counts match Census Analysis. Raises
+        ValueError when no hire or termination date can set the year.
+        """
+        hire_col = columns.get("employee_hire_date")
+        if as_of is None:
+            as_of = resolve_as_of_date(
+                conn, hire_col, columns.get("employee_termination_date")
+            )
+        year = self._plausibility_year(conn, hire_col, as_of)
+        return PlausibilityScope(
+            columns, year, deferral_limits_for_year(year, IRS_LIMITS_SEED)
+        )
+
+    def _plausibility_issues(
+        self, conn: duckdb.DuckDBPyConnection, scope: PlausibilityScope
     ) -> list[CensusDataQualityIssue]:
         """Cross-field checks shared with the import wizard and the engine."""
-        mapped = {name: col for name, col in columns.items() if col is not None}
-        limits = deferral_limits_for_year(census_year, IRS_LIMITS_SEED)
         return [
             CensusDataQualityIssue(
                 issue_type=result.rule.issue_type,
@@ -767,7 +824,9 @@ class CensusAnalysisService:
                 count=result.count,
                 message=result.rule.format_message(result.count),
             )
-            for result in count_violations(conn, "census", mapped, census_year, limits)
+            for result in count_violations(
+                conn, "census", scope.columns, scope.census_year, scope.limits
+            )
             if result.count
         ]
 

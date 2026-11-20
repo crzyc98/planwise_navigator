@@ -507,7 +507,7 @@ export async function getSimulationResults(scenarioId: string, population: strin
   return handleResponse<SimulationResults>(response);
 }
 
-function filenameFromContentDisposition(response: Response, fallback: string): string {
+export function filenameFromContentDisposition(response: Response, fallback: string): string {
   const disposition = response.headers.get('Content-Disposition');
   const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
   return match ? decodeURIComponent(match[1]) : fallback;

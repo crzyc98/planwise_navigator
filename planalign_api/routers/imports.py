@@ -8,10 +8,12 @@ import re
 import shutil
 from pathlib import Path
 from typing import List
+from urllib.parse import quote
 
+import duckdb
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_error
@@ -525,8 +527,6 @@ def get_suggestions(
                 suggestion.confidence_score = 1.0
                 suggestion.reason = "prior_mapping"
 
-    data_quality = engine.scan_data_quality(session, suggestions)
-
     schema_payload = [
         {
             "field_name": f.field_name,
@@ -540,7 +540,6 @@ def get_suggestions(
     return SuggestionsResponse(
         import_id=import_id,
         suggestions=suggestions,
-        data_quality=data_quality,
         canonical_schema=schema_payload,
     )
 
@@ -565,7 +564,10 @@ def get_mapped_preview(
         raise HTTPException(
             status_code=409, detail="No mapping saved yet; save a mapping first"
         )
-    df, warnings = service.get_mapped_preview(workspace_id, import_id)
+    # One read of the upload serves both the preview and the whole-file checks.
+    source = service.read_source(workspace_id, import_id)
+    df, warnings = service.get_mapped_preview(workspace_id, import_id, source=source)
+    quality = service.get_data_quality(workspace_id, import_id, source=source)
     rows = _df_to_records(df)
     return MappedPreviewResponse(
         import_id=import_id,
@@ -574,6 +576,43 @@ def get_mapped_preview(
         total_row_count=session.row_count,
         preview_row_count=len(rows),
         transformation_warnings=warnings,
+        data_quality=quality.result,
+        data_quality_skipped_reason=quality.skipped_reason,
+    )
+
+
+@router.get(
+    "/{workspace_id}/imports/{import_id}/flagged-rows",
+    summary="Download rows that broke a census plausibility rule (CSV)",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}}},
+)
+def download_flagged_rows(
+    workspace_id: str,
+    import_id: str,
+    service: ImportService = Depends(get_import_service),
+) -> Response:
+    """Row number, employee ID and the rules broken; no other row contents."""
+    session = _check_session(workspace_id, import_id, service)
+    try:
+        content = service.get_flagged_rows_csv(workspace_id, import_id)
+    except (ValueError, duckdb.IOException) as exc:
+        # ValueError: the mapping can't convert the file, or no census year;
+        # IOException: generating has already removed the upload.
+        raise HTTPException(
+            status_code=409,
+            detail="Flagged rows aren't available for this import",
+        ) from exc
+    filename = f"{Path(session.original_filename).stem}_flagged_rows.csv"
+    return Response(
+        content=content,
+        media_type="text/csv",
+        # RFC 5987 form: upload names may hold quotes or non-ASCII text.
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename*=utf-8''{quote(filename, safe='')}"
+            )
+        },
     )
 
 

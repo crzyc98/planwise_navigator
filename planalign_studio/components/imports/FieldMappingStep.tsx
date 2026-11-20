@@ -161,7 +161,7 @@ function TransformParams({ type, params, onChange }: {
 interface Props {
   workspaceId: string;
   session: ImportSession;
-  onSaved: (mappings: FieldMapping[], suggestionsData: SuggestionsResponse | null) => void;
+  onSaved: (mappings: FieldMapping[]) => void;
 }
 
 function buildInitialMappings(
@@ -312,7 +312,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
       const result = await saveMapping(workspaceId, session.import_id, toSave);
       setValidationErrors(result.validation_errors);
       if (result.validation_errors.length === 0) {
-        onSaved(toSave, suggestionsData);
+        onSaved(toSave);
       }
     } catch (err) {
       console.error('Save mapping failed', err);
