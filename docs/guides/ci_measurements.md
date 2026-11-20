@@ -130,6 +130,14 @@ time (the suite's critical path); do not claim improvement based only on summed
 per-test estimates. A single pair has runner noise; repeat if the result is close.
 Do not use timings from failed, interrupted, or partial shards as a baseline.
 
+## Eight-shard baseline (2026-11-20)
+
+Run [44645859007](https://github.com/crzyc98/planwise_navigator/actions/runs/44645859007)
+(PR #1259) was the first on eight shards, still assigned by the four-shard
+timings. Test steps took 29 to 52 minutes (shard 4 was the critical path), down
+from 60-70 on four shards. `.test_durations` was refreshed from this run: 6,007
+tests summing to 243 minutes, against 309 minutes of shard time.
+
 ## Issue #874 measurement status
 
 The BEFORE baseline is nightly main run
