@@ -4643,7 +4643,7 @@ export interface components {
             field: string | null;
             /**
              * Issue Type
-             * @description One of: missing_required_field, duplicate_employee_id, out_of_range_value, unparseable_date
+             * @description One of: missing_required_field, duplicate_employee_id, out_of_range_value, unparseable_date, impossible_value, implausible_value
              */
             issue_type: string;
             /**

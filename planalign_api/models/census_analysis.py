@@ -136,7 +136,8 @@ class CensusDataQualityIssue(APIModel):
         ...,
         description=(
             "One of: missing_required_field, duplicate_employee_id, "
-            "out_of_range_value, unparseable_date"
+            "out_of_range_value, unparseable_date, impossible_value, "
+            "implausible_value"
         ),
     )
     field: Optional[str] = Field(
