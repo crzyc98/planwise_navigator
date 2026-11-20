@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Census Analysis now flags rows whose columns contradict each other (#1260): contributions above pay, negative contributions, a birth date on or after the hire date, a termination before the hire, dates after the census year, ages at hire under 14 or over 100, contributions well above the stated deferral rate or not matching the pre-tax/Roth/after-tax split, contributions above the IRS 402(g) limit with catch-up, and pay far above the rest of the file. Each flag shows a row count only.
+- Simulation runs now warn when the census has impossible or implausible values (#1262), using the same row checks as Census Analysis. The run's Activity Feed and log show one warning naming the rules that flagged rows, with row counts only. Results do not change.
 
 ### Fixed
 

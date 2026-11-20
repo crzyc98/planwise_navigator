@@ -107,6 +107,7 @@ def _year_orchestrator(monkeypatch, foundation_error: Exception | None):
     orchestrator._seeded = False
     orchestrator._dbt_vars = {}
     orchestrator.db_manager = MagicMock()
+    orchestrator.observability = None
     orchestrator.verbose = False
     orchestrator.hazard_cache_manager = None
     orchestrator.duckdb_performance_monitor = None
@@ -139,6 +140,12 @@ def _year_orchestrator(monkeypatch, foundation_error: Exception | None):
     def seed_registry(year):
         order.append("registry")
 
+    def census_checks(*_args):
+        order.append("census_checks")
+        return []
+
+    monkeypatch.setattr(pipeline_module, "report_census_plausibility", census_checks)
+
     orchestrator.dbt_runner = MagicMock()
     orchestrator.dbt_runner.execute_command.side_effect = execute_command
     orchestrator._execute_stage_with_monitoring = execute_stage
@@ -151,7 +158,13 @@ def test_start_year_builds_seeds_staging_foundation_then_registry(monkeypatch) -
 
     orchestrator._execute_year_workflow(START_YEAR, fail_on_validation_error=True)
 
-    assert order == ["seed", "staging", WorkflowStage.FOUNDATION.value, "registry"]
+    assert order == [
+        "seed",
+        "staging",
+        "census_checks",
+        WorkflowStage.FOUNDATION.value,
+        "registry",
+    ]
 
 
 def test_foundation_failure_propagates_before_registry_seeding(monkeypatch) -> None:
@@ -162,4 +175,31 @@ def test_foundation_failure_propagates_before_registry_seeding(monkeypatch) -> N
     with pytest.raises(PipelineStageError, match="foundation failed"):
         orchestrator._execute_year_workflow(START_YEAR, fail_on_validation_error=True)
 
-    assert order == ["seed", "staging", WorkflowStage.FOUNDATION.value]
+    assert order == ["seed", "staging", "census_checks", WorkflowStage.FOUNDATION.value]
+
+
+def test_census_checks_report_before_the_hourly_rate_check_stops_a_run(
+    monkeypatch,
+) -> None:
+    order: list[str] = []
+    orchestrator = PipelineOrchestrator.__new__(PipelineOrchestrator)
+    orchestrator._dbt_vars = {"census_parquet_path": "census.parquet"}
+    orchestrator.db_manager = MagicMock()
+    orchestrator.observability = None
+    orchestrator.config = MagicMock()
+    orchestrator.dbt_runner = MagicMock()
+    orchestrator.dbt_runner.execute_command.return_value = _result(True)
+
+    def census_checks(*_args):
+        order.append("census_checks")
+
+    def require_rates(_conn):
+        order.append("hourly_rates")
+        raise pipeline_module.ConfigurationError("no hourly rates")
+
+    monkeypatch.setattr(pipeline_module, "report_census_plausibility", census_checks)
+    monkeypatch.setattr(pipeline_module, "require_census_hourly_rates", require_rates)
+
+    with pytest.raises(pipeline_module.ConfigurationError):
+        orchestrator._run_start_year_setup(START_YEAR)
+    assert order == ["census_checks", "hourly_rates"]
