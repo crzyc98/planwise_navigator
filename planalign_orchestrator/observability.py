@@ -75,7 +75,8 @@ class ObservabilityManager:
 
     def log_warning(self, message: str, **kwargs) -> None:
         """Log warning message and add to run summary"""
-        self.logger.warning(message, **kwargs)
+        # add_warning logs through the same logger; logging here too printed
+        # every warning twice (and showed twice in Studio's activity feed).
         self.run_summary.add_warning(message, kwargs)
 
     def log_error(self, message: str, **kwargs) -> None:

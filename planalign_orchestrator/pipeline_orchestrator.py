@@ -30,6 +30,10 @@ from .config.dbt_var_validation import validate_dbt_vars
 from .census_year import census_gap_message, infer_census_year
 from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
+from .census_plausibility_warnings import (
+    DEFAULT_PLAN_DEFERRAL_CAP,
+    report_census_plausibility,
+)
 from .minimum_wage import (
     require_census_hourly_rates,
     warn_unreached_minimum_wage_steps,
@@ -788,9 +792,14 @@ class PipelineOrchestrator:
             raise PipelineStageError(
                 f"Staging models failed with code {staging_res.return_code}"
             )
-        if self.config.compensation.minimum_wage:
-            with self.db_manager.get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
+            if self.config.compensation.minimum_wage:
                 require_census_hourly_rates(conn)
+            report_census_plausibility(
+                conn,
+                self.observability,
+                self._dbt_vars.get("plan_deferral_cap", DEFAULT_PLAN_DEFERRAL_CAP),
+            )
 
     def _seed_start_year_enrollment_registry(self, year: int) -> None:
         """Seed census enrollments after FOUNDATION creates baseline workforce."""
