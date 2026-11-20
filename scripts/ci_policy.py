@@ -5,7 +5,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+SIMULATION_MARKERS = ("multi_year_invariants", "edge_config_matrix")
 
 BASE_JOBS = {
     "lint",
@@ -14,7 +18,7 @@ BASE_JOBS = {
     "python-dependency-audit",
     "validate-models",
 }
-SIMULATION_JOBS = {"multi-year-invariants", "edge-config-matrix"}
+SIMULATION_JOBS = {"simulation-suites"}
 FULL_JOBS = {"test", "coverage"}
 
 
@@ -37,6 +41,19 @@ def gate_errors(jobs: dict[str, dict], simulation: bool, full: bool) -> list[str
     return errors
 
 
+def simulation_suites(root: Path = ROOT) -> list[str]:
+    """Test files that run real simulations; CI gives each its own runner."""
+    marker = re.compile(rf"pytest\.mark\.({'|'.join(SIMULATION_MARKERS)})\b")
+    suites = sorted(
+        path.relative_to(root).as_posix()
+        for path in (root / "tests").rglob("test_*.py")
+        if marker.search(path.read_text())
+    )
+    if not suites:
+        raise SystemExit("No simulation suites found; the matrix would be empty")
+    return suites
+
+
 def select() -> None:
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     full = os.environ["GITHUB_EVENT_NAME"] != "pull_request" or any(
@@ -45,7 +62,10 @@ def select() -> None:
     )
     # Simulations run after merge and nightly; full-ci asks for them on a PR.
     simulation = full
-    values = f"full={str(full).lower()}\nsimulation={str(simulation).lower()}\n"
+    values = (
+        f"full={str(full).lower()}\nsimulation={str(simulation).lower()}\n"
+        f"suites={json.dumps(simulation_suites())}\n"
+    )
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
         output.write(values)
     print(values)

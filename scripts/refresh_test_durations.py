@@ -17,10 +17,12 @@ def read_run(run_id: str) -> dict[str, Any]:
     shards = {
         job["name"]: job for job in run["jobs"] if job["name"].startswith("test (")
     }
-    if shards.keys() != {f"test ({index})" for index in range(1, 5)}:
-        raise ValueError("Expected exactly four CI shard jobs")
+    if shards.keys() != {f"test ({index})" for index in range(1, len(shards) + 1)}:
+        raise ValueError(f"Unexpected CI shard jobs: {sorted(shards)}")
+    if len(shards) < 2:
+        raise ValueError("Expected a sharded CI run")
     elapsed = {}
-    for name, job in sorted(shards.items()):
+    for name, job in sorted(shards.items(), key=lambda item: (len(item[0]), item[0])):
         if job["conclusion"] != "success":
             raise ValueError(f"{name} did not succeed; refusing incomplete baseline")
         step = next(
@@ -32,9 +34,9 @@ def read_run(run_id: str) -> dict[str, Any]:
     return {"url": run["url"], "head_sha": run["headSha"], "test_step_seconds": elapsed}
 
 
-def merge_durations(artifacts: Path) -> dict[str, float]:
+def merge_durations(artifacts: Path, shard_count: int) -> dict[str, float]:
     merged: dict[str, float] = {}
-    for index in range(1, 5):
+    for index in range(1, shard_count + 1):
         path = artifacts / f"test-durations-{index}" / ".test_durations"
         durations = json.loads(path.read_text())
         if not durations or not isinstance(durations, dict):
@@ -59,15 +61,18 @@ def main() -> None:
     parser.add_argument("--compare-run", help="Complete run using refreshed timings")
     args = parser.parse_args()
     before = read_run(args.run)
-    durations = merge_durations(args.artifacts)
+    durations = merge_durations(args.artifacts, len(before["test_step_seconds"]))
     provenance = {"source": before, "test_count": len(durations)}
     if args.compare_run:
         after = read_run(args.compare_run)
         provenance["comparison"] = after
-        for name, elapsed in before["test_step_seconds"].items():
-            current = after["test_step_seconds"][name]
+        # Shard counts may differ between the two runs, so compare the
+        # critical path and the total rather than shard by shard.
+        for label, pick in (("slowest shard", max), ("all shards", sum)):
+            elapsed = pick(before["test_step_seconds"].values())
+            current = pick(after["test_step_seconds"].values())
             print(
-                f"{name}: {elapsed:.0f}s -> {current:.0f}s ({current - elapsed:+.0f}s)"
+                f"{label}: {elapsed:.0f}s -> {current:.0f}s ({current - elapsed:+.0f}s)"
             )
     Path(".test_durations").write_text(
         json.dumps(durations, indent=4, sort_keys=True) + "\n"

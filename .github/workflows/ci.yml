@@ -3,7 +3,7 @@ name: CI Pipeline
 
 # PRs run lint, Studio, fast tests, the dependency audit and model validation.
 # Simulations, full integration and coverage run on main/develop, nightly,
-# dispatch, or with the full-ci label. A failed nightly run opens an issue.
+# dispatch, or with the full-ci label. A failed run on main opens an issue.
 # Require `CI Gate` in repository rulesets to enforce this conditional policy.
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
     outputs:
       simulation: ${{ steps.scope.outputs.simulation }}
       full: ${{ steps.scope.outputs.full }}
+      suites: ${{ steps.scope.outputs.suites }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -236,9 +237,9 @@ jobs:
     # gating policy comment at the top of this file. Runs in full on push to
     # main/develop, nightly, and via workflow_dispatch.
     if: needs.ci-scope.outputs.full == 'true'
-    # Four independent runners, balanced using measured test durations.
-    # Historical measurements above are not a current performance baseline.
-    # Refresh and compare complete runs per docs/guides/ci_measurements.md.
+    # Eight independent runners, balanced using measured test durations.
+    # Four shards had grown to 60-70 minutes each. Refresh and compare
+    # complete runs per docs/guides/ci_measurements.md.
     #
     # Sharding rather than pytest-xdist (`-n auto`) is deliberate. The execution
     # lock is a single file in the working directory (utils.py: `.{name}.lock`),
@@ -246,10 +247,13 @@ jobs:
     # "Failed to acquire execution lock". Measured: 2 such failures under
     # `-n auto`. Each shard is its own runner with its own filesystem, so the
     # lock behaves exactly as it does today.
+    #
+    # The timeout only stops a hung shard; it is not the time budget.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
 
@@ -285,7 +289,7 @@ jobs:
           cd dbt
           dbt deps
 
-      - name: Run Python tests (shard ${{ matrix.shard }}/4)
+      - name: Run Python tests (shard ${{ matrix.shard }}/8)
         env:
           # Keep each shard's coverage data in its own file so the combine step
           # below can merge them without clobbering.
@@ -295,13 +299,12 @@ jobs:
           # always-run assertion below detects an unexpected fallback.
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-shard-${{ matrix.shard }}.duckdb
         run: |
-          # multi_year_invariants is excluded here: those multi-year suites run
-          # in the dedicated multi-year-invariants job (with failure-artifact
-          # capture and a longer timeout). Lighter integration tests that drive
+          # The simulation suites are excluded here: they run in the
+          # simulation-suites job, one runner per file. Lighter integration tests that drive
           # a real dbt run stay here and rely on the dbt deps installed above.
           #
           # --splits/--group partitions the suite deterministically, so every
-          # test runs exactly once across the four shards.
+          # test runs exactly once across the shards.
           #
           # least_duration balances by the measured times in .test_durations,
           # not by test count. Count-based splitting does NOT work here: the
@@ -311,13 +314,13 @@ jobs:
           #
           # Read the committed timings for assignment, then replace them with
           # this shard's observations only. Never merge inherited stale entries.
-          # Download all four timing artifacts to refresh (see CI guide).
+          # Download every timing artifact to refresh (see CI guide).
           #
-          # No --cov-fail-under here: a single shard only ever sees a quarter of
+          # No --cov-fail-under here: a single shard only ever sees part of
           # the suite and would fail the gate spuriously. The threshold is
           # enforced once, on the combined data, in the `coverage` job.
           pytest tests/ -v -m "not multi_year_invariants and not edge_config_matrix" \
-            --splits 4 --group ${{ matrix.shard }} \
+            --splits 8 --group ${{ matrix.shard }} \
             --splitting-algorithm least_duration \
             --store-durations --clean-durations \
             --cov --cov-config=pyproject.toml \
@@ -331,7 +334,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-      - name: Assert default database sentinel remains unused (shard ${{ matrix.shard }}/4)
+      - name: Assert default database sentinel remains unused (shard ${{ matrix.shard }}/8)
         if: always()
         env:
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-shard-${{ matrix.shard }}.duckdb
@@ -359,7 +362,7 @@ jobs:
       # isolated databases per the CLAUDE.md validation rule.
 
   coverage:
-    # Enforces the coverage gate once, on the four shards combined. Splitting the
+    # Enforces the coverage gate once, on the shards combined. Splitting the
     # test job means no single run sees the whole suite, so the threshold cannot
     # live in the shards.
     #
@@ -405,13 +408,22 @@ jobs:
             coverage.xml
             coverage.json
 
-  multi-year-invariants:
+  simulation-suites:
+    name: simulation (${{ matrix.suite }})
     runs-on: ubuntu-latest
     needs: ci-scope
     if: needs.ci-scope.outputs.simulation == 'true'
-    # Recent successful runs take 16-20 minutes; leave enough headroom for
-    # normal hosted-runner variance without masking a genuinely stuck suite.
-    timeout-minutes: 30
+    # One runner per simulation test file, so wall time is the slowest file
+    # (about 11 minutes on a slow runner) instead of the sum of all of them.
+    # Run serially, these suites outgrew a 30-minute limit and left main red.
+    # scripts/ci_policy.py finds the files by marker, and tests/conftest.py
+    # rejects a marked test that the search would miss, so a new suite gets a
+    # runner without editing this file.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.ci-scope.outputs.suites) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -444,20 +456,22 @@ jobs:
           cd dbt
           dbt deps
 
-      - name: Run multi-year invariant suite
+      - name: Run simulation suite
         env:
+          SUITE: ${{ matrix.suite }}
           # This sentinel exposes tests that bypass their isolated database.
           # The assertion below must remain so the guard stays non-vacuous.
-          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-multi-year-invariants.duckdb
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-simulation-suite.duckdb
         run: |
-          mkdir -p var/test-artifacts/113
+          mkdir -p var/test-artifacts
           set -o pipefail
-          pytest -m multi_year_invariants -v 2>&1 | tee var/test-artifacts/113/diagnostics.log
+          pytest "$SUITE" -m "multi_year_invariants or edge_config_matrix" -v --durations=10 \
+            2>&1 | tee var/test-artifacts/diagnostics.log
 
       - name: Assert default database sentinel remains unused
         if: always()
         env:
-          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-multi-year-invariants.duckdb
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-simulation-suite.duckdb
         run: |
           if [ -e "$DATABASE_PATH" ]; then
             echo "::error::A test reached the global/default database path: $DATABASE_PATH"
@@ -467,62 +481,12 @@ jobs:
             exit 1
           fi
 
-      - name: Preserve failed invariant databases
+      - name: Preserve failed simulation databases
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: multi-year-invariants
-          path: var/test-artifacts/113/
-          retention-days: 7
-
-  edge-config-matrix:
-    runs-on: ubuntu-latest
-    needs: ci-scope
-    if: needs.ci-scope.outputs.simulation == 'true'
-    # Four sequential two-year simulations. Each costs ~105s on a GitHub runner
-    # (~2x a dev laptop), so the suite needs ~8min wall including setup.
-    # Matches multi-year-invariants, the sibling job that also runs real sims.
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install dependencies
-        run: |
-          python -m pip install -r requirements.txt -r requirements-dev.txt
-          python -c "import planalign_orchestrator"
-      - name: Install dbt packages
-        run: cd dbt && dbt deps
-      - name: Run edge configuration matrix
-        env:
-          # This sentinel exposes tests that bypass their isolated database.
-          # The assertion below must remain so the guard stays non-vacuous.
-          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-edge-config-matrix.duckdb
-        run: |
-          mkdir -p var/test-artifacts/124
-          set -o pipefail
-          pytest -m edge_config_matrix -v --durations=10 2>&1 | tee var/test-artifacts/124/diagnostics.log
-
-      - name: Assert default database sentinel remains unused
-        if: always()
-        env:
-          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-edge-config-matrix.duckdb
-        run: |
-          if [ -e "$DATABASE_PATH" ]; then
-            echo "::error::A test reached the global/default database path: $DATABASE_PATH"
-            echo "This runner.temp sentinel must remain absent; tests must use explicit isolated databases."
-            echo "Likely cause: code fell back to get_database_path() instead of a test fixture database."
-            echo "See CLAUDE.md §8 (validate in isolated databases) and tests/conftest.py's shared_dev_database_guard."
-            exit 1
-          fi
-      - name: Preserve failed matrix artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: edge-config-matrix
-          path: var/test-artifacts/124/
+          name: simulation-suite-${{ strategy.job-index }}
+          path: var/test-artifacts/
           retention-days: 7
 
   validate-models:
@@ -577,7 +541,7 @@ jobs:
     name: CI Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [ci-scope, lint, studio, fast-tests, python-dependency-audit, validate-models, test, coverage, multi-year-invariants, edge-config-matrix]
+    needs: [ci-scope, lint, studio, fast-tests, python-dependency-audit, validate-models, test, coverage, simulation-suites]
     steps:
       - uses: actions/checkout@v7
       - name: Require every selected check to succeed
@@ -585,24 +549,32 @@ jobs:
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 scripts/ci_policy.py gate
 
-  nightly-alert:
-    name: Report nightly failure
+  main-alert:
+    name: Report failure on main
     runs-on: ubuntu-latest
     needs: [ci-gate]
-    if: always() && github.event_name == 'schedule' && needs.ci-gate.result == 'failure'
+    # Simulations and integration only run after merge, so a red run on main is
+    # the first sign of a regression. Report every one, not just the nightly.
+    if: >-
+      always() && needs.ci-gate.result == 'failure' &&
+      (github.event_name == 'schedule' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     permissions:
       issues: write
     steps:
-      - name: Open one issue for a failed nightly run
+      - name: Open one issue for a failed run on main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="Nightly CI failed"
-          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq 'length')
-          if [ "$open" -eq 0 ]; then
-            gh issue create --title "$title" --body "Simulations or integration tests failed on main: $RUN_URL"
+          title="CI failed on main"
+          # List rather than search: the search index lags, and two merges
+          # failing minutes apart would each open an issue.
+          open=$(gh issue list --state open --limit 500 --json number,title \
+            --jq "map(select(.title == \"$title\")) | first | .number // empty")
+          if [ -z "$open" ]; then
+            gh issue create --title "$title" --body "CI failed on main: $RUN_URL"
           else
-            echo "An open issue already tracks nightly failures."
+            gh issue comment "$open" --body "Failed again: $RUN_URL"
           fi

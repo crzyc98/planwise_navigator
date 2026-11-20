@@ -7,13 +7,22 @@ suite, and dbt validation. Fast tests and model validation start independently
 of lint. New PR runs cancel obsolete runs for the same PR; post-merge, scheduled,
 and manually dispatched runs remain independent so their evidence is retained.
 
-`scripts/ci_policy.py` keeps simulations off ordinary PRs. Multi-year invariants,
-the edge-config matrix, integration shards and coverage run on every push to
-`main`, nightly, on dispatch, or with the `full-ci` label. A failed nightly run
-opens one `Nightly CI failed` issue, so a regression that reaches `main` is
-reported by the next morning.
+`scripts/ci_policy.py` keeps simulations off ordinary PRs. The simulation suites,
+integration shards and coverage run on every push to `main`, nightly, on
+dispatch, or with the `full-ci` label. A failed push or nightly run on `main`
+opens one `CI failed on main` issue, and later failures comment on it, so a
+regression that reaches `main` is reported within the hour.
 
-The four integration shards and combined coverage still run on main/develop,
+Each simulation test file (marked `multi_year_invariants` or
+`edge_config_matrix`) gets its own runner in the `simulation-suites` job, so the
+job takes as long as its slowest file, about 11 minutes. `ci_policy.py` finds the
+files by searching for the marker, and `tests/conftest.py` fails collection if
+that search and pytest's own markers disagree. Run serially, the suites took
+23 minutes on a good runner and timed out at 30 on a slow one, which left `main`
+red through 2026-11-19. If one file approaches the 20-minute limit, split the
+file. Don't raise the limit.
+
+The eight integration shards and combined coverage still run on main/develop,
 nightly, manual dispatch, and PRs carrying `full-ci`. Adding or removing a label
 now triggers selection immediately. Use `full-ci` only for changes that need
 integration-shard or coverage evidence before merge (integration tests, coverage
@@ -81,6 +90,10 @@ It does not preinstall a separate engine version.
 
 ## Refresh timings using GitHub-hosted runners
 
+The suite runs on eight shards. Four had grown to 60-70 minutes each by
+2026-11-19. To change the count, edit the `shard` list and `--splits` in
+`ci.yml` together; `tests/unit/test_ci_policy.py` checks they agree.
+
 Each successful test shard uploads `test-durations-N/.test_durations`.
 `--store-durations --clean-durations` first reads the committed durations to
 assign tests, then writes only that shard's observations. Without cleaning,
@@ -93,7 +106,7 @@ After committing this workflow on an authorized branch:
 
 ```bash
 gh workflow run ci.yml --ref <branch>
-# Wait for all four test shards to succeed; record that run ID as BEFORE.
+# Wait for every test shard to succeed; record that run ID as BEFORE.
 gh run download "$BEFORE" --pattern 'test-durations-*' --dir var/ci-timings/before
 source .venv/bin/activate
 python scripts/refresh_test_durations.py --run "$BEFORE" --artifacts var/ci-timings/before
@@ -112,7 +125,7 @@ python scripts/refresh_test_durations.py --run "$BEFORE" \
 ```
 
 This retains the BEFORE observations as the assignment input and adds the actual
-AFTER elapsed times to provenance. Review all four deltas and the maximum shard
+AFTER elapsed times to provenance. Review the total and the maximum shard
 time (the suite's critical path); do not claim improvement based only on summed
 per-test estimates. A single pair has runner noise; repeat if the result is close.
 Do not use timings from failed, interrupted, or partial shards as a baseline.
