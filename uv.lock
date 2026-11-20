@@ -3212,7 +3212,7 @@ wheels = [
 
 [[package]]
 name = "planalign-engine"
-version = "3.5.1"
+version = "3.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "dbt-core" },
