@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   AlertTriangle,
@@ -11,7 +10,7 @@ import {
 } from 'lucide-react';
 
 import { getRunHealth, RunHealthFinding, RunHealthReport } from '../../services/api';
-import { useWorkspacePath } from '../../hooks/useWorkspaceNavigation';
+import WorkspaceLink from '../WorkspaceLink';
 import { censusTieOutPath } from '../CensusTieOutPanel';
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -103,18 +102,17 @@ export function CensusTieOutLine({ scenarioId, report }: Readonly<{
   scenarioId: string;
   report: RunHealthReport;
 }>) {
-  const to = useWorkspacePath(censusTieOutPath(scenarioId));
   if (!report.census_tie_out) return null;
   return (
-    <Link
-      to={to}
+    <WorkspaceLink
+      to={censusTieOutPath(scenarioId)}
       data-run-health-tie-out
       className="flex items-center gap-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-ink transition-colors hover:bg-surface-subtle"
     >
       <AlertTriangle size={16} />
       <span>{report.census_tie_out.message}</span>
       <ArrowRight size={14} className="ml-auto" />
-    </Link>
+    </WorkspaceLink>
   );
 }
 
@@ -191,7 +189,7 @@ export default function RunHealthSummary({
     }[report.status];
     return (
       <div className="space-y-2">
-        <Link
+        <WorkspaceLink
           to={`/simulate/${scenarioId}`}
           data-run-health-status={report.status}
           className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
@@ -207,7 +205,7 @@ export default function RunHealthSummary({
           <span>{statusText}</span>
           {(report.status === 'warnings' || report.status === 'failed') && <Counts report={report} />}
           <ArrowRight size={14} className="ml-auto" />
-        </Link>
+        </WorkspaceLink>
         <CensusTieOutLine scenarioId={scenarioId} report={report} />
       </div>
     );
@@ -234,13 +232,13 @@ export default function RunHealthSummary({
           Validation Health
         </h4>
         {runId && (
-          <Link
+          <WorkspaceLink
             to={`/simulate/${scenarioId}/runs/${runId}/provenance`}
             className="flex items-center gap-1 text-sm font-medium text-brand-ink hover:underline"
           >
             View full audit report
             <ArrowRight size={14} />
-          </Link>
+          </WorkspaceLink>
         )}
       </div>
 

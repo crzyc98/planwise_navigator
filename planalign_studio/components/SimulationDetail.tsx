@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import WorkspaceLink from './WorkspaceLink';
 import {
   ArrowLeft,
   Clock,
@@ -263,13 +264,13 @@ export default function SimulationDetail() {
               {details.status.toUpperCase().replace('_', ' ')}
             </span>
             {details.status === 'completed' && (
-              <Link
+              <WorkspaceLink
                 to={`/analytics?scenario=${details.scenario_id}`}
                 className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse hover:bg-brand-dark rounded-lg font-medium shadow-sm"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics
-              </Link>
+              </WorkspaceLink>
             )}
           </div>
         </div>
@@ -484,13 +485,13 @@ export default function SimulationDetail() {
                           <span className="mr-auto text-sm text-success-ink">
                             Review the execution evidence and integrity digest for this archived run.
                           </span>
-                          <Link
+                          <WorkspaceLink
                             to={`/simulate/${details.scenario_id}/runs/${run.id}/provenance`}
                             className="flex items-center rounded-lg border border-brand-green bg-surface-raised px-3 py-2 text-sm font-medium text-brand-ink hover:bg-success-surface"
                           >
                             <ShieldCheck size={15} className="mr-1.5" />
                             View Provenance
-                          </Link>
+                          </WorkspaceLink>
                           <button
                             onClick={() => void handleProvenanceDownload(run.id)}
                             disabled={provenanceDownloadRun !== null}
@@ -688,21 +689,21 @@ export default function SimulationDetail() {
             Back to Simulations
           </button>
           <div className="flex items-center space-x-3">
-            <Link
+            <WorkspaceLink
               to={`/config?scenario=${details.scenario_id}`}
               className="flex items-center px-4 py-2 text-ink-muted bg-surface-subtle hover:bg-surface-disabled rounded-lg font-medium"
             >
               <Settings size={18} className="mr-2" />
               Edit Configuration
-            </Link>
+            </WorkspaceLink>
             {details.status === 'completed' && (
-              <Link
+              <WorkspaceLink
                 to={`/analytics?scenario=${details.scenario_id}`}
                 className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse hover:bg-brand-dark rounded-lg font-medium"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics
-              </Link>
+              </WorkspaceLink>
             )}
           </div>
         </div>

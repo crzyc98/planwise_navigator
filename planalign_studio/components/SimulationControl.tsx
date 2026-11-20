@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Play, Square, Activity, Cpu, Server, Clock, AlertCircle, History, CheckCircle, XCircle, CircleDot, ExternalLink, RefreshCw, Loader2, BarChart3 } from 'lucide-react';
 import { useRunTelemetry } from '../services/websocket';
 import { listScenarios, startSimulation, cancelSimulation, resetSimulation, Scenario } from '../services/api';
 import { LayoutContextType } from './Layout';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import LiveStatsPanel from './simulation/LiveStatsPanel';
 import ActivityFeed from './simulation/ActivityFeed';
 import PerformanceTrendChart from './simulation/PerformanceTrendChart';
@@ -23,7 +24,7 @@ export default function SimulationControl() {
     clearSimulationRunning,
     lastHeartbeatRef,
   } = useOutletContext<LayoutContextType>();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const [searchParams] = useSearchParams();
   const scenarioIdFromUrl = searchParams.get('scenario');
 

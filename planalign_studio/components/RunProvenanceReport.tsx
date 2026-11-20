@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import {
   AlertCircle,
   AlertTriangle,
@@ -78,7 +79,7 @@ function EvidenceValue({ label, value, mono = false }: Readonly<{
 
 export default function RunProvenanceReport() {
   const { scenarioId, runId } = useParams<{ scenarioId: string; runId: string }>();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const [envelope, setEnvelope] = useState<ProvenanceReportEnvelope | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
