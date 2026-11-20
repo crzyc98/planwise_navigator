@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Studio links on the Simulate page, the scenario's run page, the run health panel and the provenance report now stay in the current workspace (#1198). Before, they dropped the workspace from the address, so Studio reopened whichever workspace the browser last stored, which could be another client's when two tabs were open.
+
 ## [3.6.0] - 2026-11-20
 
 ### Added

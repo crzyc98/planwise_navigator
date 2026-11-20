@@ -1,4 +1,5 @@
 import React from 'react';
+// eslint-disable-next-line no-restricted-imports -- builds the full /w/<id>/... path itself
 import { useNavigate } from 'react-router-dom';
 import { WorkspaceManagerContent, WorkspaceManagerContext } from './WorkspaceManager';
 import * as api from '../services/api';

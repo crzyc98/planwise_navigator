@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// eslint-disable-next-line no-restricted-imports -- builds the full /w/<id>/... path itself
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { ListFilter } from 'lucide-react';
 

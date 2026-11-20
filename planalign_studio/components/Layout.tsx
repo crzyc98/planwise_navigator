@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+// eslint-disable-next-line no-restricted-imports -- builds the full /w/<id>/... path itself
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
