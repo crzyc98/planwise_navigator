@@ -10,6 +10,7 @@ from planalign_api.services.census_plausibility import (
     RULES,
     DeferralLimits,
     FlaggedRow,
+    census_year_from_hires,
     count_violations,
     deferral_limits_for_year,
     flagged_rows,
@@ -96,6 +97,28 @@ EDGE_CASES: list[dict[str, Optional[str]]] = [
         "roth_contribution": "0",
         "after_tax_contribution": "6500",
     },
+    # Large after-tax savings don't count against the stated deferral rate.
+    {
+        "employee_gross_compensation": "300000",
+        "employee_capped_compensation": "300000",
+        "employee_deferral_rate": "0.05",
+        "employee_contribution": "55000",
+        "pre_tax_contribution": "15000",
+        "roth_contribution": "0",
+        "after_tax_contribution": "40000",
+    },
+    # October hire who elected 15% but is still in the waiting period.
+    {
+        "employee_hire_date": "2025-10-01",
+        "employee_gross_compensation": "20000",
+        "employee_capped_compensation": "20000",
+        "employee_deferral_rate": "0.15",
+        "employee_contribution": "0",
+        "pre_tax_contribution": "0",
+        "roth_contribution": "0",
+        "employer_match_contribution": "0",
+        "employer_core_contribution": "0",
+    },
     # Unparseable values are left to the single-column checks.
     {"employee_birth_date": "not a date", "employee_contribution": "$4,800"},
 ]
@@ -115,6 +138,9 @@ BAD_ROWS: dict[str, dict[str, Optional[str]]] = {
         )
     },
     "employee_contribution_above_pay": {"employee_contribution": "90000"},
+    "pre_tax_contribution_above_pay": {"pre_tax_contribution": "90000"},
+    "roth_contribution_above_pay": {"roth_contribution": "90000"},
+    "after_tax_contribution_above_pay": {"after_tax_contribution": "90000"},
     "contribution_sources_above_pay": {
         "pre_tax_contribution": "50000",
         "roth_contribution": "40000",
@@ -156,9 +182,12 @@ def conn() -> Iterator[duckdb.DuckDBPyConnection]:
     connection.close()
 
 
-def _load(conn: duckdb.DuckDBPyConnection, overrides: list[dict]) -> None:
-    """Load clean rows (enough for a stable 99th percentile) plus overrides."""
-    rows = [dict(CLEAN) for _ in range(100)] + [{**CLEAN, **o} for o in overrides]
+def _load(
+    conn: duckdb.DuckDBPyConnection, overrides: list[dict], clean_rows: int = 100
+) -> None:
+    """Load ``clean_rows`` clean rows, then one row per override."""
+    rows = [dict(CLEAN) for _ in range(clean_rows)]
+    rows += [{**CLEAN, **o} for o in overrides]
     for index, row in enumerate(rows):
         row["employee_id"] = f"E{index:04d}"
     names = list(CLEAN)
@@ -206,6 +235,71 @@ def test_rule_skipped_when_a_required_column_is_missing(conn, rule) -> None:
     for column in rule.columns:
         columns = {k: v for k, v in COLUMNS.items() if k != column}
         assert rule.rule_id not in _counts(conn, columns)
+    if rule.any_columns:
+        columns = {k: v for k, v in COLUMNS.items() if k not in rule.any_columns}
+        assert rule.rule_id not in _counts(conn, columns)
+
+
+def test_source_rules_run_on_a_pre_tax_only_census(conn) -> None:
+    _load(conn, [{"pre_tax_contribution": "500000"}])
+    columns = {
+        k: v
+        for k, v in COLUMNS.items()
+        if k not in ("roth_contribution", "after_tax_contribution")
+    }
+
+    counts = _counts(conn, columns)
+
+    assert counts["pre_tax_contribution_above_pay"] == 1
+    assert counts["contribution_sources_above_pay"] == 1
+    assert "roth_contribution_above_pay" not in counts
+
+
+def test_split_rule_runs_with_one_source_column(conn) -> None:
+    _load(conn, [{"pre_tax_contribution": "1000"}], clean_rows=0)
+    columns = {
+        k: v
+        for k, v in COLUMNS.items()
+        if k not in ("roth_contribution", "after_tax_contribution")
+    }
+
+    # Clean rows would mismatch too (Roth isn't mapped), so load only one.
+    assert _counts(conn, columns)["contribution_split_mismatch"] == 1
+
+
+@pytest.mark.parametrize(
+    "clean_rows, bad_rows", [(49, 1), (197, 3)], ids=["50-row-file", "1.5pct-bad"]
+)
+def test_compensation_outlier_in_small_or_heavily_affected_files(
+    conn, clean_rows: int, bad_rows: int
+) -> None:
+    # Pay keyed in cents instead of dollars.
+    bad = {"employee_gross_compensation": "8000000"}
+    _load(conn, [bad] * bad_rows, clean_rows=clean_rows)
+
+    assert _counts(conn)["compensation_outlier"] == bad_rows
+
+
+def test_deferral_rate_mismatch_ignores_under_contribution(conn) -> None:
+    _load(
+        conn,
+        [
+            {"employee_deferral_rate": "0.50", "employee_contribution": "0"},
+            {"employee_deferral_rate": "0.15", "employee_contribution": "100"},
+        ],
+    )
+
+    assert _counts(conn)["deferral_rate_mismatch"] == 0
+
+
+@pytest.mark.parametrize(
+    "rule_id",
+    ["termination_before_hire", "employee_capped_compensation_above_pay"],
+)
+def test_rules_with_legitimate_explanations_are_warnings(rule_id: str) -> None:
+    rule = next(r for r in RULES if r.rule_id == rule_id)
+
+    assert (rule.severity, rule.issue_type) == ("warning", "implausible_value")
 
 
 @pytest.mark.parametrize(
@@ -292,16 +386,53 @@ def test_messages_carry_counts_only() -> None:
     rule = next(r for r in RULES if r.rule_id == "termination_before_hire")
 
     assert rule.format_message(3) == (
-        "3 row(s) have a termination date before the hire date."
+        "3 row(s) have a termination date before the hire date. "
+        "Rehires who still carry an old termination date cause this."
     )
+
+
+def test_census_year_ignores_a_few_future_hire_dates(conn) -> None:
+    rows = [("2015-03-01",)] * 150 + [("2014-06-01",)] * 150 + [("2052-01-01",)]
+    conn.execute("CREATE TABLE census (hire VARCHAR)")
+    conn.executemany("INSERT INTO census VALUES (?)", rows)
+
+    assert census_year_from_hires(conn, "census", "hire") == 2015
+
+
+def test_census_year_none_without_parseable_hires(conn) -> None:
+    conn.execute("CREATE TABLE census AS SELECT 'soon' AS hire")
+
+    assert census_year_from_hires(conn, "census", "hire") is None
 
 
 def test_deferral_limits_read_from_seed() -> None:
     assert deferral_limits_for_year(2025) == DeferralLimits(
         elective=23500, with_catch_up=34750
     )
-    assert deferral_limits_for_year(1999) is None
+
+
+def test_deferral_limits_outside_seed_use_nearest_year() -> None:
+    assert deferral_limits_for_year(2023) == deferral_limits_for_year(2024)
+    assert deferral_limits_for_year(1999) == DeferralLimits(
+        elective=23000, with_catch_up=30500
+    )
+    assert deferral_limits_for_year(2200) is not None
 
 
 def test_deferral_limits_missing_seed(tmp_path: Path) -> None:
     assert deferral_limits_for_year(2025, tmp_path / "missing.csv") is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["", "limit_year,base_limit\n2025,23500\n", "limit_year\nnot-a-year\n"],
+    ids=["empty", "missing-columns", "bad-year"],
+)
+def test_deferral_limits_unreadable_seed(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, content: str
+) -> None:
+    seed = tmp_path / "seed.csv"
+    seed.write_text(content)
+
+    assert deferral_limits_for_year(2025, seed) is None
+    assert "IRS limits seed unreadable" in caplog.text

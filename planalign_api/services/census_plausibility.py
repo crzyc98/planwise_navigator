@@ -9,8 +9,8 @@ Each rule's ``predicate`` is DuckDB SQL over canonical census column names
 (see ``census_schema``) and is TRUE for a row that breaks the rule. Callers
 pass a mapping from canonical names to the relation's actual columns; values
 are cast with ``TRY_CAST``, so an unparseable value never trips a rule. A
-rule runs only when all of its ``columns`` are mapped. ``optional_columns``
-read as NULL when unmapped.
+rule runs only when all of its ``columns`` and at least one of its
+``any_columns`` (if any) are mapped; other referenced columns read as NULL.
 
 Results carry counts and employee IDs only, never other row contents (PII).
 """
@@ -40,9 +40,10 @@ _DOLLAR_TOLERANCE = 1.0
 # Implied vs stated deferral rate, in rate units (0.10 = 10 percentage points).
 # Wide on purpose: mid-year elections and late enrollment move the implied rate.
 _DEFERRAL_RATE_TOLERANCE = 0.10
-# Pay above this multiple of the file's 99th percentile reads as a unit error
-# (cents instead of dollars), not an executive salary.
-_COMPENSATION_OUTLIER_MULTIPLE = 10
+# Pay above this multiple of the file's median reads as a unit error (cents
+# for dollars is 100x), not an executive salary. The median, unlike a high
+# percentile, holds steady in small files and when many rows share the error.
+_COMPENSATION_OUTLIER_MULTIPLE = 50
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,9 @@ class PlausibilityRule:
     message: str
     """Template formatted with ``count``."""
     optional_columns: tuple[str, ...] = ()
+    """Read as NULL when unmapped."""
+    any_columns: tuple[str, ...] = ()
+    """At least one must be mapped; the rest read as NULL."""
     needs_limits: bool = False
 
     def format_message(self, count: int) -> str:
@@ -97,11 +101,13 @@ class FlaggedRow:
 
 _PAY = "employee_gross_compensation"
 _EE = "employee_contribution"
-_SOURCES = ("pre_tax_contribution", "roth_contribution")
+_SOURCES = ("pre_tax_contribution", "roth_contribution", "after_tax_contribution")
 _SOURCE_SUM = (
     "COALESCE(pre_tax_contribution, 0) + COALESCE(roth_contribution, 0)"
     " + COALESCE(after_tax_contribution, 0)"
 )
+# Employee dollars that count toward 402(g): after-tax dollars don't.
+_DEFERRED = f"({_EE} - COALESCE(after_tax_contribution, 0))"
 _CONTRIBUTION_LABELS = {
     "employee_contribution": "employee contribution",
     "pre_tax_contribution": "pre-tax contribution",
@@ -112,12 +118,14 @@ _CONTRIBUTION_LABELS = {
 }
 
 
-def _above_pay(column: str, label: str) -> PlausibilityRule:
+def _above_pay(
+    column: str, label: str, severity: Severity = "error"
+) -> PlausibilityRule:
     return PlausibilityRule(
         rule_id=f"{column}_above_pay",
         field=column,
-        severity="error",
-        issue_type="impossible_value",
+        severity=severity,
+        issue_type="impossible_value" if severity == "error" else "implausible_value",
         columns=(column, _PAY),
         predicate=f"{column} > {_PAY} + {_DOLLAR_TOLERANCE}",
         message=f"{{count}} row(s) have {label} above gross compensation.",
@@ -163,13 +171,16 @@ RULES: tuple[PlausibilityRule, ...] = (
     # Impossible: contributions come out of pay, and dates must run in order.
     *(_negative(column, label) for column, label in _CONTRIBUTION_LABELS.items()),
     _above_pay(_EE, "an employee contribution"),
+    _above_pay("pre_tax_contribution", "a pre-tax contribution"),
+    _above_pay("roth_contribution", "a Roth contribution"),
+    _above_pay("after_tax_contribution", "an after-tax contribution"),
     PlausibilityRule(
         rule_id="contribution_sources_above_pay",
         field=_PAY,
         severity="error",
         issue_type="impossible_value",
-        columns=(*_SOURCES, _PAY),
-        optional_columns=("after_tax_contribution",),
+        columns=(_PAY,),
+        any_columns=_SOURCES,
         predicate=f"{_SOURCE_SUM} > {_PAY} + {_DOLLAR_TOLERANCE}",
         message=(
             "{count} row(s) have pre-tax, Roth and after-tax contributions "
@@ -178,7 +189,9 @@ RULES: tuple[PlausibilityRule, ...] = (
     ),
     _above_pay("employer_match_contribution", "an employer match"),
     _above_pay("employer_core_contribution", "an employer core contribution"),
-    _above_pay("employee_capped_compensation", "capped compensation"),
+    # Capped pay may come from a different pay definition (plan-year pay with
+    # bonus versus base salary), so exceeding gross pay is only implausible.
+    _above_pay("employee_capped_compensation", "capped compensation", "warning"),
     PlausibilityRule(
         rule_id="birth_on_or_after_hire",
         field="employee_birth_date",
@@ -191,11 +204,14 @@ RULES: tuple[PlausibilityRule, ...] = (
     PlausibilityRule(
         rule_id="termination_before_hire",
         field="employee_termination_date",
-        severity="error",
-        issue_type="impossible_value",
+        severity="warning",
+        issue_type="implausible_value",
         columns=("employee_termination_date", "employee_hire_date"),
         predicate="employee_termination_date < employee_hire_date",
-        message="{count} row(s) have a termination date before the hire date.",
+        message=(
+            "{count} row(s) have a termination date before the hire date. "
+            "Rehires who still carry an old termination date cause this."
+        ),
     ),
     PlausibilityRule(
         rule_id="hire_date_after_census_year",
@@ -243,22 +259,22 @@ RULES: tuple[PlausibilityRule, ...] = (
         severity="warning",
         issue_type="implausible_value",
         columns=(_EE, _PAY, "employee_deferral_rate"),
+        optional_columns=("after_tax_contribution",),
         needs_limits=True,
-        # Rows at the 402(g) limit stop deferring partway through the year,
-        # and catch-up elections sit on top of the stated rate, so neither
-        # gap counts as a mismatch.
+        # Only over-contribution: late enrollment, waiting periods and the
+        # 402(g) limit all leave contributions legitimately below the stated
+        # rate. Catch-up dollars sit on top of the rate, so they're allowed.
         predicate=(
             f"{_PAY} > 0 AND employee_deferral_rate BETWEEN 0 AND 1"
-            f" AND ABS({_EE} / {_PAY} - employee_deferral_rate)"
+            f" AND {_DEFERRED} / {_PAY} - employee_deferral_rate"
             f" > {_DEFERRAL_RATE_TOLERANCE}"
-            f" AND NOT ({_EE} / {_PAY} < employee_deferral_rate"
-            f" AND {_EE} >= $elective_limit)"
-            f" AND NOT ({_EE} - employee_deferral_rate * {_PAY}"
-            " BETWEEN 0 AND $catch_up_limit - $elective_limit)"
+            f" AND {_DEFERRED} - employee_deferral_rate * {_PAY}"
+            " > $catch_up_limit - $elective_limit"
         ),
         message=(
-            "{count} row(s) have employee contributions that differ from the "
-            "stated deferral rate by more than 10 percentage points of pay."
+            "{count} row(s) have pre-tax and Roth contributions more than 10 "
+            "percentage points of pay above the stated deferral rate, beyond "
+            "what catch-up allows."
         ),
     ),
     PlausibilityRule(
@@ -266,8 +282,8 @@ RULES: tuple[PlausibilityRule, ...] = (
         field=_EE,
         severity="warning",
         issue_type="implausible_value",
-        columns=(_EE, *_SOURCES),
-        optional_columns=("after_tax_contribution",),
+        columns=(_EE,),
+        any_columns=_SOURCES,
         predicate=(
             "COALESCE(pre_tax_contribution, roth_contribution,"
             " after_tax_contribution) IS NOT NULL"
@@ -288,10 +304,7 @@ RULES: tuple[PlausibilityRule, ...] = (
         optional_columns=("after_tax_contribution",),
         needs_limits=True,
         # After-tax dollars don't count toward 402(g).
-        predicate=(
-            f"{_EE} - COALESCE(after_tax_contribution, 0)"
-            f" > $catch_up_limit + {_DOLLAR_TOLERANCE}"
-        ),
+        predicate=f"{_DEFERRED} > $catch_up_limit + {_DOLLAR_TOLERANCE}",
         message=(
             "{count} row(s) have pre-tax and Roth contributions above the IRS "
             "402(g) limit plus catch-up for the census year."
@@ -303,10 +316,10 @@ RULES: tuple[PlausibilityRule, ...] = (
         severity="warning",
         issue_type="implausible_value",
         columns=(_PAY,),
-        predicate=f"{_PAY} > {_COMPENSATION_OUTLIER_MULTIPLE} * _pay_p99",
+        predicate=f"{_PAY} > {_COMPENSATION_OUTLIER_MULTIPLE} * _pay_median",
         message=(
             "{count} row(s) have compensation more than "
-            f"{_COMPENSATION_OUTLIER_MULTIPLE} times the file's 99th percentile."
+            f"{_COMPENSATION_OUTLIER_MULTIPLE} times the file's median pay."
         ),
     ),
 )
@@ -315,35 +328,61 @@ RULES: tuple[PlausibilityRule, ...] = (
 def deferral_limits_for_year(
     year: int, seed_path: Path = IRS_LIMITS_SEED
 ) -> Optional[DeferralLimits]:
-    """Read the census year's 402(g) limits from the IRS limits seed.
+    """Read 402(g) limits from the IRS limits seed for the census year.
 
-    Returns None when the seed is missing or has no row for that exact year:
-    an older year's lower limit would flag compliant rows.
+    A year outside the seed's range uses the nearest seed year, so the limit
+    rules still run. Returns None only when the seed is missing or unreadable.
     """
-    if not seed_path.exists():
-        return None
-    with seed_path.open(newline="") as source:
-        row = next(
-            (r for r in csv.DictReader(source) if int(r["limit_year"]) == year), None
+    try:
+        with seed_path.open(newline="") as source:
+            rows = list(csv.DictReader(source))
+        row = min(rows, key=lambda r: abs(int(r["limit_year"]) - year))
+        return DeferralLimits(
+            elective=float(row["base_limit"]),
+            with_catch_up=max(
+                float(row["catch_up_limit"]), float(row["super_catch_up_limit"])
+            ),
         )
-    if row is None:
+    except FileNotFoundError:
         return None
-    return DeferralLimits(
-        elective=float(row["base_limit"]),
-        with_catch_up=max(
-            float(row["catch_up_limit"]), float(row["super_catch_up_limit"])
-        ),
-    )
+    except (KeyError, ValueError, OSError) as exc:
+        # min() over an empty seed raises ValueError too.
+        logger.warning("IRS limits seed unreadable; skipping 402(g) rules: %s", exc)
+        return None
+
+
+def census_year_from_hires(
+    conn: duckdb.DuckDBPyConnection, relation: str, hire_column: str
+) -> Optional[int]:
+    """The census year as the engine infers it (``census_plan_calendar`` macro).
+
+    The latest hire year holding at least 1% of rows, so a few mistyped
+    future hire dates don't move it. None when no hire date parses.
+    """
+    validate_column_name(relation, "census relation")
+    hire = validate_column_name(hire_column, "census column")
+    row = conn.execute(f"""
+        SELECT MAX(hire_year) FROM (
+          SELECT YEAR(TRY_CAST({hire} AS DATE)) AS hire_year, COUNT(*) AS hire_count
+          FROM {relation} GROUP BY 1
+        )
+        WHERE hire_count >= GREATEST(1, (SELECT COUNT(*) FROM {relation}) * 0.01)
+        """).fetchone()
+    return int(row[0]) if row and row[0] is not None else None
 
 
 def applicable_rules(
     columns: Mapping[str, str], limits: Optional[DeferralLimits] = None
 ) -> list[PlausibilityRule]:
-    """Rules whose required columns are mapped (and limits known, if needed)."""
+    """Rules whose required columns are mapped (and limits known, if needed).
+
+    A rule with ``any_columns`` also needs at least one of them mapped.
+    """
     return [
         rule
         for rule in RULES
         if all(column in columns for column in rule.columns)
+        and (not rule.any_columns or any(c in columns for c in rule.any_columns))
         and (limits is not None or not rule.needs_limits)
     ]
 
@@ -406,7 +445,9 @@ def flagged_rows(
 def _typed_source(relation: str, columns: Mapping[str, str]) -> str:
     """CTEs exposing every rule column under its canonical name, cast to type."""
     validate_column_name(relation, "census relation")
-    referenced = sorted({c for r in RULES for c in (*r.columns, *r.optional_columns)})
+    referenced = sorted(
+        {c for r in RULES for c in (*r.columns, *r.optional_columns, *r.any_columns)}
+    )
     projections = [_typed_column(name, columns.get(name)) for name in referenced]
     id_column = columns.get("employee_id")
     employee_id = (
@@ -422,8 +463,8 @@ def _typed_source(relation: str, columns: Mapping[str, str]) -> str:
           FROM {relation}
         ),
         typed AS (
-          SELECT base.*, stats._pay_p99 FROM base, (
-            SELECT QUANTILE_CONT({_PAY}, 0.99) FILTER (WHERE {_PAY} > 0) AS _pay_p99
+          SELECT base.*, stats._pay_median FROM base, (
+            SELECT MEDIAN({_PAY}) FILTER (WHERE {_PAY} > 0) AS _pay_median
             FROM base
           ) AS stats
         )

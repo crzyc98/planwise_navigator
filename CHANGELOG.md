@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Census Analysis now flags rows whose columns contradict each other (#1260): contributions above pay, negative contributions, a birth date on or after the hire date, a termination before the hire, dates after the census year, ages at hire under 14 or over 100, contributions that don't match the deferral rate or the pre-tax/Roth/after-tax split, contributions above the IRS 402(g) limit with catch-up, and pay far above the rest of the file. Each flag shows a row count only.
+- Census Analysis now flags rows whose columns contradict each other (#1260): contributions above pay, negative contributions, a birth date on or after the hire date, a termination before the hire, dates after the census year, ages at hire under 14 or over 100, contributions well above the stated deferral rate or not matching the pre-tax/Roth/after-tax split, contributions above the IRS 402(g) limit with catch-up, and pay far above the rest of the file. Each flag shows a row count only.
 
 ### Fixed
 

@@ -24,8 +24,13 @@ from ..models.census_analysis import (
     CensusSegmentMetrics,
 )
 from .band_service import BandService
-from .census_as_of import resolve_as_of_date
-from .census_plausibility import count_violations, deferral_limits_for_year
+from .census_as_of import ResolvedAsOf, resolve_as_of_date
+from .census_plausibility import (
+    IRS_LIMITS_SEED,
+    census_year_from_hires,
+    count_violations,
+    deferral_limits_for_year,
+)
 from .census_schema import active_filter_sql, get_field
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
@@ -44,10 +49,6 @@ from .sql_security import (
 )
 
 logger = logging.getLogger(__name__)
-
-IRS_LIMITS_SEED = (
-    Path(__file__).parent.parent.parent / "dbt" / "seeds" / "config_irs_limits.csv"
-)
 
 _DEPARTMENT_COLUMNS = frozenset({"department"})
 
@@ -278,7 +279,7 @@ class CensusAnalysisService:
                         "employer_core_contribution": core_col,
                         **self._schema_columns(columns, _PLAUSIBILITY_ONLY_FIELDS),
                     },
-                    resolved_as_of.date.year,
+                    self._plausibility_year(conn, hire_col, resolved_as_of),
                 )
             )
 
@@ -731,10 +732,23 @@ class CensusAnalysisService:
             )
             column = next((col for col in allowed if col in existing), None)
             if column is not None:
-                resolved[name] = validate_column_name_from_set(
-                    column, set(allowed), "census column"
-                )
+                resolved[name] = column
         return resolved
+
+    def _plausibility_year(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        hire_col: Optional[str],
+        as_of: ResolvedAsOf,
+    ) -> int:
+        """The census year the plausibility rules measure against.
+
+        An inferred as-of date follows the latest date in the file, so one
+        mistyped future hire would move it; infer the year the engine's way.
+        """
+        if as_of.source == "provided" or hire_col is None:
+            return as_of.date.year
+        return census_year_from_hires(conn, "census", hire_col) or as_of.date.year
 
     def _plausibility_issues(
         self,

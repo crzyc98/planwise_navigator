@@ -492,8 +492,9 @@ class TestDataQuality:
                 "employee_deferral_rate",
                 "warning",
                 1,
-                "1 row(s) have employee contributions that differ from the "
-                "stated deferral rate by more than 10 percentage points of pay.",
+                "1 row(s) have pre-tax and Roth contributions more than 10 "
+                "percentage points of pay above the stated deferral rate, beyond "
+                "what catch-up allows.",
             ),
             (
                 "implausible_value",
@@ -504,6 +505,34 @@ class TestDataQuality:
                 "402(g) limit plus catch-up for the census year.",
             ),
         }
+
+    def test_plausibility_year_ignores_a_mistyped_future_hire(
+        self, service, workspace_dir
+    ):
+        rows = [
+            _employee(hire_date="2015-01-01", total_ee_contribution=4800)
+            for _ in range(300)
+        ]
+        rows[0]["employee_hire_date"] = "2052-01-01"
+        rows[1]["employee_birth_date"] = "1950-01-01"
+        rows[2]["total_ee_contribution"] = 60000
+        result = _analyze(service, workspace_dir, rows, as_of=None)
+
+        messages = {i.message for i in result.data_quality_issues}
+        assert "1 row(s) have a hire date after the census year." in messages
+        assert not any("over age 100" in m for m in messages)
+        assert any("402(g)" in m for m in messages)
+
+    def test_irs_limit_rules_run_for_a_year_before_the_seed(
+        self, service, workspace_dir
+    ):
+        rows = [
+            _employee(total_ee_contribution=4800),
+            _employee(total_ee_contribution=60000),
+        ]
+        result = _analyze(service, workspace_dir, rows, as_of=date(2023, 12, 31))
+
+        assert any("402(g)" in i.message for i in result.data_quality_issues)
 
     def test_clean_census_has_no_issues(self, service, workspace_dir):
         rows = [_employee(), _employee()]
