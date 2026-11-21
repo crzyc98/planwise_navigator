@@ -6,6 +6,8 @@ from typing import Optional
 
 import duckdb
 
+from planalign_core.census_plausibility import census_year_from_hires
+
 
 @dataclass(frozen=True)
 class ResolvedAsOf:
@@ -54,3 +56,14 @@ def resolve_as_of_date(
             "Provide an as-of date."
         )
     return ResolvedAsOf(date=date(latest_date.year, 12, 31), source="inferred")
+
+
+def suggest_census_as_of_date(
+    conn: duckdb.DuckDBPyConnection, relation: str, hire_column: str
+) -> Optional[date]:
+    """Dec 31 of the census year the engine would infer, to prefill the upload prompt.
+
+    None when no hire date parses.
+    """
+    year = census_year_from_hires(conn, relation, hire_column)
+    return date(year, 12, 31) if year is not None else None

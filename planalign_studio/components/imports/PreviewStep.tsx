@@ -10,6 +10,7 @@ import {
   getImportStatus,
   downloadFlaggedRows,
 } from '../../services/importService';
+import CensusAsOfDateField, { isCensusAsOfDate } from './CensusAsOfDateField';
 
 interface Props {
   workspaceId: string;
@@ -107,11 +108,15 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [asOfDate, setAsOfDate] = useState('');
 
   useEffect(() => {
     setIsLoadingPreview(true);
     getMappedPreview(workspaceId, session.import_id)
-      .then(setPreview)
+      .then((result) => {
+        setPreview(result);
+        setAsOfDate(result.suggested_census_as_of_date ?? '');
+      })
       .catch((err) => setPreviewError(err instanceof Error ? err.message : 'Preview failed'))
       .finally(() => setIsLoadingPreview(false));
   }, [workspaceId, session.import_id]);
@@ -120,7 +125,7 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
     setIsGenerating(true);
     setGenError(null);
     try {
-      await generateParquet(workspaceId, session.import_id);
+      await generateParquet(workspaceId, session.import_id, asOfDate);
       // Poll until completed or failed
       let attempts = 0;
       const poll = async () => {
@@ -217,6 +222,10 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
         </>
       )}
 
+      {preview && (
+        <CensusAsOfDateField value={asOfDate} onChange={setAsOfDate} disabled={isGenerating} />
+      )}
+
       {genError && (
         <div className="text-sm text-danger-ink bg-danger-surface border border-danger-border rounded-lg p-3">{genError}</div>
       )}
@@ -230,7 +239,7 @@ export default function PreviewStep({ workspaceId, session, onGenerated }: Props
         ) : (
           <button
             onClick={handleGenerate}
-            disabled={isLoadingPreview || !!previewError}
+            disabled={isLoadingPreview || !!previewError || !isCensusAsOfDate(asOfDate)}
             className="flex items-center gap-2 px-5 py-2 bg-brand-green text-ink-inverse text-sm rounded-lg hover:bg-brand-dark disabled:opacity-50"
           >
             <CheckCircle2 size={16} />

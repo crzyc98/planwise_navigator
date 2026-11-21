@@ -78,7 +78,7 @@ below); they don't block ingestion.
 | Field | Type | Description | Accepted source column names (aliases) |
 |---|---|---|---|
 | `employee_ssn` | string | Synthetic SSN-style identifier (e.g. `SSN-00000001`) — **not a real SSN**; use as a secondary unique ID, never a live SSN. Truly optional: if omitted, the pipeline deterministically synthesizes one from `employee_id` (`SSN-` + a 9-digit hash), so leaving it out never blocks ingestion | `ssn`, `social_security`, `ssn_id`, `socialsecurity` |
-| `employee_termination_date` | date | Termination date for separated employees; null for active employees. Any row with a termination date is left out of the simulation's starting workforce (`int_baseline_workforce`). A row with no date whose `active` flag is set and not a true alias gets the census plan-year end as an imputed termination date (`termination_date_imputed`), so it is left out too | `term_date`, `termination_date`, `separation_date`, `end_date`, `termdate`, `separationdate`, `enddate`, `exit_date`, `exitdate`, `date_terminated`, `dateterminated` |
+| `employee_termination_date` | date | Termination date for separated employees; null for active employees. Any row with a termination date is left out of the simulation's starting workforce (`int_baseline_workforce`). A row with no date whose `active` flag is set and not a true alias gets the census as-of date as an imputed termination date (`termination_date_imputed`), so it is left out too | `term_date`, `termination_date`, `separation_date`, `end_date`, `termdate`, `separationdate`, `enddate`, `exit_date`, `exitdate`, `date_terminated`, `dateterminated` |
 | `employee_capped_compensation` | decimal | IRS 401(a)(17) capped compensation. Ingested but not used: the engine applies the IRS compensation limit itself | `capped_comp`, `cappedcomp`, `415_limit`, `irs_cap`, `plan_year_compensation`, `capped_compensation` |
 | `employee_deferral_rate` | decimal | Current deferral rate as a decimal, `0.00`–`1.00` (e.g. `0.06` = 6%). A rate above 0 starts the employee enrolled at that rate; missing means 0% and not enrolled | `deferral_rate`, `deferralrate`, `deferral_pct`, `contribution_rate`, `contributionrate`, `deferral`, `deferral_percent` |
 | `employee_contribution` | decimal | Total employee contribution dollar amount for the plan year. Ingested but not used today | `total_ee_contribution`, `ee_contribution`, `eecontribution`, `total_contribution`, `totalcontribution` |
@@ -168,11 +168,18 @@ eligible. Studio and config validation reject new-hire ages under 21.
 
 ## Behavior when fields are missing (for context, not to reproduce)
 
+**Census as-of date.** Studio asks for the date the census was taken when
+you import it, prefilled with December 31 of the census year read from hire
+dates. It is stored with the file (`census_as_of_date` in Imported Files) and
+on the workspace as `setup.census_as_of_date` whenever that file is the census
+in use. A census imported before Studio asked has no stored date, and the
+engine uses the census plan-year end instead.
+
 - Missing `employee_ssn` → a deterministic placeholder is synthesized from
   `employee_id` (`SSN-` + a 9-digit hash), never a real SSN.
 - Missing `employee_termination_date` → rows whose `active` flag is empty or
   a true value start the simulation as active. Rows marked inactive get the
-  census plan-year end as an imputed termination date and are left out, which
+  census as-of date as an imputed termination date and are left out, which
   matches Studio's census reports (Census Analysis, tie-out, turnover); the run
   shows one warning with the count. Give leavers a real termination date to
   set it yourself.

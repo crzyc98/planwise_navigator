@@ -89,16 +89,20 @@ raw_data AS (
 {{ census_plan_calendar('raw_data') }},
 
 -- A row marked inactive with no termination date left before the census was
--- taken (#1249). Give it the census plan-year end as an imputed termination
--- date (never before its hire date) so it leaves the starting workforce, and
--- flag it. "Inactive" matches Studio's census reports (census_schema
+-- taken (#1249). Give it the census as-of date the analyst confirmed at import
+-- (census_as_of_date), or the census plan-year end when none was stored, as an
+-- imputed termination date (never before its hire date) so it leaves the
+-- starting workforce, and flag it. "Inactive" matches Studio's census reports (census_schema
 -- active_filter_sql): a NULL flag or a true alias counts as active. Studio's
 -- import already rejects other values and stores the column as BOOLEAN.
+{% set census_as_of_date = var('census_as_of_date', none) %}
 {% set active_true_aliases = ['y', 'yes', 'true', 't', '1', '1.0', 'active', 'enrolled', 'eligible', 'employed'] %}
 census_rows AS (
   SELECT r.* EXCLUDE (inactive_without_date) REPLACE (
       COALESCE(r.employee_termination_date, CASE WHEN r.inactive_without_date
-        THEN GREATEST(pc.plan_end, r.employee_hire_date) END) AS employee_termination_date
+        THEN GREATEST(
+          {%- if census_as_of_date %} CAST('{{ census_as_of_date }}' AS DATE)
+          {%- else %} pc.plan_end{% endif %}, r.employee_hire_date) END) AS employee_termination_date
     ),
     r.inactive_without_date AS termination_date_imputed
   FROM (

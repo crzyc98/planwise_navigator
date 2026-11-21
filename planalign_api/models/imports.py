@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
@@ -161,6 +161,13 @@ class ParquetFile(APIModel):
     file_size_bytes: int = Field(default=0, ge=0)
     parquet_schema: List[ParquetColumn] = Field(default_factory=list, alias="schema")
     hourly_rate_summary: Optional[CensusHourlyRateSummary] = None
+    census_as_of_date: Optional[date] = Field(
+        default=None,
+        description=(
+            "Date the census was taken, confirmed by the analyst at import. "
+            "None for files imported before it was asked."
+        ),
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"
 
@@ -235,6 +242,13 @@ class MappedPreviewResponse(APIModel):
             "this mapping (see data_quality_skipped_reason)."
         ),
     )
+    suggested_census_as_of_date: Optional[date] = Field(
+        default=None,
+        description=(
+            "Dec 31 of the census year the engine would infer, to prefill "
+            "the as-of date; null when no hire date parses."
+        ),
+    )
     data_quality_skipped_reason: Optional[str] = Field(
         default=None,
         description=(
@@ -243,6 +257,16 @@ class MappedPreviewResponse(APIModel):
             "fail with), or only the plausibility rules when it isn't."
         ),
     )
+
+
+class GenerateRequest(APIModel):
+    census_as_of_date: date = Field(
+        ..., description="Date the census was taken, confirmed by the analyst"
+    )
+
+
+class CensusAsOfDateRequest(APIModel):
+    census_as_of_date: date
 
 
 class GenerateResponse(APIModel):

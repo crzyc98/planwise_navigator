@@ -108,3 +108,30 @@ def test_run_warning_skips_without_staged_census() -> None:
     with duckdb.connect(":memory:") as conn:
         assert report_imputed_terminations(conn, sink) is None
     assert sink.messages == []
+
+
+def test_stored_census_as_of_date_wins_over_the_plan_year_end() -> None:
+    rows = staged(
+        [
+            ("stale", "2020-01-01", None, "N"),
+            ("late_hire", "2025-11-01", None, "N"),
+            ("current", "2025-06-01", None, "Y"),
+        ],
+        {"census_as_of_date": "2025-09-30"},
+    )
+    assert rows["stale"] == ("2025-09-30", True)
+    assert rows["late_hire"] == ("2025-11-01", True)
+    assert rows["current"] == (None, False)
+
+
+def test_census_as_of_date_is_exported_and_validated() -> None:
+    from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
+    from planalign_orchestrator.config.dbt_var_validation import validate_dbt_vars
+
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    assert "census_as_of_date" not in to_dbt_vars(cfg)
+    cfg.setup["census_as_of_date"] = "2025-09-30"
+    exported = to_dbt_vars(cfg)
+    assert exported["census_as_of_date"] == "2025-09-30"
+    assert validate_dbt_vars(exported) == []
+    assert validate_dbt_vars({**exported, "census_as_of_date": "2025-09-30'; --"})

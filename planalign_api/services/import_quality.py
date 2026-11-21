@@ -14,6 +14,7 @@ import io
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional
 
 import duckdb
@@ -25,6 +26,7 @@ from .census_analysis_service import (
     PlausibilityScope,
     count_duplicate_id_rows,
 )
+from .census_as_of import suggest_census_as_of_date
 from .census_plausibility import count_violations, flagged_rows
 from .census_schema import get_required_fields
 
@@ -91,6 +93,8 @@ class FullFileQuality:
     result: Optional[DataQualityResult]
     """None when the file couldn't be checked at all."""
     skipped_reason: Optional[str] = None
+    suggested_as_of: Optional[date] = None
+    """Dec 31 of the census year the engine would infer, to prefill the prompt."""
 
 
 def scan_data_quality(
@@ -111,12 +115,16 @@ def scan_data_quality(
         except ValueError:
             scope = None  # Reported through ``skipped_reason`` below.
         rules = _rule_counts(conn, scope) if scope else []
+        hire_col = columns.get("employee_hire_date")
+        suggested = (
+            suggest_census_as_of_date(conn, "census", hire_col) if hire_col else None
+        )
     result = DataQualityResult(
         duplicate_employee_id_count=duplicates,
         null_required_field_counts=_null_required_counts(df),
         plausibility=rules,
     )
-    return FullFileQuality(result, None if scope else RULES_SKIPPED)
+    return FullFileQuality(result, None if scope else RULES_SKIPPED, suggested)
 
 
 def _rule_counts(

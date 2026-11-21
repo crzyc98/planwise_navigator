@@ -19,7 +19,9 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_error
 from ..models.imports import (
     ApplyTemplateRequest,
+    CensusAsOfDateRequest,
     DetectedColumn,
+    GenerateRequest,
     GenerateResponse,
     ImportSession,
     MappedPreviewResponse,
@@ -27,12 +29,18 @@ from ..models.imports import (
     MappingSaveResponse,
     MappingTemplatesResponse,
     MappingValidationError,
+    ParquetFile,
     ParquetFilesResponse,
     PreviewResponse,
     SaveTemplateRequest,
     SaveTemplateResponse,
     SheetSelectRequest,
     SuggestionsResponse,
+)
+from ..services.census_activation import (
+    activate_census,
+    is_active_census,
+    set_active_census_as_of,
 )
 from ..services.census_schema import CANONICAL_NAMES, FIELDS, get_field, is_canonical
 from ..services.import_service import ImportService
@@ -578,6 +586,7 @@ def get_mapped_preview(
         transformation_warnings=warnings,
         data_quality=quality.result,
         data_quality_skipped_reason=quality.skipped_reason,
+        suggested_census_as_of_date=quality.suggested_as_of,
     )
 
 
@@ -648,6 +657,7 @@ def get_import_status(
 def generate_parquet(
     workspace_id: str,
     import_id: str,
+    request: GenerateRequest,
     service: ImportService = Depends(get_import_service),
     storage: WorkspaceStorage = Depends(get_workspace_storage),
     x_user_id: str = Header(default="system"),
@@ -665,7 +675,12 @@ def generate_parquet(
 
     started_at = datetime.now(timezone.utc)
     try:
-        parquet_file = service.generate_parquet(import_id, workspace_id, user=x_user_id)
+        parquet_file = service.generate_parquet(
+            import_id,
+            workspace_id,
+            user=x_user_id,
+            census_as_of_date=request.census_as_of_date,
+        )
     except ValueError as exc:
         # Domain-authored validation message (e.g. missing required mappings).
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -679,10 +694,11 @@ def generate_parquet(
     # pick it up without a separate "Use as Census" step (mirrors the upload flow).
     census_path_set = False
     try:
-        census_path_set = storage.update_base_config_key(
-            workspace_id=workspace_id,
-            key_path="setup.census_parquet_path",
-            value=parquet_file.storage_path,
+        census_path_set = activate_census(
+            storage,
+            workspace_id,
+            parquet_file.storage_path,
+            request.census_as_of_date,
         )
         if not census_path_set:
             logger.warning(
@@ -747,6 +763,28 @@ def download_parquet_file(
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{pf.filename}"'},
     )
+
+
+@router.put(
+    "/{workspace_id}/parquet-files/{file_id}/census-as-of-date",
+    response_model=ParquetFile,
+    summary="Set the date a census file was taken",
+)
+def set_parquet_census_as_of_date(
+    workspace_id: str,
+    file_id: str,
+    request: CensusAsOfDateRequest,
+    service: ImportService = Depends(get_import_service),
+    storage: WorkspaceStorage = Depends(get_workspace_storage),
+) -> ParquetFile:
+    """Store the date on the file, and on the workspace if it's the census in use."""
+    _check_workspace(workspace_id, storage)
+    pf = service.set_census_as_of_date(workspace_id, file_id, request.census_as_of_date)
+    if pf is None:
+        raise HTTPException(status_code=404, detail="Parquet file not found")
+    if is_active_census(storage, workspace_id, pf.storage_path):
+        set_active_census_as_of(storage, workspace_id, pf.census_as_of_date)
+    return pf
 
 
 @router.delete(

@@ -129,6 +129,10 @@ def test_roll_forward_saves_lists_and_activates_the_bridge(
     assert bridge.endswith("data/census_bridge_2025.parquet")
     assert _base_census(tmp_path, workspace_id) == bridge
     assert [f["storage_path"] for f in files] == [bridge]
+    # The bridge describes the workforce at the end of the bridge year.
+    assert [f["census_as_of_date"] for f in files] == ["2025-12-31"]
+    workspace = WorkspaceStorage(tmp_path / "workspaces").get_workspace(workspace_id)
+    assert workspace.base_config["setup"]["census_as_of_date"] == "2025-12-31"
     work = tmp_path / "workspaces" / workspace_id / "census_rollforward" / job["id"]
     assert not work.exists()
 

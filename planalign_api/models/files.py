@@ -108,6 +108,16 @@ class FileUploadResponse(APIModel):
     original_filename: Optional[str] = Field(
         None, description="Original uploaded filename before normalization"
     )
+    census_file_id: Optional[str] = Field(
+        None, description="Imported Files record, for confirming the as-of date"
+    )
+    census_as_of_date: Optional[date] = Field(
+        None,
+        description=(
+            "Suggested census as-of date, stored until the analyst confirms or "
+            "changes it; null when no hire date parses."
+        ),
+    )
     hourly_rate_summary: Optional[CensusHourlyRateSummary] = Field(
         None,
         description="Hourly rate report; null when the census has no hourly columns",
