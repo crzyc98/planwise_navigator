@@ -86,9 +86,10 @@ parameter_hierarchy AS (
 
   UNION ALL
 
-  -- PRIORITY 3: Get default parameters as fallback
+  -- PRIORITY 3: Get default parameters as fallback. Labelled with the selected
+  -- scenario so resolve_parameter finds them in non-default runs (#1196).
   SELECT
-    {{ default_scenario() }} AS scenario_id,
+    ss.selected_scenario_id AS scenario_id,
     cl.fiscal_year,
     cl.job_level,
     cl.event_type,
@@ -98,6 +99,7 @@ parameter_hierarchy AS (
     {{ default_scenario() }} AS parameter_source,
     {% if has_overrides %}3{% else %}2{% endif %} AS priority_rank
   FROM {{ ref(comp_levers) }} cl
+  CROSS JOIN scenario_selection ss
   WHERE cl.scenario_id = {{ default_scenario() }}
 ),
 

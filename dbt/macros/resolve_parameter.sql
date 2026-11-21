@@ -9,7 +9,7 @@
     WHERE scenario_id = '{{ scenario_id }}'
       AND fiscal_year = {{ fiscal_year }}
       AND job_level = {{ job_level }}
-      AND event_type = '{{ event_type }}'
+      AND event_type = '{{ event_type | upper }}'  -- stg_comp_levers stores UPPER(event_type) (#1200)
       AND parameter_name = '{{ parameter_name }}'
     LIMIT 1
   )
