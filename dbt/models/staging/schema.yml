@@ -58,8 +58,16 @@ models:
         constraints:
           - type: not_null
       - name: employee_termination_date
-        description: "Termination date if applicable. NULL for active employees."
+        description: >
+          Termination date if applicable. NULL for active employees. A row
+          marked inactive with no date gets the census plan-year end (#1249);
+          see termination_date_imputed.
         data_type: date
+      - name: termination_date_imputed
+        description: "TRUE when employee_termination_date was imputed for an inactive row with no date (#1249)."
+        data_type: boolean
+        constraints:
+          - type: not_null
       - name: employee_gross_compensation
         description: "Gross annual compensation used for level assignment and simulation baseline."
         data_type: double

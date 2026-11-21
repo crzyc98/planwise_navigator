@@ -30,6 +30,7 @@ from .config.dbt_var_validation import validate_dbt_vars
 from .census_year import census_gap_message, infer_census_year
 from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
+from .census_imputed_terminations import report_imputed_terminations
 from .census_plausibility_warnings import report_census_plausibility
 from .minimum_wage import (
     require_census_hourly_rates,
@@ -795,6 +796,7 @@ class PipelineOrchestrator:
             report_census_plausibility(
                 conn, Path(str(census)) if census else None, self.observability
             )
+            report_imputed_terminations(conn, self.observability)
             if self.config.compensation.minimum_wage:
                 require_census_hourly_rates(conn)
 

@@ -205,11 +205,11 @@ def test_census_plan_year_compensation(year: int) -> None:
     with duckdb.connect(":memory:") as conn:
         setup_workforce(conn, year)
         conn.execute("""CREATE TABLE raw_data AS SELECT *,
-            termination_date AS employee_termination_date, 1 AS rn
-            FROM deduplicated_workforce""")
+            termination_date AS employee_termination_date, NULL::BOOLEAN AS active,
+            1 AS rn FROM deduplicated_workforce""")
         conn.execute(
             "INSERT INTO raw_data VALUES "
-            "('outside', ?, NULL, 'active', 100000, NULL, 1)",
+            "('outside', ?, NULL, 'active', 100000, NULL, NULL, 1)",
             [date(year + 1, 1, 1)],
         )
         actual = dict(

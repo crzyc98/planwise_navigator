@@ -88,6 +88,29 @@ raw_data AS (
 -- Census year and census plan year (macros/utils/census_plan_calendar.sql).
 {{ census_plan_calendar('raw_data') }},
 
+-- A row marked inactive with no termination date left before the census was
+-- taken (#1249). Give it the census plan-year end as an imputed termination
+-- date (never before its hire date) so it leaves the starting workforce, and
+-- flag it. "Inactive" matches Studio's census reports (census_schema
+-- active_filter_sql): a NULL flag or a true alias counts as active. Studio's
+-- import already rejects other values and stores the column as BOOLEAN.
+{% set active_true_aliases = ['y', 'yes', 'true', 't', '1', '1.0', 'active', 'enrolled', 'eligible', 'employed'] %}
+census_rows AS (
+  SELECT r.* EXCLUDE (inactive_without_date) REPLACE (
+      COALESCE(r.employee_termination_date, CASE WHEN r.inactive_without_date
+        THEN GREATEST(pc.plan_end, r.employee_hire_date) END) AS employee_termination_date
+    ),
+    r.inactive_without_date AS termination_date_imputed
+  FROM (
+    SELECT *,
+      employee_termination_date IS NULL AND active IS NOT NULL
+        AND LOWER(TRIM(CAST(active AS VARCHAR))) NOT IN ('{{ active_true_aliases | join("', '") }}')
+        AS inactive_without_date
+    FROM raw_data
+  ) r
+  CROSS JOIN plan_calendar pc
+),
+
 -- Census compensation defaults to earnings; annual_rate is an explicit opt-in.
 {% set census_pay_basis = var('census_pay_basis', 'earnings') %}
 {% if census_pay_basis not in ['annual_rate', 'earnings'] %}
@@ -102,7 +125,7 @@ earnings_days AS (
     GREATEST(0, DATE_DIFF('day', GREATEST(r.employee_hire_date, c.year_start),
       LEAST(COALESCE(r.employee_termination_date, c.year_end - INTERVAL 1 DAY),
         c.year_end - INTERVAL 1 DAY)) + 1) AS days_employed
-  FROM raw_data r CROSS JOIN census_calendar c
+  FROM census_rows r CROSS JOIN census_calendar c
   WHERE r.rn = 1
 ),
 earnings_rates AS (
@@ -148,7 +171,7 @@ annualized_data AS (
                ) + 1)
       END AS days_active_in_year
 
-  FROM raw_data r
+  FROM census_rows r
   CROSS JOIN plan_calendar pc
   WHERE r.rn = 1
 ),
@@ -241,6 +264,7 @@ SELECT
     employee_birth_date,
     employee_hire_date,
     employee_termination_date,
+    termination_date_imputed,
     employee_gross_compensation,
     active,
     computed_plan_year_compensation AS employee_plan_year_compensation,
