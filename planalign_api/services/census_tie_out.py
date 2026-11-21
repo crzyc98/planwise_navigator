@@ -40,6 +40,11 @@ per employee per year, active and terminated). Census rows for people who left
 before the census year are summed as given, which is normally zero pay; the
 snapshot never holds them.
 
+Census match and core amounts that Census Analysis calls impossible (negative,
+or above the row's gross pay as loaded) are left out of the census total, and
+the row's message gives the count (#1262). One such row would otherwise move
+the value the run is compared against.
+
 The census as-of date is the end of the census plan year, by the rule in
 ``dbt/macros/utils/census_plan_calendar.sql``: the run's configured
 ``setup.plan_year_start_date``/``plan_year_end_date`` when set (one alone
@@ -398,8 +403,8 @@ def build_row(
     message = tie_out_message(spec, row, factor)
     if excluded:
         message += (
-            f" The census total leaves out {excluded} row(s) whose amount is "
-            "negative or above the person's pay."
+            f" The census total leaves out {excluded} row(s) with an "
+            "impossible amount; Census Analysis shows the checks."
         )
     return row.model_copy(update={"message": message})
 
@@ -545,21 +550,18 @@ def _value(column: str, available: set[str], alias: str) -> str:
     return f"TRY_CAST({column} AS DOUBLE) AS {alias}"
 
 
-def _impossible_sql(column: str, columns: set[str], available: set[str]) -> str:
-    """Whether a row's dollar amount breaks a Census Analysis "impossible" rule.
+def _impossible_sql(column: str, columns: set[str]) -> str:
+    """Whether a row's dollar amount is one Census Analysis calls impossible.
 
-    Uses the shared rules (negative, above gross pay) so the tie-out and Census
-    Analysis agree on which rows these are. A rule whose columns the census
-    lacks cannot fire.
+    Uses the shared rules by ID (negative, above gross pay as loaded) so both
+    reports agree on which rows these are. The above-pay rule cannot fire when
+    the census has no gross pay column.
     """
-    if column not in available:
-        return "FALSE"
+    wanted = {f"negative_{column}", f"{column}_above_pay"}
     predicates = [
         f"({rule.predicate})"
         for rule in RULES
-        if rule.field == column
-        and rule.severity == "error"
-        and set(rule.columns) <= columns
+        if rule.rule_id in wanted and set(rule.columns) <= columns
     ]
     return f"COALESCE({' OR '.join(predicates)}, FALSE)" if predicates else "FALSE"
 
@@ -568,7 +570,7 @@ def _dollars(column: str, columns: set[str], available: set[str], alias: str) ->
     """A dollar column and its exclusion flag; impossible amounts become NULL."""
     if column not in available:
         return f"NULL::DOUBLE AS {alias}, FALSE AS {alias}_excluded"
-    impossible = _impossible_sql(column, columns, available)
+    impossible = _impossible_sql(column, columns)
     return (
         f"CASE WHEN {impossible} THEN NULL "
         f"ELSE TRY_CAST({column} AS DOUBLE) END AS {alias}, "

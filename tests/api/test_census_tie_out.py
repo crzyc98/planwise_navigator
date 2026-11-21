@@ -535,6 +535,16 @@ def test_impossible_match_and_core_dollars_are_left_out_of_the_census_total(
     assert "leaves out" not in _row(result, "total_pay").message
 
 
+def test_exclusion_uses_the_census_analysis_rules_that_exist() -> None:
+    columns = {"employer_match_contribution", "employee_gross_compensation"}
+
+    sql = census_tie_out._impossible_sql("employer_match_contribution", columns)
+
+    assert "employer_match_contribution < 0" in sql
+    assert "employer_match_contribution > employee_gross_compensation" in sql
+    assert "$" not in sql
+
+
 def test_a_clean_census_excludes_nothing(tmp_path: Path) -> None:
     _build_run(tmp_path)
 
