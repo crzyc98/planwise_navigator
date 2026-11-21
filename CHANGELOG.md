@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A census row marked inactive with no termination date no longer starts the simulation as a current employee (#1249). It gets the census plan-year end as an imputed termination date, so the starting headcount matches Census Analysis, and the run shows one warning with the number of rows and the date used. Censuses whose active flags and termination dates agree give the same results as before.
 - Studio links on the Simulate page, the scenario's run page, the run health panel and the provenance report now stay in the current workspace (#1198). Before, they dropped the workspace from the address, so Studio reopened whichever workspace the browser last stored, which could be another client's when two tabs were open.
 - A simulation run no longer fails when recording its provenance fails, for example on a full disk (#1197). The run finishes and the provenance report lists the capture as incomplete.
 - When a year's event counts can't be read during a run, the provenance report now says the counts are unavailable instead of showing zero events for that year (#1199). The year's workforce reconciliation leaves hires and terminations blank instead of using zero.

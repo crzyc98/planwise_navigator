@@ -145,6 +145,9 @@ def _year_orchestrator(monkeypatch, foundation_error: Exception | None):
         return []
 
     monkeypatch.setattr(pipeline_module, "report_census_plausibility", census_checks)
+    monkeypatch.setattr(
+        pipeline_module, "report_imputed_terminations", lambda *_args: None
+    )
 
     orchestrator.dbt_runner = MagicMock()
     orchestrator.dbt_runner.execute_command.side_effect = execute_command
@@ -198,6 +201,9 @@ def test_census_checks_report_before_the_hourly_rate_check_stops_a_run(
         raise pipeline_module.ConfigurationError("no hourly rates")
 
     monkeypatch.setattr(pipeline_module, "report_census_plausibility", census_checks)
+    monkeypatch.setattr(
+        pipeline_module, "report_imputed_terminations", lambda *_args: None
+    )
     monkeypatch.setattr(pipeline_module, "require_census_hourly_rates", require_rates)
 
     with pytest.raises(pipeline_module.ConfigurationError):
