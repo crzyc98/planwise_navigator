@@ -40,6 +40,11 @@ per employee per year, active and terminated). Census rows for people who left
 before the census year are summed as given, which is normally zero pay; the
 snapshot never holds them.
 
+Census match and core amounts that Census Analysis calls impossible (negative,
+or above the row's gross pay as loaded) are left out of the census total, and
+the row's message gives the count (#1262). One such row would otherwise move
+the value the run is compared against.
+
 The census as-of date is the end of the census plan year, by the rule in
 ``dbt/macros/utils/census_plan_calendar.sql``: the run's configured
 ``setup.plan_year_start_date``/``plan_year_end_date`` when set (one alone
@@ -75,6 +80,7 @@ from typing import Any, Literal, Optional
 import duckdb
 import yaml
 
+from planalign_core.census_plausibility import RULES
 from planalign_core.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
 from planalign_orchestrator.config.simulation import (
     CompensationSettings,
@@ -265,7 +271,9 @@ _AGGREGATE_SQL = """
         FILTER (WHERE _active AND _eligible) AS average_deferral_rate,
       COALESCE(SUM(_pay), 0) AS total_pay,
       COALESCE(SUM(_match), 0) AS employer_match,
-      COALESCE(SUM(_core), 0) AS employer_core
+      COALESCE(SUM(_core), 0) AS employer_core,
+      COUNT(*) FILTER (WHERE _match_excluded) AS employer_match_excluded,
+      COUNT(*) FILTER (WHERE _core_excluded) AS employer_core_excluded
     FROM pop
 """
 
@@ -375,8 +383,13 @@ def build_row(
     census: Optional[float],
     simulated: float,
     assumptions: DriftAssumptions,
+    excluded: int = 0,
 ) -> CensusTieOutRow:
-    """Compare one metric and word the result."""
+    """Compare one metric and word the result.
+
+    ``excluded`` is the number of census rows left out of the census value
+    because their amount is impossible (#1262).
+    """
     factor = expected_factor(spec.drift, assumptions)
     row = CensusTieOutRow(
         metric=spec.metric,
@@ -387,7 +400,13 @@ def build_row(
         message="",
         **_comparison(spec, census, simulated, factor),
     )
-    return row.model_copy(update={"message": tie_out_message(spec, row, factor)})
+    message = tie_out_message(spec, row, factor)
+    if excluded:
+        message += (
+            f" The census total leaves out {excluded} row(s) with an "
+            "impossible amount; Census Analysis shows the checks."
+        )
+    return row.model_copy(update={"message": message})
 
 
 def source_note(
@@ -531,6 +550,34 @@ def _value(column: str, available: set[str], alias: str) -> str:
     return f"TRY_CAST({column} AS DOUBLE) AS {alias}"
 
 
+def _impossible_sql(column: str, columns: set[str]) -> str:
+    """Whether a row's dollar amount is one Census Analysis calls impossible.
+
+    Uses the shared rules by ID (negative, above gross pay as loaded) so both
+    reports agree on which rows these are. The above-pay rule cannot fire when
+    the census has no gross pay column.
+    """
+    wanted = {f"negative_{column}", f"{column}_above_pay"}
+    predicates = [
+        f"({rule.predicate})"
+        for rule in RULES
+        if rule.rule_id in wanted and set(rule.columns) <= columns
+    ]
+    return f"COALESCE({' OR '.join(predicates)}, FALSE)" if predicates else "FALSE"
+
+
+def _dollars(column: str, columns: set[str], available: set[str], alias: str) -> str:
+    """A dollar column and its exclusion flag; impossible amounts become NULL."""
+    if column not in available:
+        return f"NULL::DOUBLE AS {alias}, FALSE AS {alias}_excluded"
+    impossible = _impossible_sql(column, columns)
+    return (
+        f"CASE WHEN {impossible} THEN NULL "
+        f"ELSE TRY_CAST({column} AS DOUBLE) END AS {alias}, "
+        f"{impossible} AS {alias}_excluded"
+    )
+
+
 def _census_population_sql(columns: set[str], available: set[str]) -> str:
     """Census rows reduced to the shared per-employee columns."""
     eligible = (
@@ -549,8 +596,8 @@ def _census_population_sql(columns: set[str], available: set[str]) -> str:
         SELECT
           {_value("employee_plan_year_compensation", available, "_pay")},
           {_value("employee_deferral_rate", available, "_deferral")},
-          {_value("employer_match_contribution", available, "_match")},
-          {_value("employer_core_contribution", available, "_core")},
+          {_dollars("employer_match_contribution", columns, available, "_match")},
+          {_dollars("employer_core_contribution", columns, available, "_core")},
           {eligible} AS _eligible,
           ({active_filter_sql(columns)} AND {still_employed}) AS _active
         FROM {CENSUS_TABLE}
@@ -570,6 +617,8 @@ def _simulated_population_sql(use_eligibility: bool) -> str:
             AS _deferral,
           CAST(employer_match_amount AS DOUBLE) AS _match,
           CAST(employer_core_amount AS DOUBLE) AS _core,
+          FALSE AS _match_excluded,
+          FALSE AS _core_excluded,
           {eligible} AS _eligible,
           UPPER(employment_status) = 'ACTIVE' AS _active
         FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -662,6 +711,7 @@ def _available_fields(measured: _Measured, inputs: _RunInputs) -> dict[str, Any]
             measured.census[spec.metric],
             measured.simulated[spec.metric] or 0.0,
             inputs.assumptions,
+            int(measured.census.get(f"{spec.metric}_excluded") or 0),
         )
         for spec in _METRICS
     ]

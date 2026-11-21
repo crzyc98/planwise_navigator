@@ -497,3 +497,57 @@ def test_measurement_is_cached_until_the_database_changes(
 
     assert _row(_tie_out(tmp_path), "active_headcount").census_value == 99
     assert len(opened) == 2
+
+
+def test_impossible_match_and_core_dollars_are_left_out_of_the_census_total(
+    tmp_path: Path,
+) -> None:
+    # Census Analysis calls a negative amount, or one above the person's gross
+    # pay, impossible. Summing them would move the target the run is compared
+    # against (#1262), so the tie-out leaves those amounts out and says so.
+    _build_run(tmp_path)
+    with duckdb.connect(str(_run_dir(tmp_path) / "simulation.duckdb")) as conn:
+        conn.execute(
+            "ALTER TABLE stg_census_data ADD COLUMN employee_gross_compensation DOUBLE"
+        )
+        conn.execute(
+            "UPDATE stg_census_data SET employee_gross_compensation = "
+            "employee_plan_year_compensation"
+        )
+        # Two leavers with a match above pay, one with a negative core.
+        conn.execute("""
+            INSERT INTO stg_census_data
+            SELECT 'B' || i, DATE '2015-06-01', DATE '2024-09-01', FALSE, 0,
+              0.06, CASE WHEN i < 2 THEN 900000 ELSE 0 END,
+              CASE WHEN i = 2 THEN -5000 ELSE 0 END, DATE '2016-01-01', 20000
+            FROM range(3) t(i)
+        """)
+
+    result = _tie_out(tmp_path)
+
+    match = _row(result, "employer_match")
+    assert match.census_value == pytest.approx(60 * 1_500)
+    assert match.status == "ties"
+    assert "leaves out 2 row(s)" in match.message
+    core = _row(result, "employer_core")
+    assert core.census_value == pytest.approx(100 * 1_000)
+    assert "leaves out 1 row(s)" in core.message
+    assert "leaves out" not in _row(result, "total_pay").message
+
+
+def test_exclusion_uses_the_census_analysis_rules_that_exist() -> None:
+    columns = {"employer_match_contribution", "employee_gross_compensation"}
+
+    sql = census_tie_out._impossible_sql("employer_match_contribution", columns)
+
+    assert "employer_match_contribution < 0" in sql
+    assert "employer_match_contribution > employee_gross_compensation" in sql
+    assert "$" not in sql
+
+
+def test_a_clean_census_excludes_nothing(tmp_path: Path) -> None:
+    _build_run(tmp_path)
+
+    result = _tie_out(tmp_path)
+
+    assert all("leaves out" not in row.message for row in result.rows)
