@@ -165,7 +165,10 @@ def test_wizard_counts_match_census_analysis_after_import(
     import_id = _mapped_import(client, _census())
     wizard = _data_quality(client, import_id)
 
-    generated = client.post(f"/api/workspaces/{WS}/imports/{import_id}/generate")
+    generated = client.post(
+        f"/api/workspaces/{WS}/imports/{import_id}/generate",
+        json={"census_as_of_date": "2025-12-31"},
+    )
     assert generated.status_code == 202, generated.text
     analysis = CensusAnalysisService(workspaces).analyze(
         WS, generated.json()["storage_path"], employee_status="all"
@@ -248,7 +251,10 @@ def test_blank_hire_dates_skip_only_the_rules(client: TestClient) -> None:
 
 def test_flagged_rows_after_generate_is_a_conflict(client: TestClient) -> None:
     import_id = _mapped_import(client, _census())
-    generated = client.post(f"/api/workspaces/{WS}/imports/{import_id}/generate")
+    generated = client.post(
+        f"/api/workspaces/{WS}/imports/{import_id}/generate",
+        json={"census_as_of_date": "2025-12-31"},
+    )
     assert generated.status_code == 202
     assert _flagged_rows(client, import_id).status_code == 409
 

@@ -743,6 +743,10 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["plan_year_start_date"] = str(pysd)
             if pyed:
                 dbt_vars["plan_year_end_date"] = str(pyed)
+            # Confirmed at census import; unset means the engine infers it.
+            as_of = setup.get("census_as_of_date")
+            if as_of:
+                dbt_vars["census_as_of_date"] = str(as_of)
             if ew is not None:
                 dbt_vars["eligibility_waiting_period_days"] = int(ew)
 

@@ -3615,6 +3615,21 @@
         "title": "CensusAnalysisResult",
         "type": "object"
       },
+      "CensusAsOfDateRequest": {
+        "properties": {
+          "census_as_of_date": {
+            "description": "Date the census was taken, confirmed by the analyst",
+            "format": "date",
+            "title": "Census As Of Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "census_as_of_date"
+        ],
+        "title": "CensusAsOfDateRequest",
+        "type": "object"
+      },
       "CensusDataQualityIssue": {
         "description": "A data quality flag surfaced instead of failing an import outright.",
         "properties": {
@@ -9876,6 +9891,31 @@
       "FileUploadResponse": {
         "description": "Response after successful file upload.",
         "properties": {
+          "census_as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Suggested census as-of date, stored until the analyst confirms or changes it; null when no hire date parses.",
+            "title": "Census As Of Date"
+          },
+          "census_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Imported Files record, for confirming the as-of date",
+            "title": "Census File Id"
+          },
           "column_renames": {
             "description": "Columns that were auto-renamed from aliases to canonical names",
             "items": {
@@ -9985,6 +10025,8 @@
           "data_quality_warnings",
           "column_renames",
           "original_filename",
+          "census_file_id",
+          "census_as_of_date",
           "hourly_rate_summary"
         ],
         "title": "FileUploadResponse",
@@ -12061,6 +12103,19 @@
             "title": "Rows",
             "type": "array"
           },
+          "suggested_census_as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dec 31 of the census year the engine would infer, to prefill the as-of date; null when no hire date parses.",
+            "title": "Suggested Census As Of Date"
+          },
           "total_row_count": {
             "title": "Total Row Count",
             "type": "integer"
@@ -12081,6 +12136,7 @@
           "preview_row_count",
           "transformation_warnings",
           "data_quality",
+          "suggested_census_as_of_date",
           "data_quality_skipped_reason"
         ],
         "title": "MappedPreviewResponse",
@@ -14087,6 +14143,19 @@
       },
       "ParquetFile": {
         "properties": {
+          "census_as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date the census was taken, confirmed by the analyst at import. None for files imported before it was asked.",
+            "title": "Census As Of Date"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -14162,6 +14231,7 @@
           "file_size_bytes",
           "schema",
           "hourly_rate_summary",
+          "census_as_of_date",
           "created_at",
           "created_by"
         ],
@@ -29068,6 +29138,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CensusAsOfDateRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "202": {
             "content": {
@@ -29964,6 +30044,68 @@
           }
         },
         "summary": "Delete a Parquet file (workspace creator only)",
+        "tags": [
+          "Data Import"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/parquet-files/{file_id}/census-as-of-date": {
+      "put": {
+        "description": "Store the date on the file, and on the workspace if it's the census in use.",
+        "operationId": "set_parquet_census_as_of_date_api_workspaces__workspace_id__parquet_files__file_id__census_as_of_date_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CensusAsOfDateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParquetFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set the date a census file was taken",
         "tags": [
           "Data Import"
         ]

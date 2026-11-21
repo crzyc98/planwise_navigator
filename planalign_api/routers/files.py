@@ -2,8 +2,10 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from typing import Optional
 
+import duckdb
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from ..config import get_settings
@@ -25,7 +27,10 @@ from ..models.files import (
     SetCensusPathResponse,
 )
 from ..services.compensation_solver import CompensationSolver, WorkforceDynamics
+from ..services.census_activation import activate_census, prefill_as_of
+from ..services.census_as_of import suggest_census_as_of_date
 from ..services.file_service import FileService
+from ..services.import_service import ImportService
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -138,44 +143,9 @@ async def upload_census_file(
             detail=sanitize_error(logger, "Failed to save file"),
         ) from e
 
-    # E090: Update workspace config to use this census file for all scenarios
-    try:
-        storage = get_workspace_storage()
-        config_updated = storage.update_base_config_key(
-            workspace_id=workspace_id,
-            key_path="setup.census_parquet_path",
-            value=absolute_path,
-        )
-        if config_updated:
-            logger.info(
-                f"Updated workspace {workspace_id} census path to: {absolute_path}"
-            )
-        else:
-            logger.warning(
-                f"Failed to update workspace config - workspace may not exist: {workspace_id}"
-            )
-    except Exception as e:
-        # Don't fail the upload if config update fails - log warning and continue
-        logger.warning(f"Failed to update workspace config with census path: {e}")
-
-    # Register the uploaded census in the imports index so it appears in the
-    # "Imported Files" list alongside wizard-generated parquets.
-    try:
-        from ..services.import_service import ImportService
-
-        ImportService(
-            workspaces_root=get_settings().workspaces_root
-        ).register_external_parquet(
-            workspace_id=workspace_id,
-            storage_path=absolute_path,
-            original_filename=metadata.get("original_filename") or file.filename,
-            row_count=metadata["row_count"],
-            columns=metadata["columns"],
-            file_size_bytes=metadata["file_size_bytes"],
-        )
-    except Exception as e:
-        # Don't fail the upload if index registration fails - log warning and continue
-        logger.warning(f"Failed to register uploaded census in imports index: {e}")
+    census_file_id, suggested_as_of = _register_and_activate_upload(
+        workspace_id, absolute_path, metadata, file.filename
+    )
 
     return FileUploadResponse(
         success=True,
@@ -191,7 +161,59 @@ async def upload_census_file(
         column_renames=metadata.get("column_renames", []),
         original_filename=metadata.get("original_filename"),
         hourly_rate_summary=metadata.get("hourly_rate_summary"),
+        census_file_id=census_file_id,
+        census_as_of_date=suggested_as_of,
     )
+
+
+def _suggested_as_of(census_path: str) -> Optional[date]:
+    """The prefill for the as-of prompt: Dec 31 of the engine's census year."""
+    with duckdb.connect(":memory:") as conn:
+        conn.read_parquet(census_path).create_view("census")
+        columns = {r[0] for r in conn.execute("DESCRIBE census").fetchall()}
+        if "employee_hire_date" not in columns:
+            return None
+        return suggest_census_as_of_date(conn, "census", "employee_hire_date")
+
+
+def _register_and_activate_upload(
+    workspace_id: str, absolute_path: str, metadata: dict, filename: str
+) -> tuple[Optional[str], Optional[date]]:
+    """List the upload in Imported Files and make it the workspace census.
+
+    The suggested as-of date is stored until the analyst confirms or changes
+    it. Neither step fails the upload: the file is saved either way.
+    """
+    storage = get_workspace_storage()
+    try:
+        inferred = _suggested_as_of(absolute_path)
+    except duckdb.Error as e:
+        logger.warning(f"Could not suggest a census as-of date: {e}")
+        inferred = None
+    suggested = prefill_as_of(storage, workspace_id, inferred)
+    file_id: Optional[str] = None
+    try:
+        file_id = (
+            ImportService(workspaces_root=get_settings().workspaces_root)
+            .register_external_parquet(
+                workspace_id=workspace_id,
+                storage_path=absolute_path,
+                original_filename=metadata.get("original_filename") or filename,
+                row_count=metadata["row_count"],
+                columns=metadata["columns"],
+                file_size_bytes=metadata["file_size_bytes"],
+                census_as_of_date=suggested,
+            )
+            .file_id
+        )
+    except Exception as e:
+        logger.warning(f"Failed to register uploaded census in imports index: {e}")
+    try:
+        if not activate_census(storage, workspace_id, absolute_path, suggested):
+            logger.warning(f"Workspace {workspace_id} not found; census not set")
+    except Exception as e:
+        logger.warning(f"Failed to update workspace config with census path: {e}")
+    return file_id, suggested
 
 
 @router.post(
@@ -241,10 +263,15 @@ def set_census_path(
         )
 
     storage = get_workspace_storage()
-    storage.update_base_config_key(
-        workspace_id=workspace_id,
-        key_path="setup.census_parquet_path",
-        value=request.file_path,
+    # The file's own as-of date, or none, so the old census's date never stays.
+    record = ImportService(
+        workspaces_root=get_settings().workspaces_root
+    ).find_parquet_by_path(workspace_id, request.file_path)
+    activate_census(
+        storage,
+        workspace_id,
+        request.file_path,
+        record.census_as_of_date if record else None,
     )
 
     return SetCensusPathResponse(

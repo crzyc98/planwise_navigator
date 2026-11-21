@@ -269,7 +269,7 @@ class TestGenerateParquet:
         import_id = self._upload_and_map(client, workspace_id)
         resp = client.post(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
-            json={},
+            json={"census_as_of_date": "2025-12-31"},
         )
         assert resp.status_code in (201, 202)
 
@@ -279,7 +279,7 @@ class TestGenerateParquet:
         import_id = self._upload_and_map(client, workspace_id)
         gen_resp = client.post(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
-            json={},
+            json={"census_as_of_date": "2025-12-31"},
         )
         assert gen_resp.status_code in (201, 202)
         status_resp = client.get(f"/api/workspaces/{workspace_id}/imports/{import_id}")
@@ -319,7 +319,7 @@ class TestGenerateParquet:
 
         response = client.post(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
-            json={},
+            json={"census_as_of_date": "2025-12-31"},
         )
 
         assert response.status_code == 422
@@ -337,7 +337,7 @@ class TestGenerateParquet:
         import_id = upload_resp.json()["import_id"]
         resp = client.post(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
-            json={},
+            json={"census_as_of_date": "2025-12-31"},
         )
         assert resp.status_code == 409
 
@@ -401,7 +401,8 @@ class TestFileManagement:
             },
         )
         client.post(
-            f"/api/workspaces/{workspace_id}/imports/{import_id}/generate", json={}
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
+            json={"census_as_of_date": "2025-12-31"},
         )
         return import_id
 

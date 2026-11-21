@@ -34,6 +34,7 @@ class DbtVarProblem(TypedDict):
 DATE_VARS = frozenset(
     {
         "auto_enrollment_hire_date_cutoff",
+        "census_as_of_date",
         "deferral_escalation_hire_date_cutoff",
         "plan_year_start_date",
         "plan_year_end_date",

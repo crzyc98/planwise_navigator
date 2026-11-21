@@ -267,7 +267,10 @@ def test_generate_without_required_fields_returns_422(client: TestClient):
         f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload
     )
 
-    resp = client.post(f"/api/workspaces/ws-test/imports/{import_id}/generate")
+    resp = client.post(
+        f"/api/workspaces/ws-test/imports/{import_id}/generate",
+        json={"census_as_of_date": "2025-12-31"},
+    )
     assert resp.status_code == 422
     assert "Required census fields" in resp.json()["detail"]
 
@@ -334,7 +337,10 @@ def test_fingerprint_file_saved_after_successful_generation(
     client.put(
         f"/api/workspaces/ws-test/imports/{import_id}/mapping", json=mapping_payload
     )
-    resp = client.post(f"/api/workspaces/ws-test/imports/{import_id}/generate")
+    resp = client.post(
+        f"/api/workspaces/ws-test/imports/{import_id}/generate",
+        json={"census_as_of_date": "2025-12-31"},
+    )
     assert resp.status_code == 202
 
     from planalign_api.services.suggestion_engine import SuggestionEngine
@@ -401,7 +407,10 @@ def test_second_upload_same_headers_gets_prior_mapping_reason(
         f"/api/workspaces/ws-test/imports/{session1['import_id']}/mapping",
         json=mapping_payload,
     )
-    client.post(f"/api/workspaces/ws-test/imports/{session1['import_id']}/generate")
+    client.post(
+        f"/api/workspaces/ws-test/imports/{session1['import_id']}/generate",
+        json={"census_as_of_date": "2025-12-31"},
+    )
 
     # Second import — same headers
     session2 = _upload_csv(client, csv)

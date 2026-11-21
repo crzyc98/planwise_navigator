@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
@@ -244,7 +244,11 @@ class ImportService:
     # ------------------------------------------------------------------
 
     def generate_parquet(
-        self, import_id: str, workspace_id: str, user: str = "system"
+        self,
+        import_id: str,
+        workspace_id: str,
+        user: str = "system",
+        census_as_of_date: Optional[date] = None,
     ) -> ParquetFile:
         session = self.get_session(workspace_id, import_id)
         if session is None:
@@ -321,6 +325,7 @@ class ImportService:
                 if hourly_rates
                 else None
             ),
+            census_as_of_date=census_as_of_date,
             created_by=user,
         )
         self.save_parquet_record(workspace_id, pf)
@@ -374,6 +379,7 @@ class ImportService:
         columns: List[str],
         file_size_bytes: int,
         user: str = "system",
+        census_as_of_date: Optional[date] = None,
     ) -> ParquetFile:
         """Register a parquet that was produced outside the import wizard.
 
@@ -397,6 +403,7 @@ class ImportService:
             row_count=row_count,
             file_size_bytes=file_size_bytes,
             schema=[ParquetColumn(name=c, type="string") for c in columns],
+            census_as_of_date=census_as_of_date,
             created_by=user,
         )
         existing.append(json.loads(pf.model_dump_json()))
@@ -417,6 +424,42 @@ class ImportService:
             if pf.file_id == file_id:
                 return pf
         return None
+
+    def find_parquet_by_path(
+        self, workspace_id: str, storage_path: str
+    ) -> Optional[ParquetFile]:
+        """The newest record for the file at ``storage_path``.
+
+        Records are resolved like downloads, so relative paths and paths from
+        an exported workspace still match.
+        """
+        target = Path(storage_path).resolve()
+        matches = [
+            pf
+            for pf in self.list_parquet_files(workspace_id)
+            if self.resolve_parquet_path(workspace_id, pf) == target
+        ]
+        return max(matches, key=lambda pf: pf.created_at) if matches else None
+
+    def set_census_as_of_date(
+        self, workspace_id: str, file_id: str, as_of: date
+    ) -> Optional[ParquetFile]:
+        """Store the analyst's as-of date on a file record; None if no such file."""
+        files = self.list_parquet_files(workspace_id)
+        if not any(f.file_id == file_id for f in files):
+            return None
+        files = [
+            (
+                f.model_copy(update={"census_as_of_date": as_of})
+                if f.file_id == file_id
+                else f
+            )
+            for f in files
+        ]
+        self._index_path(workspace_id).write_text(
+            json.dumps([json.loads(f.model_dump_json()) for f in files], indent=2)
+        )
+        return next(f for f in files if f.file_id == file_id)
 
     def resolve_parquet_path(
         self, workspace_id: str, pf: ParquetFile, *, reroot: bool = True

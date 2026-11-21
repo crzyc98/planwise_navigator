@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Studio now asks for the census as-of date when you import a census, prefilled with December 31 of the census year read from hire dates. The date is saved with the file and moves with it when you switch censuses with Use as Census. A rolled-forward census gets December 31 of its bridge year. Rows marked inactive with no termination date now leave the workforce on this date instead of the inferred plan-year end. Censuses imported earlier keep today's inferred date.
+
 ### Fixed
 
 - A census row marked inactive with no termination date no longer starts the simulation as a current employee (#1249). It gets the census plan-year end as an imputed termination date, so the starting headcount matches Census Analysis, and the run shows one warning with the number of rows and the date used. Censuses whose active flags and termination dates agree give the same results as before.

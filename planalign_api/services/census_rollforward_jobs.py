@@ -18,7 +18,7 @@ import sys
 import threading
 import uuid
 from collections import deque
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
 
@@ -30,6 +30,7 @@ from ..models.census_rollforward import (
     RollForwardSummary,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from .census_activation import activate_census
 from .import_service import ImportService
 from .simulation.run_execution import (
     build_env,
@@ -248,9 +249,8 @@ def _activate(
 ) -> None:
     """Make the bridge census the workspace census and list it in Imported Files."""
     path = Path(summary.census_path)
-    if not storage.update_base_config_key(
-        workspace_id, "setup.census_parquet_path", str(path)
-    ):
+    # The bridge census describes the workforce at the end of the bridge year.
+    if not activate_census(storage, workspace_id, str(path), _bridge_as_of(summary)):
         raise RuntimeError(f"Could not set the census for workspace {workspace_id}")
     _move_explicit_plan_year(storage, workspace_id, summary.bridge_year)
     try:
@@ -298,4 +298,9 @@ def _register(
         row_count=summary.ending_headcount,
         columns=columns,
         file_size_bytes=path.stat().st_size,
+        census_as_of_date=_bridge_as_of(summary),
     )
+
+
+def _bridge_as_of(summary: RollForwardSummary) -> date:
+    return date(summary.bridge_year, 12, 31)

@@ -1,7 +1,8 @@
 """Report census rows given an imputed termination date (#1249).
 
 ``stg_census_data`` gives a row marked inactive with no termination date the
-census plan-year end as its termination date, so it leaves the starting
+census as-of date (confirmed at import, else the census plan-year end) as its
+termination date, so it leaves the starting
 workforce. This records one warning with the count and date, so an analyst can
 see that rows were left out. Counts only, never row contents (PII).
 """
@@ -30,7 +31,7 @@ def imputed_termination_message(conn: duckdb.DuckDBPyConnection) -> Optional[str
     count, imputed_date = row
     return (
         f"Census check: {count} row(s) are marked inactive with no termination "
-        f"date. They were given the census plan-year end ({imputed_date}, or the "
+        f"date. They were given the census as-of date ({imputed_date}, or the "
         "hire date if later) as a termination date and left out of the starting "
         "workforce. Give leavers a termination date in the census to set it "
         "yourself."

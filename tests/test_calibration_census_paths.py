@@ -289,7 +289,9 @@ def test_mapped_import_handoff_to_calibration(storage: WorkspaceStorage) -> None
     client = TestClient(app)
     prefix = f"/api/workspaces/{workspace.id}/imports"
     import_id = _upload_and_map(client, workspace.id)
-    generated = client.post(f"{prefix}/{import_id}/generate")
+    generated = client.post(
+        f"{prefix}/{import_id}/generate", json={"census_as_of_date": "2025-12-31"}
+    )
     assert generated.status_code == 202, generated.text
 
     config = storage.get_workspace(workspace.id).base_config

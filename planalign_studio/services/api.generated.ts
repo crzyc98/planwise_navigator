@@ -2493,6 +2493,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/parquet-files/{file_id}/census-as-of-date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the date a census file was taken
+         * @description Store the date on the file, and on the workspace if it's the census in use.
+         */
+        put: operations["set_parquet_census_as_of_date_api_workspaces__workspace_id__parquet_files__file_id__census_as_of_date_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/parquet-files/{file_id}/download": {
         parameters: {
             query?: never;
@@ -4645,6 +4665,15 @@ export interface components {
             workforce_average_headcount: number | null;
             /** Workforce Rate Start */
             workforce_rate_start: string | null;
+        };
+        /** CensusAsOfDateRequest */
+        CensusAsOfDateRequest: {
+            /**
+             * Census As Of Date
+             * Format: date
+             * @description Date the census was taken, confirmed by the analyst
+             */
+            census_as_of_date: string;
         };
         /**
          * CensusDataQualityIssue
@@ -7525,6 +7554,16 @@ export interface components {
          */
         FileUploadResponse: {
             /**
+             * Census As Of Date
+             * @description Suggested census as-of date, stored until the analyst confirms or changes it; null when no hire date parses.
+             */
+            census_as_of_date: string | null;
+            /**
+             * Census File Id
+             * @description Imported Files record, for confirming the as-of date
+             */
+            census_file_id: string | null;
+            /**
              * Column Renames
              * @description Columns that were auto-renamed from aliases to canonical names
              */
@@ -8573,6 +8612,11 @@ export interface components {
             rows: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Suggested Census As Of Date
+             * @description Dec 31 of the census year the engine would infer, to prefill the as-of date; null when no hire date parses.
+             */
+            suggested_census_as_of_date: string | null;
             /** Total Row Count */
             total_row_count: number;
             /** Transformation Warnings */
@@ -9371,6 +9415,11 @@ export interface components {
         };
         /** ParquetFile */
         ParquetFile: {
+            /**
+             * Census As Of Date
+             * @description Date the census was taken, confirmed by the analyst at import. None for files imported before it was asked.
+             */
+            census_as_of_date: string | null;
             /**
              * Created At
              * Format: date-time
@@ -16652,7 +16701,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CensusAsOfDateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -17196,6 +17249,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_parquet_census_as_of_date_api_workspaces__workspace_id__parquet_files__file_id__census_as_of_date_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CensusAsOfDateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParquetFile"];
+                };
             };
             /** @description Validation Error */
             422: {

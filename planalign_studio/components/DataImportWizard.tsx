@@ -10,6 +10,7 @@ import PreviewStep from './imports/PreviewStep';
 import ImportedFilesList from './imports/ImportedFilesList';
 import CensusRollForwardBanner from './imports/CensusRollForwardBanner';
 import HourlyRateSummaryNotice from './imports/HourlyRateSummaryNotice';
+import CensusAsOfDateConfirm from './imports/CensusAsOfDateConfirm';
 import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 
 type WizardStep = 'upload' | 'mapping' | 'preview' | 'done';
@@ -55,6 +56,7 @@ export default function DataImportWizard() {
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [generatedFile, setGeneratedFile] = useState<ParquetFile | null>(null);
   const [parquetResult, setParquetResult] = useState<FileUploadResponse | null>(null);
+  const [asOfConfirmed, setAsOfConfirmed] = useState(false);
   const [mappingDirty, setMappingDirty] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [showFilesView, setShowFilesView] = useState(false);
@@ -98,6 +100,8 @@ export default function DataImportWizard() {
 
   const handleParquetDone = (result: FileUploadResponse) => {
     setParquetResult(result);
+    // Without an Imported Files record there's nothing to store the date on.
+    setAsOfConfirmed(!result.census_file_id);
     setStep('done');
     void refreshActiveWorkspace();
   };
@@ -108,6 +112,7 @@ export default function DataImportWizard() {
     setMappings([]);
     setGeneratedFile(null);
     setParquetResult(null);
+    setAsOfConfirmed(false);
     setMappingDirty(false);
   };
 
@@ -177,6 +182,17 @@ export default function DataImportWizard() {
             </p>
             <p className="text-xs text-ink-subtle">Your workspace census has been updated.</p>
             <HourlyRateSummaryNotice summary={parquetResult.hourly_rate_summary} />
+            {!asOfConfirmed && parquetResult.census_file_id ? (
+              <CensusAsOfDateConfirm
+                workspaceId={workspaceId}
+                fileId={parquetResult.census_file_id}
+                suggested={parquetResult.census_as_of_date}
+                onConfirmed={() => {
+                  setAsOfConfirmed(true);
+                  void refreshActiveWorkspace();
+                }}
+              />
+            ) : (
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={handleStartNew}
@@ -191,6 +207,7 @@ export default function DataImportWizard() {
                 View in Configure
               </Link>
             </div>
+            )}
           </div>
         )}
         {step === 'done' && generatedFile && (

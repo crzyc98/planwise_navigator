@@ -193,7 +193,7 @@ def _maximal_config():
         "market_scenario": "baseline",
         "level_market_adjustments": {"1": 0},
     }
-    cfg.setup = {"enforce_contracts": True}
+    cfg.setup = {"enforce_contracts": True, "census_as_of_date": "2025-12-31"}
     return cfg
 
 

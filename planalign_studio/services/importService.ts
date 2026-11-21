@@ -90,6 +90,8 @@ export interface ParquetFile {
   file_size_bytes: number;
   schema: ParquetColumn[];
   hourly_rate_summary?: CensusHourlyRateSummary | null;
+  /** ISO date the census was taken; null for files imported before it was asked. */
+  census_as_of_date?: string | null;
   created_at: string;
   created_by: string;
 }
@@ -131,6 +133,8 @@ export interface MappedPreviewResponse extends PreviewResponse {
   data_quality: DataQualityResult | null;
   /** Why some or all whole-file checks didn't run; null when they all ran. */
   data_quality_skipped_reason: string | null;
+  /** Dec 31 of the census year the engine would infer; prefills the as-of date. */
+  suggested_census_as_of_date?: string | null;
 }
 
 export interface GenerateResponse {
@@ -277,13 +281,33 @@ export async function getImportStatus(workspaceId: string, importId: string): Pr
   return handleResponse<ImportSession>(res);
 }
 
-export async function generateParquet(workspaceId: string, importId: string): Promise<GenerateResponse> {
+export async function generateParquet(
+  workspaceId: string,
+  importId: string,
+  censusAsOfDate: string,
+): Promise<GenerateResponse> {
   const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify({ census_as_of_date: censusAsOfDate }),
   });
   return handleResponse<GenerateResponse>(res);
+}
+
+export async function setCensusAsOfDate(
+  workspaceId: string,
+  fileId: string,
+  censusAsOfDate: string,
+): Promise<ParquetFile> {
+  const res = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/parquet-files/${fileId}/census-as-of-date`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ census_as_of_date: censusAsOfDate }),
+    },
+  );
+  return handleResponse<ParquetFile>(res);
 }
 
 export async function listParquetFiles(workspaceId: string): Promise<ParquetFilesResponse> {
