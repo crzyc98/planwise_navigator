@@ -258,7 +258,7 @@ class SimulationService:
             run_dir=run_dir,
             finalize_provenance=(
                 lambda: (
-                    provenance_recorder.finalize(
+                    provenance_recorder.finalize_safely(
                         STATUS_COMPLETED,
                         completed_at=datetime.now().astimezone(),
                         duration_seconds=final_elapsed,
@@ -391,19 +391,14 @@ class SimulationService:
         except Exception as e:
             logger.warning(f"Failed to archive failed run {run_id}: {e}")
         if provenance_recorder is not None:
-            try:
-                provenance_recorder.finalize(
-                    terminal_status,
-                    completed_at=datetime.now().astimezone(),
-                    duration_seconds=max(
-                        0.0,
-                        (
-                            datetime.now() - (start_time or datetime.now())
-                        ).total_seconds(),
-                    ),
-                )
-            except Exception as e:
-                logger.warning("Failed to finalize provenance for %s: %s", run_id, e)
+            provenance_recorder.finalize_safely(
+                terminal_status,
+                completed_at=datetime.now().astimezone(),
+                duration_seconds=max(
+                    0.0,
+                    (datetime.now() - (start_time or datetime.now())).total_seconds(),
+                ),
+            )
 
     # ------------------------------------------------------------------
     # Cancel / Results / Telemetry

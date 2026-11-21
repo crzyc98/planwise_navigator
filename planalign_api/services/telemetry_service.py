@@ -331,6 +331,8 @@ class TelemetryService:
             state.event_counts.by_type = cumulative
         if isinstance(year, int) and counts_known:
             state.event_counts.by_year[year] = year_counts
+        # Totals are exact through this year only while every year's counts are known.
+        if isinstance(year, int) and record.get("cumulative_counts") is not None:
             state.event_counts.as_of_year = year
         state.event_counts.total = sum(state.event_counts.by_type.values())
 

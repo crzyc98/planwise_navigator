@@ -399,3 +399,10 @@ def test_capture_error_does_not_stop_output_processing(tmp_path: Path):
         )
     telemetry.apply_structured_record.assert_called_once()
     update_run_status.assert_called_once()
+
+
+def test_finalize_safely_does_not_fail_a_finished_run(tmp_path: Path):
+    """#1197: a provenance write error at the end must not fail the run."""
+    recorder = _recorder(tmp_path)
+    with patch.object(recorder, "write", side_effect=OSError("disk full")):
+        recorder.finalize_safely("completed", duration_seconds=1.0)

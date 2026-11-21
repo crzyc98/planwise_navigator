@@ -453,6 +453,13 @@ class ProvenanceRecorder:
             except Exception:
                 logger.exception("Could not record the provenance capture failure")
 
+    def finalize_safely(self, status: str, **kwargs: Any) -> None:
+        """Finalize without letting a capture error fail the run (#1197)."""
+        try:
+            self.finalize(status, **kwargs)
+        except Exception:
+            logger.exception("Failed to finalize provenance as %s", status)
+
     def ingest(self, record: dict[str, Any]) -> None:
         manifest = self.read()
         if record.get("run_id") != str(manifest.run_id):

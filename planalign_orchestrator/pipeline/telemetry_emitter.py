@@ -205,7 +205,7 @@ class TelemetryEmitter:
             "variance": None,
             "opening_source": "unavailable",
         }
-        if self.db_manager is None or year is None or event_counts is None:
+        if self.db_manager is None or year is None:
             return unavailable
         try:
             with self.db_manager.get_connection() as conn:
@@ -229,6 +229,14 @@ class TelemetryEmitter:
                     ).fetchone()[0]
                     opening_source = "prior_year_snapshot"
                 acquired = self._acquired_hires(conn, year)
+            if event_counts is None:
+                # #1199: the snapshots still reconcile; only the flows are unknown
+                return {
+                    **unavailable,
+                    "opening_workforce": int(opening),
+                    "actual_closing_workforce": int(actual),
+                    "opening_source": opening_source,
+                }
             # #1228: acquired members are their own step, apart from organic hires
             hires = event_counts.get("HIRE", 0) - acquired
             terms = event_counts.get("TERMINATION", 0)
