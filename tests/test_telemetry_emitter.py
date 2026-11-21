@@ -221,7 +221,7 @@ class TestRobustness:
         conn = MagicMock()
 
         def execute(sql, params=None):
-            if "GROUP BY" in sql:
+            if "fct_yearly_events" in sql:
                 raise RuntimeError("lock")
             result = MagicMock()
             result.fetchone.return_value = [100]

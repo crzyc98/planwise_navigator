@@ -228,15 +228,15 @@ class TelemetryEmitter:
                         [year - 1],
                     ).fetchone()[0]
                     opening_source = "prior_year_snapshot"
+                if event_counts is None:
+                    # #1199: the snapshots still read; only the flows are unknown
+                    return {
+                        **unavailable,
+                        "opening_workforce": int(opening),
+                        "actual_closing_workforce": int(actual),
+                        "opening_source": opening_source,
+                    }
                 acquired = self._acquired_hires(conn, year)
-            if event_counts is None:
-                # #1199: the snapshots still reconcile; only the flows are unknown
-                return {
-                    **unavailable,
-                    "opening_workforce": int(opening),
-                    "actual_closing_workforce": int(actual),
-                    "opening_source": opening_source,
-                }
             # #1228: acquired members are their own step, apart from organic hires
             hires = event_counts.get("HIRE", 0) - acquired
             terms = event_counts.get("TERMINATION", 0)
