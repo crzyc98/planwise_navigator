@@ -217,7 +217,16 @@ def validate_census(
             scenario_id,
             metadata,
         ) from exc
-    config.setdefault("setup", {})["census_parquet_path"] = safe_path
+    setup = config.setdefault("setup", {})
+    setup["census_parquet_path"] = safe_path
+    # The run's own census decides the date, not the workspace default.
+    from ..census_activation import census_as_of_for
+
+    as_of = census_as_of_for(storage, workspace_id, resolved)
+    if as_of is None:
+        setup.pop("census_as_of_date", None)
+    else:
+        setup["census_as_of_date"] = as_of.isoformat()
 
 
 def write_config(config: Dict[str, Any], config_path: Path) -> None:

@@ -3618,6 +3618,7 @@
       "CensusAsOfDateRequest": {
         "properties": {
           "census_as_of_date": {
+            "description": "Date the census was taken, confirmed by the analyst",
             "format": "date",
             "title": "Census As Of Date",
             "type": "string"
@@ -10410,21 +10411,6 @@
           "format_options"
         ],
         "title": "FormatDetectionResult",
-        "type": "object"
-      },
-      "GenerateRequest": {
-        "properties": {
-          "census_as_of_date": {
-            "description": "Date the census was taken, confirmed by the analyst",
-            "format": "date",
-            "title": "Census As Of Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "census_as_of_date"
-        ],
-        "title": "GenerateRequest",
         "type": "object"
       },
       "GenerateResponse": {
@@ -29156,7 +29142,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateRequest"
+                "$ref": "#/components/schemas/CensusAsOfDateRequest"
               }
             }
           },

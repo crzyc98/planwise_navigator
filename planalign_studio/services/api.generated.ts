@@ -4671,6 +4671,7 @@ export interface components {
             /**
              * Census As Of Date
              * Format: date
+             * @description Date the census was taken, confirmed by the analyst
              */
             census_as_of_date: string;
         };
@@ -7833,15 +7834,6 @@ export interface components {
             is_ambiguous: boolean;
             /** Parsed Sample Values */
             parsed_sample_values: string[];
-        };
-        /** GenerateRequest */
-        GenerateRequest: {
-            /**
-             * Census As Of Date
-             * Format: date
-             * @description Date the census was taken, confirmed by the analyst
-             */
-            census_as_of_date: string;
         };
         /** GenerateResponse */
         GenerateResponse: {
@@ -16711,7 +16703,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenerateRequest"];
+                "application/json": components["schemas"]["CensusAsOfDateRequest"];
             };
         };
         responses: {

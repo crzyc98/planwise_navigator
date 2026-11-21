@@ -428,12 +428,16 @@ class ImportService:
     def find_parquet_by_path(
         self, workspace_id: str, storage_path: str
     ) -> Optional[ParquetFile]:
-        """The newest record whose stored path resolves to ``storage_path``."""
+        """The newest record for the file at ``storage_path``.
+
+        Records are resolved like downloads, so relative paths and paths from
+        an exported workspace still match.
+        """
         target = Path(storage_path).resolve()
         matches = [
             pf
             for pf in self.list_parquet_files(workspace_id)
-            if Path(pf.storage_path).resolve() == target
+            if self.resolve_parquet_path(workspace_id, pf) == target
         ]
         return max(matches, key=lambda pf: pf.created_at) if matches else None
 

@@ -27,7 +27,7 @@ from ..models.files import (
     SetCensusPathResponse,
 )
 from ..services.compensation_solver import CompensationSolver, WorkforceDynamics
-from ..services.census_activation import activate_census
+from ..services.census_activation import activate_census, prefill_as_of
 from ..services.census_as_of import suggest_census_as_of_date
 from ..services.file_service import FileService
 from ..services.import_service import ImportService
@@ -184,11 +184,13 @@ def _register_and_activate_upload(
     The suggested as-of date is stored until the analyst confirms or changes
     it. Neither step fails the upload: the file is saved either way.
     """
+    storage = get_workspace_storage()
     try:
-        suggested = _suggested_as_of(absolute_path)
+        inferred = _suggested_as_of(absolute_path)
     except duckdb.Error as e:
         logger.warning(f"Could not suggest a census as-of date: {e}")
-        suggested = None
+        inferred = None
+    suggested = prefill_as_of(storage, workspace_id, inferred)
     file_id: Optional[str] = None
     try:
         file_id = (
@@ -207,9 +209,7 @@ def _register_and_activate_upload(
     except Exception as e:
         logger.warning(f"Failed to register uploaded census in imports index: {e}")
     try:
-        if not activate_census(
-            get_workspace_storage(), workspace_id, absolute_path, suggested
-        ):
+        if not activate_census(storage, workspace_id, absolute_path, suggested):
             logger.warning(f"Workspace {workspace_id} not found; census not set")
     except Exception as e:
         logger.warning(f"Failed to update workspace config with census path: {e}")

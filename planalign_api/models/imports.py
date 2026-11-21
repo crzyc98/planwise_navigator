@@ -259,14 +259,10 @@ class MappedPreviewResponse(APIModel):
     )
 
 
-class GenerateRequest(APIModel):
+class CensusAsOfDateRequest(APIModel):
     census_as_of_date: date = Field(
         ..., description="Date the census was taken, confirmed by the analyst"
     )
-
-
-class CensusAsOfDateRequest(APIModel):
-    census_as_of_date: date
 
 
 class GenerateResponse(APIModel):

@@ -6,9 +6,11 @@ interface Props {
   disabled?: boolean;
 }
 
-/** True for a complete YYYY-MM-DD date, as a date input reports it. */
+/** True for a real YYYY-MM-DD calendar date, as a date input reports it. */
 export function isCensusAsOfDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
 }
 
 /** The date the census was taken. Required at import. */

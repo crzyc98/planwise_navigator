@@ -21,7 +21,6 @@ from ..models.imports import (
     ApplyTemplateRequest,
     CensusAsOfDateRequest,
     DetectedColumn,
-    GenerateRequest,
     GenerateResponse,
     ImportSession,
     MappedPreviewResponse,
@@ -40,6 +39,7 @@ from ..models.imports import (
 from ..services.census_activation import (
     activate_census,
     is_active_census,
+    prefill_as_of,
     set_active_census_as_of,
 )
 from ..services.census_schema import CANONICAL_NAMES, FIELDS, get_field, is_canonical
@@ -566,6 +566,7 @@ def get_mapped_preview(
     workspace_id: str,
     import_id: str,
     service: ImportService = Depends(get_import_service),
+    storage: WorkspaceStorage = Depends(get_workspace_storage),
 ) -> MappedPreviewResponse:
     session = _check_session(workspace_id, import_id, service)
     if service.get_mapping(workspace_id, import_id) is None:
@@ -586,7 +587,9 @@ def get_mapped_preview(
         transformation_warnings=warnings,
         data_quality=quality.result,
         data_quality_skipped_reason=quality.skipped_reason,
-        suggested_census_as_of_date=quality.suggested_as_of,
+        suggested_census_as_of_date=prefill_as_of(
+            storage, workspace_id, quality.suggested_as_of
+        ),
     )
 
 
@@ -657,7 +660,7 @@ def get_import_status(
 def generate_parquet(
     workspace_id: str,
     import_id: str,
-    request: GenerateRequest,
+    request: CensusAsOfDateRequest,
     service: ImportService = Depends(get_import_service),
     storage: WorkspaceStorage = Depends(get_workspace_storage),
     x_user_id: str = Header(default="system"),

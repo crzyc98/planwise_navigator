@@ -147,3 +147,35 @@ def test_direct_upload_stores_the_suggested_date_for_confirmation(
     assert body["census_as_of_date"] == "2024-12-31"
     assert body["census_file_id"]
     assert _setup_value(storage, ws, "census_as_of_date") == "2024-12-31"
+
+
+def test_a_run_takes_the_date_of_its_own_census(setup, tmp_path: Path) -> None:
+    """A scenario on another census never gets the workspace census's date."""
+    from planalign_api.services.simulation.run_execution import validate_census
+
+    client, storage, ws = setup
+    dated = _generate(client, ws, "2025-03-31")
+    undated = tmp_path / "workspaces" / ws / "data" / "undated.parquet"
+    with duckdb.connect() as conn:
+        conn.execute(
+            f"COPY (SELECT 'E1' AS employee_id) TO '{undated}' (FORMAT parquet)"
+        )
+
+    def run_date(census: str) -> Optional[Any]:
+        config = {"setup": {"census_parquet_path": census}}
+        validate_census(storage, config, "scenario", ws)
+        return config["setup"].get("census_as_of_date")
+
+    assert run_date(dated["storage_path"]) == "2025-03-31"
+    assert _setup_value(storage, ws, "census_as_of_date") == "2025-03-31"
+    assert run_date(str(undated)) is None
+
+
+def test_prefill_follows_a_configured_plan_year(setup) -> None:
+    client, storage, ws = setup
+    storage.update_base_config_key(ws, "setup.plan_year_start_date", "2024-07-01")
+    import_id = _mapped_import(client, ws)
+
+    preview = client.get(f"/api/workspaces/{ws}/imports/{import_id}/mapped-preview")
+
+    assert preview.json()["suggested_census_as_of_date"] == "2025-06-30"

@@ -9,6 +9,8 @@ describe('Census as-of date field', () => {
     expect(isCensusAsOfDate('')).toBe(false);
     expect(isCensusAsOfDate('2025-12')).toBe(false);
     expect(isCensusAsOfDate('2025-13-45')).toBe(false);
+    expect(isCensusAsOfDate('2025-02-30')).toBe(false);
+    expect(isCensusAsOfDate('2024-02-29')).toBe(true);
   });
 
   it('renders the prefilled date as a required input', () => {
