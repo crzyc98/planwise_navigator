@@ -210,7 +210,39 @@ class TestRobustness:
         emitter.on_year_completed({"year": 2025, "duration_seconds": 1.0})
         (rec,) = records(stream)
         assert rec["record"] == "year_completed"
-        assert rec["event_counts"] == {}
+        # #1199: unknown counts are not a zero-event year
+        assert rec["event_counts"] is None
+        assert rec["workforce_reconciliation"]["hires"] is None
+        assert rec["workforce_reconciliation"]["terminations"] is None
+        assert rec["cumulative_counts"] is None
+
+    def test_failed_count_query_still_reports_snapshot_headcounts(self, stream):
+        """#1199: only the flows are unknown; both snapshots still read."""
+        conn = MagicMock()
+
+        def execute(sql, params=None):
+            if "fct_yearly_events" in sql:
+                raise RuntimeError("lock")
+            result = MagicMock()
+            result.fetchone.return_value = [100]
+            return result
+
+        conn.execute.side_effect = execute
+        manager = MagicMock()
+
+        @contextmanager
+        def get_connection(**kwargs):
+            yield conn
+
+        manager.get_connection = get_connection
+        emitter = TelemetryEmitter(db_manager=manager, enabled=True, stream=stream)
+        emitter.on_year_completed({"year": 2026})
+        (rec,) = records(stream)
+        recon = rec["workforce_reconciliation"]
+        assert rec["event_counts"] is None
+        assert recon["opening_workforce"] == 100
+        assert recon["actual_closing_workforce"] == 100
+        assert recon["hires"] is None and recon["variance"] is None
 
     def test_register_attaches_hooks(self, emitter):
         from planalign_orchestrator.pipeline.hooks import HookManager, HookType

@@ -202,8 +202,8 @@ def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
         examples = ", ".join(repr(value) for value in sorted(set(invalid))[:5])
         raise FieldCoercionError(
             f"Column {input_column!r} contains {len(invalid)} unsupported boolean "
-            f"value(s), including {examples}. Use true/false, 1/0, yes/no, y/n, "
-            "or active/inactive.",
+            f"value(s), including {examples}. Use true/false, t/f, 1/0, yes/no, "
+            "y/n, or active/inactive.",
             rows_affected=len(invalid),
         )
     return pd.Series(normalized, index=series.index, dtype="boolean")

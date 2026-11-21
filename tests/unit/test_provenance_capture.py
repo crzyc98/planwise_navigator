@@ -306,3 +306,103 @@ def test_later_pass_cannot_overwrite_prior_failed_disposition(
     manifest = recorder.read()
     assert manifest.validation_disposition == expected_disposition
     assert [row.affected_record_count for row in manifest.validation_results] == [7, 0]
+
+
+def _recorder(tmp_path: Path):
+    seeds = tmp_path / "seeds"
+    seeds.mkdir()
+    return initialize_manifest(
+        run_dir=tmp_path / "runs" / RUN_ID,
+        run_id=RUN_ID,
+        workspace_id="workspace",
+        scenario_id="scenario-a",
+        config={"simulation": {"start_year": 2025, "end_year": 2025}},
+        seed_root=seeds,
+        project_root=tmp_path,
+    )
+
+
+def test_unknown_event_counts_are_not_recorded_as_zero_events(tmp_path: Path):
+    """#1199: a failed count query must not look like a year with no events.
+
+    No count rows are kept, so the report flags the year's counts as unavailable.
+    """
+    recorder = _recorder(tmp_path)
+    recorder.ingest(
+        {
+            "record": "year_completed",
+            "run_id": RUN_ID,
+            "year": 2025,
+            "event_counts": None,
+            "workforce_reconciliation": {"hires": None, "terminations": None},
+        }
+    )
+    manifest = recorder.read()
+    assert manifest.event_counts == []
+    assert manifest.run_identity.completed_years == [2025]
+    assert manifest.workforce_reconciliations[0].hires is None
+
+
+def test_ingest_safely_keeps_the_run_alive_and_records_the_failure(tmp_path: Path):
+    """#1197: a capture error is logged as a finding instead of raising."""
+    recorder = _recorder(tmp_path)
+    recorder.ingest_safely(
+        {
+            "record": "year_completed",
+            "run_id": RUN_ID,
+            "year": 2025,
+            "event_counts": {"HIRE": 3},
+            "workforce_reconciliation": {"new_unknown_field": 1},
+        }
+    )
+    finding = next(
+        f
+        for f in recorder.read().capture_findings
+        if f.field_path == "structured_records.year_completed"
+    )
+    assert finding.code == "incomplete_capture"
+    assert "ValidationError" in finding.reason
+
+
+def test_ingest_safely_survives_an_unwritable_manifest(tmp_path: Path):
+    recorder = _recorder(tmp_path)
+    with patch.object(recorder, "write", side_effect=OSError("disk full")):
+        recorder.ingest_safely({"record": "run_started", "run_id": RUN_ID, "ts": None})
+
+
+def test_capture_error_does_not_stop_output_processing(tmp_path: Path):
+    """#1197: the run keeps going when provenance capture raises."""
+    import json
+    from datetime import datetime
+    from unittest.mock import MagicMock
+
+    from planalign_api.services.simulation.output_parser import (
+        STRUCTURED_SENTINEL,
+        SimulationOutputParser,
+    )
+    from planalign_api.services.simulation.run_execution import process_output_line
+
+    recorder = _recorder(tmp_path)
+    telemetry = MagicMock()
+    update_run_status = MagicMock()
+    record = {"record": "run_started", "run_id": RUN_ID}
+    with patch.object(recorder, "ingest", side_effect=OSError("disk full")):
+        process_output_line(
+            STRUCTURED_SENTINEL + json.dumps(record),
+            RUN_ID,
+            SimulationOutputParser(start_year=2025, total_years=1),
+            1,
+            datetime.now(),
+            telemetry,
+            update_run_status,
+            recorder,
+        )
+    telemetry.apply_structured_record.assert_called_once()
+    update_run_status.assert_called_once()
+
+
+def test_finalize_safely_does_not_fail_a_finished_run(tmp_path: Path):
+    """#1197: a provenance write error at the end must not fail the run."""
+    recorder = _recorder(tmp_path)
+    with patch.object(recorder, "write", side_effect=OSError("disk full")):
+        recorder.finalize_safely("completed", duration_seconds=1.0)

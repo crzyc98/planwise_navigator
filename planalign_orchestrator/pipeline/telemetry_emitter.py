@@ -43,6 +43,8 @@ class TelemetryEmitter:
         self.db_manager = db_manager
         self.stream = stream if stream is not None else sys.stdout
         self._cumulative_counts: Dict[str, int] = {}
+        # Once a year's counts are unknown, the running total is too (#1199).
+        self._cumulative_known = True
         self._start_year: Optional[int] = None
 
     # ------------------------------------------------------------------
@@ -121,7 +123,9 @@ class TelemetryEmitter:
             return
         year = context.get("year")
         year_counts = self._query_year_counts(year)
-        for event_type, count in year_counts.items():
+        if year_counts is None:
+            self._cumulative_known = False
+        for event_type, count in (year_counts or {}).items():
             self._cumulative_counts[event_type] = (
                 self._cumulative_counts.get(event_type, 0) + count
             )
@@ -131,7 +135,9 @@ class TelemetryEmitter:
                 "year": year,
                 "duration_seconds": context.get("duration_seconds"),
                 "event_counts": year_counts,
-                "cumulative_counts": dict(self._cumulative_counts),
+                "cumulative_counts": (
+                    dict(self._cumulative_counts) if self._cumulative_known else None
+                ),
                 "workforce_reconciliation": self._query_reconciliation(
                     year, year_counts
                 ),
@@ -161,14 +167,16 @@ class TelemetryEmitter:
             return name
         return str(stage).upper()
 
-    def _query_year_counts(self, year: Optional[int]) -> Dict[str, int]:
+    def _query_year_counts(self, year: Optional[int]) -> Optional[Dict[str, int]]:
         """Exact per-event-type counts for a year from fct_yearly_events.
 
         Uses the orchestrator's own connection manager — no cross-process
-        lock contention with the running simulation.
+        lock contention with the running simulation. Returns None when the
+        counts are unknown, so a failed query is not read as a zero-event
+        year (#1199).
         """
         if self.db_manager is None or year is None:
-            return {}
+            return None
         try:
             with self.db_manager.get_connection() as conn:
                 rows = conn.execute(
@@ -180,16 +188,18 @@ class TelemetryEmitter:
             return {row[0]: int(row[1]) for row in rows}
         except Exception as e:
             logger.warning("Telemetry year-count query failed for %s: %s", year, e)
-            return {}
+            return None
 
     def _query_reconciliation(
-        self, year: Optional[int], event_counts: Dict[str, int]
+        self, year: Optional[int], event_counts: Optional[Dict[str, int]]
     ) -> Dict[str, Any]:
         """Return aggregate workforce equation components for a completed year."""
         unavailable = {
             "opening_workforce": None,
-            "hires": event_counts.get("HIRE", 0),
-            "terminations": event_counts.get("TERMINATION", 0),
+            "hires": event_counts.get("HIRE", 0) if event_counts is not None else None,
+            "terminations": (
+                event_counts.get("TERMINATION", 0) if event_counts is not None else None
+            ),
             "expected_closing_workforce": None,
             "actual_closing_workforce": None,
             "variance": None,
@@ -218,6 +228,14 @@ class TelemetryEmitter:
                         [year - 1],
                     ).fetchone()[0]
                     opening_source = "prior_year_snapshot"
+                if event_counts is None:
+                    # #1199: the snapshots still read; only the flows are unknown
+                    return {
+                        **unavailable,
+                        "opening_workforce": int(opening),
+                        "actual_closing_workforce": int(actual),
+                        "opening_source": opening_source,
+                    }
                 acquired = self._acquired_hires(conn, year)
             # #1228: acquired members are their own step, apart from organic hires
             hires = event_counts.get("HIRE", 0) - acquired

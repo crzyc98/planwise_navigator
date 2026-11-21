@@ -67,7 +67,8 @@ def _suggestions(root, filename: str) -> dict[str, object]:
 
 
 @pytest.mark.parametrize(
-    ("active", "inactive"), [("Active", "Terminated"), ("employed", "separated")]
+    ("active", "inactive"),
+    [("Active", "Terminated"), ("employed", "separated"), ("t", "f")],
 )
 def test_text_active_census_matches_boolean_census(tmp_path, active, inactive):
     """A census set by path keeps its text flags; every suggestion must still work."""
