@@ -92,10 +92,11 @@ raw_data AS (
 -- taken (#1249). Give it the census plan-year end as an imputed termination
 -- date (never before its hire date) so it leaves the starting workforce, and
 -- flag it. "Inactive" matches Studio's census reports (census_schema
--- active_filter_sql): a blank flag or a true alias counts as active.
+-- active_filter_sql): a NULL flag or a true alias counts as active. Studio's
+-- import already rejects other values and stores the column as BOOLEAN.
 {% set active_true_aliases = ['y', 'yes', 'true', 't', '1', '1.0', 'active', 'enrolled', 'eligible', 'employed'] %}
 census_rows AS (
-  SELECT r.* REPLACE (
+  SELECT r.* EXCLUDE (inactive_without_date) REPLACE (
       COALESCE(r.employee_termination_date, CASE WHEN r.inactive_without_date
         THEN GREATEST(pc.plan_end, r.employee_hire_date) END) AS employee_termination_date
     ),

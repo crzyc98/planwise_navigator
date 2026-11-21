@@ -30,9 +30,10 @@ def imputed_termination_message(conn: duckdb.DuckDBPyConnection) -> Optional[str
     count, imputed_date = row
     return (
         f"Census check: {count} row(s) are marked inactive with no termination "
-        f"date. They were given a termination date of {imputed_date} (the census "
-        "plan-year end) and left out of the starting workforce. Give leavers a "
-        "termination date in the census to set it yourself."
+        f"date. They were given the census plan-year end ({imputed_date}, or the "
+        "hire date if later) as a termination date and left out of the starting "
+        "workforce. Give leavers a termination date in the census to set it "
+        "yourself."
     )
 
 
@@ -42,7 +43,7 @@ def report_imputed_terminations(
     """Record the warning on the run when any row was imputed; never fails the run."""
     try:
         message = imputed_termination_message(conn)
-    except duckdb.Error as exc:
+    except duckdb.CatalogException as exc:
         # Advisory, like the plausibility check: a run where staging wasn't
         # built (dry run) has no stg_census_data, and that mustn't stop it.
         logger.info("Imputed termination check skipped")

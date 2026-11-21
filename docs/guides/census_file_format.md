@@ -170,8 +170,8 @@ eligible. Studio and config validation reject new-hire ages under 21.
 
 - Missing `employee_ssn` → a deterministic placeholder is synthesized from
   `employee_id` (`SSN-` + a 9-digit hash), never a real SSN.
-- Missing `employee_termination_date` → rows whose `active` flag is blank or
-  a true alias start the simulation as active. Rows marked inactive get the
+- Missing `employee_termination_date` → rows whose `active` flag is empty or
+  a true value start the simulation as active. Rows marked inactive get the
   census plan-year end as an imputed termination date and are left out, which
   matches Studio's census reports (Census Analysis, tie-out, turnover); the run
   shows one warning with the count. Give leavers a real termination date to
