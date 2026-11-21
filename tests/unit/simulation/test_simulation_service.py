@@ -292,7 +292,7 @@ class TestRunLocalLifecycle:
         storage.update_scenario_status.side_effect = lambda *args: order.append(
             "scenario_status"
         )
-        recorder.finalize.side_effect = lambda *args, **kwargs: order.append(
+        recorder.finalize_safely.side_effect = lambda *args, **kwargs: order.append(
             "provenance"
         )
 
