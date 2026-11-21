@@ -220,12 +220,12 @@ financial_impact AS (
     hr.total_hires_needed,
     cw.avg_compensation,
     -- New hire compensation (with market adjustment)
-    cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0) AS avg_new_hire_compensation,
+    cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'HIRE', 'new_hire_salary_adjustment', simulation_year) }}, 1.0) AS avg_new_hire_compensation,
     -- Total compensation costs
-    hr.total_hires_needed * cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0) AS total_new_hire_compensation_cost,
+    hr.total_hires_needed * cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'HIRE', 'new_hire_salary_adjustment', simulation_year) }}, 1.0) AS total_new_hire_compensation_cost,
     tf.expected_termination_compensation_cost,
     -- Net compensation change
-    (hr.total_hires_needed * cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'hire', 'new_hire_salary_adjustment', simulation_year) }}, 1.0)) -
+    (hr.total_hires_needed * cw.avg_compensation * COALESCE({{ get_parameter_value(1, 'HIRE', 'new_hire_salary_adjustment', simulation_year) }}, 1.0)) -
     tf.expected_termination_compensation_cost AS net_compensation_change_forecast
   FROM hiring_requirements hr
   CROSS JOIN current_workforce cw

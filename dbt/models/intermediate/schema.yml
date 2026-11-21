@@ -1395,7 +1395,9 @@ models:
           - not_null
 
       - name: scenario_id
-        description: Scenario identifier for this parameter set
+        description: >
+          The run's scenario. Every row carries it, including seed defaults used as
+          fallback; parameter_source says where each value came from.
         data_tests:
           - not_null
 
