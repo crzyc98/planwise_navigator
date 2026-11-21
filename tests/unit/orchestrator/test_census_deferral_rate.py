@@ -1,15 +1,16 @@
 """A census with deferral rates outside 0-1 is rejected before staging (#1263)."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
-from unittest.mock import MagicMock
 
 import duckdb
 import pytest
 
+from planalign_orchestrator import pipeline_orchestrator as pipeline_module
 from planalign_orchestrator.census_deferral_rate import (
-    count_out_of_range_deferral_rates,
     require_census_deferral_rates,
+    resolve_census_path,
 )
 from planalign_orchestrator.exceptions import DataQualityError
 from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
@@ -53,10 +54,17 @@ def test_percent_style_rates_are_rejected_with_a_count(
     assert "E1" not in message
 
 
-def test_unreadable_text_rates_are_left_to_staging(tmp_path: Path) -> None:
-    path = _census(tmp_path, ["0.06", "six"], "VARCHAR")
+def test_float_noise_around_the_bounds_passes(tmp_path: Path) -> None:
+    path = _census(tmp_path, ["1.0000000000000002", "-0.000001", "0.999999"])
 
-    assert count_out_of_range_deferral_rates(path) == 0
+    require_census_deferral_rates(path)
+
+
+def test_text_that_is_not_a_number_is_rejected(tmp_path: Path) -> None:
+    path = _census(tmp_path, ["0.06", "6%", "six", None], "VARCHAR")
+
+    with pytest.raises(DataQualityError, match=r"2 row\(s\)"):
+        require_census_deferral_rates(path)
 
 
 def test_census_without_the_column_passes(tmp_path: Path) -> None:
@@ -67,17 +75,49 @@ def test_census_without_the_column_passes(tmp_path: Path) -> None:
     require_census_deferral_rates(path)
 
 
-def test_missing_census_is_left_to_staging(tmp_path: Path) -> None:
+def test_missing_or_unreadable_census_is_left_to_staging(tmp_path: Path) -> None:
     require_census_deferral_rates(tmp_path / "missing.parquet")
-    require_census_deferral_rates(None)
+    require_census_deferral_rates(tmp_path)
+    not_parquet = tmp_path / "census.parquet"
+    not_parquet.write_text("employee_id,employee_deferral_rate\nE1,15\n")
+    require_census_deferral_rates(not_parquet)
 
 
-def test_bad_rates_stop_the_run_before_staging(tmp_path: Path) -> None:
+def test_census_path_falls_back_to_the_dbt_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dbt_dir = tmp_path / "dbt"
+    monkeypatch.delenv("DATA_PATH", raising=False)
+    assert resolve_census_path("/srv/c.parquet", dbt_dir) == Path("/srv/c.parquet")
+    assert (
+        resolve_census_path(None, dbt_dir)
+        == dbt_dir / "../data" / "census_preprocessed.parquet"
+    )
+    monkeypatch.setenv("DATA_PATH", "/srv/data")
+    assert resolve_census_path(None, dbt_dir) == Path(
+        "/srv/data/census_preprocessed.parquet"
+    )
+
+
+def test_bad_rates_stop_the_run_before_anything_is_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initialized: list[bool] = []
+    for name in (
+        "validate_seed_coverage",
+        "warn_unreached_acquisitions",
+        "warn_unreached_minimum_wage_steps",
+    ):
+        monkeypatch.setattr(pipeline_module, name, lambda *_args: None)
     orchestrator = PipelineOrchestrator.__new__(PipelineOrchestrator)
+    orchestrator.config = SimpleNamespace(
+        simulation=SimpleNamespace(start_year=2025, end_year=2026)
+    )
     orchestrator._dbt_vars = {"census_parquet_path": str(_census(tmp_path, ["15"]))}
-    orchestrator.dbt_runner = MagicMock()
+    orchestrator.dbt_runner = SimpleNamespace(working_dir=tmp_path)
+    orchestrator._initialization_callback = lambda: initialized.append(True)
 
     with pytest.raises(DataQualityError):
-        orchestrator._run_start_year_setup(2025)
+        orchestrator.execute_multi_year_simulation()
 
-    orchestrator.dbt_runner.execute_command.assert_not_called()
+    assert not initialized

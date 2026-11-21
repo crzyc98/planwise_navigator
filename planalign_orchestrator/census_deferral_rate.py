@@ -1,15 +1,17 @@
-"""Stop a run whose census has deferral rates outside 0-1 (#1263).
+"""Stop a run whose census has unusable deferral rates (#1263).
 
 The engine reads ``employee_deferral_rate`` as a fraction of pay (0.06 for 6%).
 A file that holds percentages instead (6, 15) used to run with models
 disagreeing about the rate, or crash on a decimal cast once a rate reached 10.
-The check reads the census file itself, before staging, because staging's own
-cast fails on a rate of 100 or more. The message carries a row count only,
-never row contents (PII).
+The check reads the census file itself, before anything is built or cleared,
+because staging's own cast fails on a rate of 100 or more and on text such as
+``6%``. The message carries a row count only, never row contents (PII).
 """
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -17,13 +19,32 @@ import duckdb
 
 from .exceptions import DataQualityError
 
+logger = logging.getLogger(__name__)
+
 RATE_COLUMN = "employee_deferral_rate"
+# dbt_project.yml's default for the census_parquet_path var.
+DEFAULT_CENSUS_FILE = "census_preprocessed.parquet"
 
 
-def count_out_of_range_deferral_rates(census_path: Path) -> int:
-    """Rows whose deferral rate is below 0 or above 1; 0 if the column is absent."""
+def resolve_census_path(configured: object, dbt_dir: Path) -> Path:
+    """The census dbt will read: the configured path, else dbt's default."""
+    if configured:
+        return Path(str(configured))
+    data_dir = Path(os.environ.get("DATA_PATH", "../data"))
+    if not data_dir.is_absolute():
+        data_dir = dbt_dir / data_dir
+    return data_dir / DEFAULT_CENSUS_FILE
+
+
+def count_bad_deferral_rates(census_path: Path) -> int:
+    """File rows whose rate is not a number or rounds outside 0-1.
+
+    Counts every row in the file, including duplicates staging would drop.
+    Rounds as staging does (5 places), so float noise around 0 and 1 passes.
+    """
     path = str(census_path.resolve()).replace("'", "''")
     source = f"read_parquet('{path}')"
+    rate = f"TRY_CAST({RATE_COLUMN} AS DOUBLE)"
     with duckdb.connect() as conn:
         columns = {
             row[0]
@@ -33,27 +54,33 @@ def count_out_of_range_deferral_rates(census_path: Path) -> int:
             return 0
         row = conn.execute(f"""
             SELECT COUNT(*) FROM {source}
-            WHERE TRY_CAST({RATE_COLUMN} AS DOUBLE) < 0
-               OR TRY_CAST({RATE_COLUMN} AS DOUBLE) > 1
+            WHERE {RATE_COLUMN} IS NOT NULL
+              AND ({rate} IS NULL OR ROUND({rate}, 5) NOT BETWEEN 0 AND 1)
             """).fetchone()
     return int(row[0]) if row else 0
 
 
-def out_of_range_message(count: int) -> Optional[str]:
-    """Explain the rejection, or None when every rate is in range."""
+def bad_rate_message(count: int) -> Optional[str]:
+    """Explain the rejection, or None when every rate is usable."""
     if not count:
         return None
     return (
-        f"The census has {count} row(s) with {RATE_COLUMN} outside 0-1. "
-        "Deferral rates must be a fraction of pay (0.06 for 6%, not 6). "
-        "Fix the census file and run again; Census Analysis lists the rows."
+        f"The census file has {count} row(s) where {RATE_COLUMN} is not a "
+        "number from 0 to 1. Deferral rates must be a fraction of pay "
+        "(0.06 for 6%, not 6 or 6%). Fix the census file and run again."
     )
 
 
-def require_census_deferral_rates(census_path: Optional[Path]) -> None:
-    """Reject the census before staging when any deferral rate is out of range."""
-    if census_path is None or not census_path.exists():
+def require_census_deferral_rates(census_path: Path) -> None:
+    """Reject the census when any deferral rate is unusable."""
+    if not census_path.is_file():
         return  # staging reports a missing census itself
-    message = out_of_range_message(count_out_of_range_deferral_rates(census_path))
+    try:
+        count = count_bad_deferral_rates(census_path)
+    except duckdb.Error as exc:
+        # An unreadable file is staging's failure to report, as before.
+        logger.debug("Census deferral rate check skipped: %r", exc)
+        return
+    message = bad_rate_message(count)
     if message:
         raise DataQualityError(message)

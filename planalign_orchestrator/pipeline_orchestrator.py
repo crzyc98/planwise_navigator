@@ -31,7 +31,10 @@ from .census_year import census_gap_message, infer_census_year
 from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
 from .census_imputed_terminations import report_imputed_terminations
-from .census_deferral_rate import require_census_deferral_rates
+from .census_deferral_rate import (
+    require_census_deferral_rates,
+    resolve_census_path,
+)
 from .census_plausibility_warnings import report_census_plausibility
 from .minimum_wage import (
     require_census_hourly_rates,
@@ -332,6 +335,14 @@ class PipelineOrchestrator:
         warn_unreached_acquisitions(self.config, first, end)
         warn_unreached_minimum_wage_steps(self.config, first, end)
         authoritative_run_id: Optional[str] = None
+        # Before anything is built or cleared: staging crashes on these rates,
+        # and self-healing initialization builds staging too (#1263).
+        require_census_deferral_rates(
+            resolve_census_path(
+                self._dbt_vars.get("census_parquet_path"),
+                Path(self.dbt_runner.working_dir),
+            )
+        )
 
         if self._initialization_callback is not None:
             self._initialization_callback()
@@ -780,9 +791,6 @@ class PipelineOrchestrator:
 
     def _run_start_year_setup(self, year: int) -> None:
         """Run staging models and seed registries for the start year."""
-        census = self._dbt_vars.get("census_parquet_path")
-        # Before staging: its decimal cast crashes on the rates this rejects.
-        require_census_deferral_rates(Path(str(census)) if census else None)
         logger.info("Building staging models for start year...")
         staging_res = self.dbt_runner.execute_command(
             ["run", "--select", "staging.*"],
@@ -794,6 +802,7 @@ class PipelineOrchestrator:
             raise PipelineStageError(
                 f"Staging models failed with code {staging_res.return_code}"
             )
+        census = self._dbt_vars.get("census_parquet_path")
         with self.db_manager.get_connection() as conn:
             # Report first: a run the hourly-rate check stops still shows them.
             report_census_plausibility(
