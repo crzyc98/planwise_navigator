@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -30,6 +31,8 @@ from planalign_api.models.provenance import (
     StageCompletion,
     utc_now,
 )
+
+logger = logging.getLogger(__name__)
 
 MANIFEST_NAME = "provenance.json"
 MAX_HASH_BYTES = 10 * 1024 * 1024 * 1024
@@ -425,6 +428,31 @@ class ProvenanceRecorder:
                 pass
             raise
 
+    def ingest_safely(self, record: dict[str, Any]) -> None:
+        """Ingest a record without letting a capture error stop the run (#1197).
+
+        Telemetry must never break the pipeline: a failure is logged and kept
+        as an incomplete-capture finding when the manifest can still be written.
+        """
+        try:
+            self.ingest(record)
+        except Exception as exc:
+            logger.exception(
+                "Provenance capture failed for record %s", record.get("record")
+            )
+            try:
+                manifest = self.read()
+                manifest.capture_findings.append(
+                    _finding(
+                        f"structured_records.{record.get('record', 'unknown')}",
+                        "incomplete_capture",
+                        f"recording failed: {type(exc).__name__}",
+                    )
+                )
+                self.write(manifest)
+            except Exception:
+                logger.exception("Could not record the provenance capture failure")
+
     def ingest(self, record: dict[str, Any]) -> None:
         manifest = self.read()
         if record.get("run_id") != str(manifest.run_id):
@@ -445,12 +473,16 @@ class ProvenanceRecorder:
             )
         elif kind == "year_completed" and isinstance(year, int):
             manifest.run_identity.completed_years.append(year)
-            counts = record.get("event_counts") or {}
-            if not counts:
-                counts = {"TOTAL": 0}
+            counts = record.get("event_counts")
             manifest.event_counts = [
                 item for item in manifest.event_counts if item.simulation_year != year
             ]
+            # #1199: unknown counts (None) record no rows, which the report
+            # flags as unavailable, rather than a zero-event year.
+            if counts is None:
+                counts = {}
+            elif not counts:
+                counts = {"TOTAL": 0}
             manifest.event_counts.extend(
                 AnnualEventCount(
                     simulation_year=year, event_type=str(name), count=int(count)

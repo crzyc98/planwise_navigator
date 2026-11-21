@@ -44,6 +44,7 @@ def test_file_rules_come_from_the_upload_code(client_factory) -> None:
     assert rules["parquet_max_mb"] == 50
     assert rules["date_formats"][0] == "YYYY-MM-DD"
     assert "yes" in rules["true_values"] and "no" in rules["false_values"]
+    assert "f" in rules["false_values"]  # #1250
 
 
 def test_field_without_guide_metadata_gets_sensible_defaults(monkeypatch) -> None:

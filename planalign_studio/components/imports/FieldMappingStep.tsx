@@ -207,6 +207,22 @@ function buildInitialMappings(
   });
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error && err.message ? err.message : 'Unknown error';
+}
+
+function RequestError({ title, message }: { title: string; message: string }) {
+  return (
+    <div role="alert" className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
+      <AlertCircle size={16} className="shrink-0 mt-0.5" />
+      <div>
+        <div className="font-medium">{title}</div>
+        <div>{message}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function FieldMappingStep({ workspaceId, session, onSaved }: Props) {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
   const [suggestionsData, setSuggestionsData] = useState<SuggestionsResponse | null>(null);
@@ -223,16 +239,21 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
   const [validationErrors, setValidationErrors] = useState<MappingValidationError[]>([]);
   const [requiredFieldErrors, setRequiredFieldErrors] = useState<CensusField[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  // #1203: request failures are shown in the step, not only logged
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    setIsLoadingSuggestions(true);
+    setSuggestionsError(null);
     getSuggestions(workspaceId, session.import_id)
       .then((data) => {
         setSuggestionsData(data);
         setMappings(buildInitialMappings(session, data.suggestions, data.canonical_schema));
       })
-      .catch(() => {
-        // Fall back to empty mappings if suggestions fail — mapping still usable
+      .catch((err) => {
+        setSuggestionsError(errorMessage(err));
       })
       .finally(() => setIsLoadingSuggestions(false));
   }, [workspaceId, session.import_id]);
@@ -306,6 +327,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
       return;
     }
     setRequiredFieldErrors([]);
+    setSaveError(null);
     setIsSaving(true);
     try {
       const toSave = mappings.filter((m) => !m.is_excluded && m.output_column);
@@ -316,6 +338,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
       }
     } catch (err) {
       console.error('Save mapping failed', err);
+      setSaveError(errorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -338,6 +361,17 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
 
   return (
     <div className="space-y-4">
+      {suggestionsError && (
+        <RequestError
+          title="Could not load the census fields and mapping suggestions. Go back and try this step again."
+          message={suggestionsError}
+        />
+      )}
+
+      {saveError && (
+        <RequestError title="The field mapping was not saved. Try again." message={saveError} />
+      )}
+
       {requiredFieldErrors.length > 0 && (
         <div className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />

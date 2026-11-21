@@ -120,6 +120,8 @@ export default function SimulationDetail() {
   const [downloadingArtifact, setDownloadingArtifact] = useState<string | null>(null);
 
   useEffect(() => {
+    // A late response for the previous scenario must not land on this one (#1201).
+    let cancelled = false;
     const loadDetails = async () => {
       if (!scenarioId) return;
 
@@ -132,6 +134,7 @@ export default function SimulationDetail() {
           getRunDetails(scenarioId),
           listRuns(scenarioId),
         ]);
+        if (cancelled) return;
 
         setDetails(detailsData);
         setRuns(runsData);
@@ -142,19 +145,23 @@ export default function SimulationDetail() {
           // Load artifacts for the first run
           try {
             const runDetails = await getRunById(scenarioId, runsData[0].id);
+            if (cancelled) return;
             setRunArtifacts({ [runsData[0].id]: runDetails.artifacts });
           } catch {
             // Ignore error loading first run artifacts
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load simulation details');
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load simulation details');
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadDetails();
+    return () => { cancelled = true; };
   }, [scenarioId]);
 
   const toggleRunExpanded = async (runId: string) => {

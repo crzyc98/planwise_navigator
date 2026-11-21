@@ -373,8 +373,8 @@ class FileService:
                 examples = ", ".join(repr(row[0]) for row in invalid_rows)
                 raise ValueError(
                     f"Column {column!r} contains at least {invalid_count} unsupported "
-                    f"boolean value(s), including {examples}. Use true/false, 1/0, "
-                    "yes/no, y/n, or active/inactive."
+                    f"boolean value(s), including {examples}. Use true/false, t/f, "
+                    "1/0, yes/no, y/n, or active/inactive."
                 )
 
             truthy_placeholders = ", ".join("?" for _ in truthy)

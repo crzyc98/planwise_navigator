@@ -34,6 +34,7 @@ BOOLEAN_FALSE_ALIASES = frozenset(
         "n",
         "no",
         "false",
+        "f",
         "0",
         "0.0",
         "inactive",

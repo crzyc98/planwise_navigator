@@ -210,7 +210,11 @@ class TestRobustness:
         emitter.on_year_completed({"year": 2025, "duration_seconds": 1.0})
         (rec,) = records(stream)
         assert rec["record"] == "year_completed"
-        assert rec["event_counts"] == {}
+        # #1199: unknown counts are not a zero-event year
+        assert rec["event_counts"] is None
+        assert rec["workforce_reconciliation"]["hires"] is None
+        assert rec["workforce_reconciliation"]["terminations"] is None
+        assert rec["cumulative_counts"] is None
 
     def test_register_attaches_hooks(self, emitter):
         from planalign_orchestrator.pipeline.hooks import HookManager, HookType

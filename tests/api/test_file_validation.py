@@ -52,8 +52,10 @@ def _create_csv(
 class TestBooleanNormalization:
     """Boolean-like census inputs are canonicalized at the upload boundary."""
 
+    # #1250: "t"/"f" codes are accepted both ways, not only on the "t" rows
+    @pytest.mark.parametrize(("yes", "no"), [(1, 0), ("t", "f"), ("T", "F")])
     def test_integer_active_values_are_saved_as_boolean(
-        self, file_service, tmp_workspace
+        self, file_service, tmp_workspace, yes, no
     ):
         workspace_root, workspace_id = tmp_workspace
         content = _create_csv(
@@ -61,7 +63,7 @@ class TestBooleanNormalization:
             workspace_id,
             "integer-active.csv",
             columns=["employee_id", "active"],
-            rows=[["EMP001", 1], ["EMP002", 0], ["EMP003", ""]],
+            rows=[["EMP001", yes], ["EMP002", no], ["EMP003", ""]],
         )
 
         _, _, absolute_path = file_service.save_uploaded_file(

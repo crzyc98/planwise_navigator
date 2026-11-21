@@ -484,7 +484,7 @@ def process_output_line(
     level = SimulationOutputParser.classify_line(line)
     if changes.get("structured_record"):
         if provenance_recorder is not None:
-            provenance_recorder.ingest(changes["structured_record"])
+            provenance_recorder.ingest_safely(changes["structured_record"])
         telemetry.apply_structured_record(run_id, changes["structured_record"])
     elif level in {"warning", "error"}:
         telemetry.add_log_milestone(run_id, level, line)

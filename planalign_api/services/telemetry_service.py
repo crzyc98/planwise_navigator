@@ -316,6 +316,7 @@ class TelemetryService:
         self, state: RunTelemetryState, record: Dict[str, Any]
     ) -> None:
         year = record.get("year")
+        counts_known = record.get("event_counts") is not None
         year_counts = {
             k: int(v)
             for k, v in (record.get("event_counts") or {}).items()
@@ -328,7 +329,7 @@ class TelemetryService:
         }
         if cumulative:
             state.event_counts.by_type = cumulative
-        if isinstance(year, int):
+        if isinstance(year, int) and counts_known:
             state.event_counts.by_year[year] = year_counts
             state.event_counts.as_of_year = year
         state.event_counts.total = sum(state.event_counts.by_type.values())
@@ -342,7 +343,11 @@ class TelemetryService:
             kind="year_completed",
             severity="info",
             year=year,
-            message=f"Year {year} complete — {self._counts_summary(year_counts)}{duration_text}",
+            message=(
+                f"Year {year} complete — "
+                f"{self._counts_summary(year_counts) if counts_known else 'event counts unavailable'}"
+                f"{duration_text}"
+            ),
             detail={"event_counts": year_counts, "duration_seconds": duration},
         )
         self._broadcast_update(state, force=True)

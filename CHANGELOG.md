@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Studio links on the Simulate page, the scenario's run page, the run health panel and the provenance report now stay in the current workspace (#1198). Before, they dropped the workspace from the address, so Studio reopened whichever workspace the browser last stored, which could be another client's when two tabs were open.
+- A simulation run no longer fails when recording its provenance fails, for example on a full disk (#1197). The run finishes and the provenance report lists the capture as incomplete.
+- When a year's event counts can't be read during a run, the provenance report now says the counts are unavailable instead of showing zero events for that year (#1199). The year's workforce reconciliation leaves hires and terminations blank instead of using zero.
+- Moving quickly between scenarios no longer leaves the previous scenario's details and run history on the simulation detail page (#1201).
+- Switching workspace on the NDT page now clears the scenarios and plan design picked in the previous workspace (#1202), so the page no longer shows a spurious "unable to load years" error.
+- The census import wizard now says when saving the field mapping fails or the mapping suggestions can't load (#1203). Before, the spinner stopped with no message.
+- Census import now reads `f` as no in yes/no columns, matching `t` for yes (#1250). Before, a column coded `t`/`f` was rejected on its `f` rows.
 
 ## [3.6.0] - 2026-11-20
 

@@ -553,7 +553,7 @@ class SimulationService:
         changes = parser.parse_line(line_text)
         if changes.get("structured_record"):
             if provenance_recorder is not None:
-                provenance_recorder.ingest(changes["structured_record"])
+                provenance_recorder.ingest_safely(changes["structured_record"])
             telemetry_service.apply_structured_record(
                 run_id, changes["structured_record"]
             )

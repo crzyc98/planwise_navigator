@@ -161,6 +161,22 @@ class TestStructuredRecords:
         assert milestone.detail["duration_seconds"] == pytest.approx(48.2)
         assert "142" in milestone.message and "98" in milestone.message
 
+    def test_unknown_year_counts_are_not_shown_as_no_events(self, started):
+        """#1199: a failed count query is reported as unavailable, not zero."""
+        started.apply_structured_record(
+            RUN,
+            {
+                "record": "year_completed",
+                "year": 2025,
+                "event_counts": None,
+                "cumulative_counts": None,
+            },
+        )
+        snap = started.get_snapshot(RUN)
+        assert 2025 not in snap.event_counts.by_year
+        assert "event counts unavailable" in snap.milestones[-1].message
+        assert "no events" not in snap.milestones[-1].message
+
     def test_sequences_are_monotonic(self, started):
         started.apply_structured_record(
             RUN, {"record": "stage_started", "year": 2025, "stage": "FOUNDATION"}

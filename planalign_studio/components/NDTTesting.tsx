@@ -55,7 +55,14 @@ const TEST_TYPE_LABELS: Record<TestType, string> = {
   '415': '415 Annual Additions',
 };
 
+// #1202: remount per workspace so no scenario selection, plan design, or late
+// response from the previous workspace carries over.
 export default function NDTTesting() {
+  const { activeWorkspace } = useOutletContext<LayoutContextType>();
+  return <NDTTestingPage key={activeWorkspace?.id ?? ''} />;
+}
+
+function NDTTestingPage() {
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
   // Selection state
