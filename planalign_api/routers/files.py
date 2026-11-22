@@ -75,6 +75,11 @@ async def upload_census_file(
     date_formats: str = Form("{}"),
 ) -> FileUploadResponse:
     """Upload a census file to a workspace."""
+    if get_workspace_storage().get_workspace(workspace_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
     service = get_file_service()
 
     # Validate file extension early
@@ -252,6 +257,12 @@ def set_census_path(
     request: SetCensusPathRequest,
 ) -> SetCensusPathResponse:
     """Validate an existing file path and write it to the workspace census config."""
+    storage = get_workspace_storage()
+    if storage.get_workspace(workspace_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
     service = get_file_service()
     result = service.validate_path(
         workspace_id=workspace_id, file_path=request.file_path
@@ -263,7 +274,6 @@ def set_census_path(
             detail=result.get("error_message", "Invalid or unreadable file path"),
         )
 
-    storage = get_workspace_storage()
     # The file's own as-of date, or none, so the old census's date never stays.
     record = ImportService(
         workspaces_root=get_settings().workspaces_root

@@ -32,6 +32,7 @@ from ..models.imports import (
 from .census_analysis_service import CensusAnalysisService
 from .import_quality import FullFileQuality, flagged_rows_csv, scan_data_quality
 from .mapping_engine import MappingEngine
+from .path_guard import require_safe_path_component, resolve_child_path
 
 logger = logging.getLogger(__name__)
 
@@ -214,13 +215,15 @@ class ImportService:
     # ------------------------------------------------------------------
 
     def _ws_path(self, workspace_id: str) -> Path:
-        return self._root / workspace_id
+        return resolve_child_path(self._root, workspace_id, label="workspace_id")
 
     def _imports_path(self, workspace_id: str) -> Path:
         return self._ws_path(workspace_id) / "imports"
 
     def _session_path(self, workspace_id: str, import_id: str) -> Path:
-        return self._imports_path(workspace_id) / import_id
+        return resolve_child_path(
+            self._imports_path(workspace_id), import_id, label="import_id"
+        )
 
     def _metadata_path(self, workspace_id: str, import_id: str) -> Path:
         return self._session_path(workspace_id, import_id) / "metadata.json"
@@ -728,7 +731,8 @@ class ImportService:
     def get_template(
         self, workspace_id: str, template_id: str
     ) -> Optional[MappingTemplate]:
-        fp = self._templates_path(workspace_id) / f"{template_id}.json"
+        safe_id = require_safe_path_component(template_id, label="template_id")
+        fp = self._templates_path(workspace_id) / f"{safe_id}.json"
         if not fp.exists():
             return None
         return MappingTemplate.model_validate(json.loads(fp.read_text()))

@@ -11,7 +11,6 @@ Feature: 005-database-path-resolver
 from __future__ import annotations
 
 import logging
-import re
 from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Protocol, runtime_checkable
@@ -22,6 +21,7 @@ from planalign_api.config import get_settings
 from planalign_core.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
 
 from .current_result import resolve_scenario_read_context
+from .path_guard import PathGuardError, require_safe_path_component
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +152,6 @@ class DatabasePathResolver:
         ...     conn = duckdb.connect(str(result.path))
     """
 
-    # Pattern for detecting invalid path characters (path traversal prevention)
-    # Rejects: path separators, null bytes, relative path components
-    _INVALID_CHARS = re.compile(r"[/\\:\x00]|\.\.|\.$|^\.")
-
     def __init__(
         self,
         storage: WorkspaceStorageProtocol,
@@ -195,32 +191,14 @@ class DatabasePathResolver:
 
     # T008: Path traversal validation
     def _validate_identifier(self, value: str, name: str) -> bool:
-        """
-        Validate an identifier for path traversal safety.
-
-        Checks for dangerous characters that could enable path traversal attacks:
-        - Path separators (/, \\, :)
-        - Null bytes (\\x00)
-        - Relative path components (.., .)
-
-        Args:
-            value: The identifier value to validate.
-            name: The name of the identifier (for logging).
-
-        Returns:
-            True if the value is safe to use in path construction.
-            False if the value contains dangerous characters.
-        """
-        if not value:
-            logger.warning(f"Empty {name} provided")
-            return False
-
-        if self._INVALID_CHARS.search(value):
+        """Return whether ``value`` is a safe path component (see path_guard)."""
+        try:
+            require_safe_path_component(value, label=name)
+        except PathGuardError:
             logger.warning(
-                f"Invalid {name} '{value}': potential path traversal attempt"
+                f"Invalid {name} {value!r}: potential path traversal attempt"
             )
             return False
-
         return True
 
     # T009: Project root detection
