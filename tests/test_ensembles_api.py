@@ -15,15 +15,21 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from planalign_api.config import APISettings
 from planalign_api.routers import ensembles as ensembles_router
 
 pytestmark = [pytest.mark.fast]
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(tmp_path: Path) -> TestClient:
+    settings = APISettings(
+        ensembles_root=tmp_path,
+        workspaces_root=tmp_path / "workspaces",
+    )
     app = FastAPI()
     app.include_router(ensembles_router.router, prefix="/api")
+    app.dependency_overrides[ensembles_router.get_settings] = lambda: settings
     return TestClient(app)
 
 
