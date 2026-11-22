@@ -12,12 +12,15 @@ import logging
 import shutil
 import stat
 import tempfile
+import threading
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple
 
 import py7zr
+from py7zr.io import Py7zIO, WriterFactory
 
 from ..config import APISettings, get_settings
 from ..models.export import (
@@ -61,6 +64,129 @@ class ExportWorkspaceRunningError(ValueError):
     """Raised when export is blocked by an active workspace simulation."""
 
 
+@dataclass(frozen=True)
+class _ArchiveLimits:
+    """Bounds on unpacked workspace import archive size and entry count."""
+
+    max_unpacked_bytes: int
+    max_member_bytes: int
+    max_member_count: int
+
+
+def _archive_limits(settings: APISettings) -> _ArchiveLimits:
+    """Build archive extraction limits from API settings."""
+    return _ArchiveLimits(
+        max_unpacked_bytes=settings.import_max_unpacked_bytes,
+        max_member_bytes=settings.import_max_member_bytes,
+        max_member_count=settings.import_max_member_count,
+    )
+
+
+def _format_byte_limit(limit_bytes: int) -> str:
+    """Format a byte cap cleanly for client-facing validation messages."""
+    gib = 1024 * 1024 * 1024
+    mib = 1024 * 1024
+    if limit_bytes >= gib and limit_bytes % gib == 0:
+        return f"{limit_bytes // gib} GB"
+    if limit_bytes >= mib:
+        return f"{limit_bytes / mib:.1f} MB"
+    return f"{limit_bytes} bytes"
+
+
+class _BoundedDiskIO(Py7zIO):
+    """Writable file wrapper that enforces per-file and cumulative byte limits."""
+
+    def __init__(self, handle: BinaryIO, factory: "_BoundedDiskWriterFactory") -> None:
+        self._handle = handle
+        self._factory = factory
+        self._written = 0
+
+    def write(self, s: bytes | bytearray) -> int:
+        chunk_len = len(s)
+        self._factory.record_write(self._written, chunk_len)
+        written = self._handle.write(s)
+        self._written += written
+        return written
+
+    def read(self, size: int | None = None) -> bytes:
+        return self._handle.read() if size is None else self._handle.read(size)
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self._handle.seek(offset, whence)
+
+    def flush(self) -> None:
+        self._handle.flush()
+
+    def size(self) -> int:
+        return self._written
+
+    def close(self) -> None:
+        if not self._handle.closed:
+            self._handle.close()
+
+
+class _BoundedDiskWriterFactory(WriterFactory):
+    """py7zr WriterFactory that writes to disk while bounding actual bytes written."""
+
+    def __init__(self, output_root: Path, limits: _ArchiveLimits) -> None:
+        self._output_root = output_root.resolve()
+        self._limits = limits
+        self._lock = threading.Lock()
+        self._total_written = 0
+        self._handles: List[_BoundedDiskIO] = []
+        self._created_files: List[Path] = []
+
+    def __enter__(self) -> "_BoundedDiskWriterFactory":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        with self._lock:
+            handles = list(self._handles)
+            created_files = list(self._created_files)
+        for handle in handles:
+            handle.close()
+        if exc_type is not None:
+            for path in created_files:
+                path.unlink(missing_ok=True)
+
+    def _safe_target(self, filename: str) -> Path:
+        raw_target = Path(filename)
+        if raw_target.is_symlink():
+            raise ValueError("Archive contains disallowed symbolic link")
+        target = raw_target.resolve()
+        if not target.is_relative_to(self._output_root):
+            raise ValueError("Archive member escapes target directory")
+        return target
+
+    def create(self, filename: str) -> Py7zIO:
+        target = self._safe_target(filename)
+        with self._lock:
+            if len(self._created_files) >= self._limits.max_member_count:
+                raise ValueError(
+                    "Archive contains too many entries "
+                    f"(exceeds limit of {self._limits.max_member_count})"
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            handle = _BoundedDiskIO(open(target, "w+b"), self)
+            self._handles.append(handle)
+            self._created_files.append(target)
+            return handle
+
+    def record_write(self, file_written: int, chunk_len: int) -> None:
+        with self._lock:
+            if file_written + chunk_len > self._limits.max_member_bytes:
+                raise ValueError(
+                    "Archive entry exceeds maximum unpacked file size "
+                    f"({_format_byte_limit(self._limits.max_member_bytes)})"
+                )
+            if self._total_written + chunk_len > self._limits.max_unpacked_bytes:
+                raise ValueError(
+                    "Archive unpacked size exceeds maximum allowed "
+                    f"({_format_byte_limit(self._limits.max_unpacked_bytes)})"
+                )
+            self._total_written += chunk_len
+
+
 def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> None:
     """Reject absolute paths, drive prefixes, and parent-directory traversal."""
     if not name or "\x00" in name:
@@ -82,27 +208,83 @@ def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> Non
             raise ValueError(f"Archive member escapes target directory: {name!r}")
 
 
-def _validate_archive_members(
-    archive: py7zr.SevenZipFile, output_root: Optional[Path] = None
-) -> None:
-    """Reject archive members with unsafe paths or non-regular link/special types."""
-    for member in archive.files:
-        _validate_archive_member_path(member.filename, output_root)
-        st_fmt = getattr(member, "st_fmt", None)
-        is_special_fmt = st_fmt is not None and st_fmt not in (
-            stat.S_IFREG,
-            stat.S_IFDIR,
+def _validate_archive_member_entry(
+    member: Any,
+    output_root: Optional[Path],
+    limits: _ArchiveLimits,
+) -> int:
+    """Validate one archive member's path, type, and declared unpacked size."""
+    _validate_archive_member_path(member.filename, output_root)
+    st_fmt = getattr(member, "st_fmt", None)
+    is_special_fmt = st_fmt is not None and st_fmt not in (
+        stat.S_IFREG,
+        stat.S_IFDIR,
+    )
+    if (
+        member.is_symlink
+        or getattr(member, "is_junction", False)
+        or getattr(member, "is_socket", False)
+        or is_special_fmt
+        or not (member.is_file or member.is_directory)
+    ):
+        raise ValueError(
+            f"Archive contains disallowed link or special entry: {member.filename!r}"
         )
-        if (
-            member.is_symlink
-            or getattr(member, "is_junction", False)
-            or getattr(member, "is_socket", False)
-            or is_special_fmt
-            or not (member.is_file or member.is_directory)
-        ):
+
+    member_size = getattr(member, "uncompressed", 0)
+    if (
+        not isinstance(member_size, int)
+        or isinstance(member_size, bool)
+        or member_size < 0
+    ):
+        raise ValueError("Archive contains an entry with an invalid declared size")
+    if member_size > limits.max_member_bytes:
+        raise ValueError(
+            "Archive entry exceeds maximum unpacked file size "
+            f"({_format_byte_limit(limits.max_member_bytes)})"
+        )
+    return member_size
+
+
+def _validate_archive_members(
+    archive: py7zr.SevenZipFile,
+    output_root: Optional[Path] = None,
+    *,
+    limits: Optional[_ArchiveLimits] = None,
+) -> None:
+    """Reject archive members with unsafe paths, special types, or excessive size."""
+    active_limits = limits or _archive_limits(get_settings())
+    member_count = len(archive.files)
+    if member_count > active_limits.max_member_count:
+        raise ValueError(
+            f"Archive contains too many entries ({member_count} exceeds limit of "
+            f"{active_limits.max_member_count})"
+        )
+
+    total_unpacked = 0
+    for member in archive.files:
+        total_unpacked += _validate_archive_member_entry(
+            member, output_root, active_limits
+        )
+        if total_unpacked > active_limits.max_unpacked_bytes:
             raise ValueError(
-                f"Archive contains disallowed link or special entry: {member.filename!r}"
+                "Archive unpacked size exceeds maximum allowed "
+                f"({_format_byte_limit(active_limits.max_unpacked_bytes)})"
             )
+
+
+def _create_validated_directories(
+    archive: py7zr.SevenZipFile, resolved_output: Path
+) -> None:
+    """Create validated directory entries (py7zr skips them when using a factory)."""
+    for member in archive.files:
+        if member.is_directory:
+            normalized = member.filename.replace("\\", "/")
+            parts = [part for part in normalized.split("/") if part]
+            if parts:
+                (resolved_output / PurePosixPath(*parts)).mkdir(
+                    parents=True, exist_ok=True
+                )
 
 
 class ExportService:
@@ -292,12 +474,15 @@ class ExportService:
         Raises:
             ValueError: If archive is invalid or missing manifest
         """
-        output_path.mkdir(parents=True, exist_ok=True)
         resolved_output = output_path.resolve()
+        limits = _archive_limits(self.settings)
 
         with py7zr.SevenZipFile(archive_path, "r") as archive:
-            _validate_archive_members(archive, resolved_output)
-            archive.extractall(path=output_path)
+            _validate_archive_members(archive, resolved_output, limits=limits)
+            output_path.mkdir(parents=True, exist_ok=True)
+            _create_validated_directories(archive, resolved_output)
+            with _BoundedDiskWriterFactory(resolved_output, limits) as factory:
+                archive.extractall(path=output_path, factory=factory)
 
         for extracted in output_path.rglob("*"):
             if extracted.is_symlink():
@@ -389,10 +574,16 @@ class ExportService:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
+            resolved_temp = temp_path.resolve()
+            limits = _archive_limits(self.settings)
+
             try:
                 with py7zr.SevenZipFile(archive_path, "r") as archive:
-                    _validate_archive_members(archive)
-                    archive.extract(path=temp_path, targets=["manifest.json"])
+                    _validate_archive_members(archive, resolved_temp, limits=limits)
+                    with _BoundedDiskWriterFactory(resolved_temp, limits) as factory:
+                        archive.extract(
+                            path=temp_path, targets=["manifest.json"], factory=factory
+                        )
             except py7zr.exceptions.Bad7zFile:
                 errors.append("Invalid or corrupted 7z archive")
                 return None

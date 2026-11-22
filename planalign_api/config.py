@@ -63,6 +63,11 @@ class APISettings(BaseSettings):
     # jobs are never pruned.
     param_fit_max_jobs_per_workspace: int = Field(default=20, gt=0)
 
+    # Workspace import archive extraction limits (PLANALIGN_API_IMPORT_MAX_*)
+    import_max_unpacked_bytes: int = Field(default=10 * 1024 * 1024 * 1024, gt=0)
+    import_max_member_bytes: int = Field(default=4 * 1024 * 1024 * 1024, gt=0)
+    import_max_member_count: int = Field(default=10_000, gt=0)
+
     # Default config path
     default_config_path: Path = Field(
         default_factory=lambda: Path("config/simulation_config.yaml")
