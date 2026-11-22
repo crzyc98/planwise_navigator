@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The interactive API documentation pages (`/api/docs`, `/api/redoc`) and schema (`/api/openapi.json`) now require the API token when `PLANALIGN_API_TOKEN` is set, and `/api/health` now returns fixed status messages instead of server file paths or raw error details (#1188).
 - The API server now refuses to start if `PLANALIGN_API_TOKEN` is set to an empty, blank, or shorter-than-16-character value, and empty tokens can never pass authentication (#1187). Leaving the variable unset still works as before for local use.
 - A scenario name or warning that contains text like `{{ body }}` now appears as written in the HTML and PDF scenario report, instead of being replaced with report content.
 - The census path checks in Studio now give the same "Invalid census file path" answer for any location outside the workspaces folder, whether or not a file exists there.

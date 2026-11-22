@@ -26,16 +26,6 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
-# FastAPI's own scaffolding (docs UI, schema); not application endpoints.
-_FRAMEWORK_PATHS = frozenset(
-    {
-        "/api/docs",
-        "/api/redoc",
-        "/api/openapi.json",
-        "/docs/oauth2-redirect",
-    }
-)
-
 # Substituted for every {path_param}; matches the default [^/]+ converter and
 # is syntactically valid for str/UUID-shaped parameters, so requests route to
 # the endpoint and reach its auth dependency instead of 404ing in the router.
@@ -43,13 +33,11 @@ _PARAM_PLACEHOLDER = "00000000-0000-4000-8000-000000000115"
 
 
 def _enumerate_routes(app) -> list[tuple[str, str]]:
-    """Every (path, method) pair for the app's HTTP routes, framework scaffolding excluded."""
+    """Every (path, method) pair for the app's HTTP routes, including API docs."""
     pairs: list[tuple[str, str]] = []
     for route in iter_route_contexts(app.routes):
         if not isinstance(route.original_route, Route) or not route.methods:
             continue  # WebSocket routes and mounts are covered elsewhere
-        if route.path in _FRAMEWORK_PATHS:
-            continue
         for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
             pairs.append((route.path, method))
     return sorted(pairs)
@@ -67,6 +55,7 @@ def test_route_table_enumeration_is_nonempty_and_covers_known_routers() -> None:
     assert len(pairs) >= 90, f"suspiciously few routes enumerated: {len(pairs)}"
     paths = {path for path, _ in pairs}
     assert "/api/health" in paths
+    assert {"/api/docs", "/api/redoc", "/api/openapi.json"} <= paths
     assert any(path.startswith("/api/workspaces") for path in paths)
     assert any(path.startswith("/api/calibration") for path in paths)
 

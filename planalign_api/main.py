@@ -20,8 +20,9 @@ if platform.system() == "Windows":
 
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute, iter_route_contexts
 
 from .config import get_settings
@@ -239,6 +240,43 @@ def _install_run_header_openapi(app: FastAPI) -> None:
     app.openapi = custom_openapi  # type: ignore[method-assign]
 
 
+def _register_docs_routes(app: FastAPI) -> None:
+    """Register OpenAPI schema and docs UI behind the optional API token."""
+    docs_dependencies = [Depends(require_api_token)]
+
+    @app.get(
+        "/api/openapi.json",
+        include_in_schema=False,
+        dependencies=docs_dependencies,
+    )
+    async def openapi_schema() -> JSONResponse:
+        return JSONResponse(app.openapi())
+
+    @app.get(
+        "/api/docs",
+        include_in_schema=False,
+        dependencies=docs_dependencies,
+    )
+    async def swagger_ui_html(request: Request) -> HTMLResponse:
+        root_path = request.scope.get("root_path", "").rstrip("/")
+        return get_swagger_ui_html(
+            openapi_url=f"{root_path}/api/openapi.json",
+            title=f"{app.title} - Swagger UI",
+        )
+
+    @app.get(
+        "/api/redoc",
+        include_in_schema=False,
+        dependencies=docs_dependencies,
+    )
+    async def redoc_html(request: Request) -> HTMLResponse:
+        root_path = request.scope.get("root_path", "").rstrip("/")
+        return get_redoc_html(
+            openapi_url=f"{root_path}/api/openapi.json",
+            title=f"{app.title} - ReDoc",
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""
@@ -275,9 +313,9 @@ def create_app() -> FastAPI:
         description="Backend API for PlanAlign Studio - Workforce Simulation Platform",
         version="0.1.0",
         lifespan=lifespan,
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
-        openapi_url="/api/openapi.json",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
     # Configure CORS
@@ -539,6 +577,7 @@ def create_app() -> FastAPI:
     )
 
     _install_run_header_openapi(app)
+    _register_docs_routes(app)
 
     # WebSocket endpoints use an explicit check because HTTP dependencies do not
     # apply to WebSocket routes.

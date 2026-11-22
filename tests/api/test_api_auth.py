@@ -211,6 +211,45 @@ def test_empty_supplied_or_configured_token_never_authenticates(
     assert error.value.code == 1008
 
 
+@pytest.mark.parametrize("path", ["/api/docs", "/api/redoc", "/api/openapi.json"])
+def test_api_docs_and_openapi_require_token_when_configured(
+    client_factory, path: str
+) -> None:
+    client = client_factory(_TEST_TOKEN)
+
+    unauthorized = client.get(path)
+    assert unauthorized.status_code == 401
+    assert unauthorized.headers["www-authenticate"] == "Bearer"
+
+    bearer_ok = client.get(path, headers={"Authorization": f"Bearer {_TEST_TOKEN}"})
+    assert bearer_ok.status_code == 200
+
+    header_ok = client.get(path, headers={"X-API-Token": _TEST_TOKEN})
+    assert header_ok.status_code == 200
+
+    if path == "/api/openapi.json":
+        payload = bearer_ok.json()
+        assert "openapi" in payload
+        assert "/api/health" in payload["paths"]
+    else:
+        assert "/api/openapi.json" in bearer_ok.text
+
+
+@pytest.mark.parametrize("path", ["/api/docs", "/api/redoc", "/api/openapi.json"])
+def test_api_docs_and_openapi_remain_open_without_configured_token(
+    client_factory, path: str
+) -> None:
+    client = client_factory(None)
+
+    response = client.get(path)
+
+    assert response.status_code == 200
+    if path == "/api/openapi.json":
+        assert "openapi" in response.json()
+    else:
+        assert "/api/openapi.json" in response.text
+
+
 def test_non_loopback_wildcard_cors_is_rejected(monkeypatch) -> None:
     monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
 
