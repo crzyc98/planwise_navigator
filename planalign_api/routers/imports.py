@@ -809,8 +809,7 @@ def delete_parquet_file(
         raise HTTPException(
             status_code=403, detail="Only the file creator can delete it"
         )
-    if not service.delete_parquet_file(workspace_id, file_id, user=x_user_id):
-        raise HTTPException(status_code=404, detail="Parquet file not found")
+    service.delete_parquet_file(workspace_id, file_id, user=x_user_id)
 
 
 # ---------------------------------------------------------------------------

@@ -655,9 +655,9 @@ class ImportService:
         storage = self.resolve_parquet_path(
             workspace_id, target, reroot=False, must_exist=False
         )
-        if storage is None:
-            return False
-        if storage.is_file():
+        # A record that points outside the workspace is dropped from the index,
+        # so it can be cleared, but nothing on disk is touched.
+        if storage is not None and storage.is_file():
             storage.unlink()
         remaining = [
             json.loads(f.model_dump_json()) for f in files if f.file_id != file_id

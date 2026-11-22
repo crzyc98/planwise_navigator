@@ -373,9 +373,9 @@ def test_delete_outside_workspace_keeps_outside_file(
         resp = api_client.delete(
             f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
         )
-    assert resp.status_code == 404
+    assert resp.status_code == 204
     assert outside_file.read_bytes() == b"keep me"
-    assert len(service.list_parquet_files(workspace_id)) == 1
+    assert service.list_parquet_files(workspace_id) == []
     assert any(pf.file_id in rec.message for rec in caplog.records)
 
 
@@ -393,7 +393,7 @@ def test_dotdot_record_not_served_and_not_deleted(
     url = f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
     with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
         assert api_client.get(f"{url}/download").status_code == 404
-        assert api_client.delete(url).status_code == 404
+        assert api_client.delete(url).status_code == 204
     assert outside_file.read_bytes() == b"keep me"
     assert any(pf.file_id in rec.message for rec in caplog.records)
 
@@ -408,7 +408,7 @@ def test_symlink_escaping_workspace_not_served_and_not_deleted(
     url = f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
     with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
         assert api_client.get(f"{url}/download").status_code == 404
-        assert api_client.delete(url).status_code == 404
+        assert api_client.delete(url).status_code == 204
     assert outside_file.read_bytes() == b"keep me"
     assert link.is_symlink()
     assert any(pf.file_id in rec.message for rec in caplog.records)
@@ -482,5 +482,5 @@ def test_delete_stale_record_keeps_file_with_same_name(
     resp = api_client.delete(
         f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
     )
-    assert resp.status_code == 404
+    assert resp.status_code == 204
     assert census.read_bytes() == b"PAR1 live"
