@@ -237,6 +237,35 @@ def _dedup_columns(df: pd.DataFrame):
     return df, renames
 
 
+def _retained_original_path(session_dir: Path, source_format: str) -> Path:
+    """Return the fixed on-disk path for a session's retained original upload."""
+    if source_format not in IMPORT_FILE_TYPES:
+        raise ValueError(f"Unsupported import format: {source_format!r}")
+    return session_dir / f"_orig.{source_format}"
+
+
+def _find_retained_original(session_dir: Path, session: ImportSession) -> Path | None:
+    """Locate a session's retained original upload, supporting legacy names."""
+    current = _retained_original_path(session_dir, session.source_format)
+    if not current.is_symlink() and current.is_file():
+        return current
+
+    legacy_name = f"_orig_{session.original_filename}"
+    if "\x00" in legacy_name or "/" in legacy_name or "\\" in legacy_name:
+        return None
+    legacy = session_dir / legacy_name
+    if legacy.is_symlink():
+        return None
+    try:
+        resolved_dir = session_dir.resolve()
+        resolved_legacy = legacy.resolve()
+    except OSError:
+        return None
+    if resolved_legacy.parent != resolved_dir or not resolved_legacy.is_file():
+        return None
+    return resolved_legacy
+
+
 # ---------------------------------------------------------------------------
 # Upload
 # ---------------------------------------------------------------------------
@@ -308,7 +337,7 @@ async def upload_file(
 
         # Retain the original file so sheet re-selection can re-parse it.
         session_dir = service._session_path(workspace_id, session.import_id)
-        orig_path = session_dir / f"_orig_{file.filename}"
+        orig_path = _retained_original_path(session_dir, suffix)
         shutil.move(str(temp_path), orig_path)
         temp_path = None
 
@@ -351,11 +380,9 @@ def select_sheet(
         )
 
     source_path = service._source_parquet_path(workspace_id, import_id)
-    orig_path = (
-        service._session_path(workspace_id, import_id)
-        / f"_orig_{session.original_filename}"
-    )
-    if not orig_path.exists():
+    session_dir = service._session_path(workspace_id, import_id)
+    orig_path = _find_retained_original(session_dir, session)
+    if orig_path is None:
         raise HTTPException(
             status_code=422, detail="Original file not retained; cannot re-parse sheet"
         )
