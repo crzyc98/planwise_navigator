@@ -33,7 +33,7 @@ def _census(path: Path, hire_year: int) -> Path:
 
 def _workspace(tmp_path: Path, census_year: int, start_year: int = 2026) -> str:
     storage = WorkspaceStorage(tmp_path / "workspaces")
-    census = _census(tmp_path / "census.parquet", census_year)
+    census = _census(tmp_path / "workspaces" / "census.parquet", census_year)
     workspace = storage.create_workspace(
         WorkspaceCreate(name="W"),
         {
@@ -192,3 +192,27 @@ def test_unknown_workspace_and_job_are_not_found(client_factory, tmp_path) -> No
         ).status_code
         == 404
     )
+
+
+def test_census_outside_workspaces_root_is_rejected(client_factory, tmp_path) -> None:
+    storage = WorkspaceStorage(tmp_path / "workspaces")
+    outside = _census(tmp_path / "outside.parquet", 2024)
+    workspace = storage.create_workspace(
+        WorkspaceCreate(name="Outside"),
+        {
+            "simulation": {"start_year": 2026, "end_year": 2028},
+            "setup": {"census_parquet_path": str(outside)},
+        },
+    )
+    client = client_factory("secret")
+
+    status = client.get(
+        f"/api/workspaces/{workspace.id}/census/status", headers=HEADERS
+    ).json()
+    started = client.post(
+        f"/api/workspaces/{workspace.id}/census/roll-forward", headers=HEADERS
+    )
+
+    assert status["census_year"] is None
+    assert status["behind"] is False
+    assert started.status_code == 409

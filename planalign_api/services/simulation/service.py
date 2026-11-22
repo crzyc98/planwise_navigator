@@ -32,6 +32,7 @@ from .run_execution import (
     get_memory_mb,
     prepare_dbt_project,
     validate_census,
+    validate_run_config,
     write_config,
     scenario_pack_seeds,
     stamp_pack_provenance,
@@ -213,6 +214,7 @@ class SimulationService:
         scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
         config_path = run_dir / "config.yaml"
 
+        validate_run_config(config, scenario_id, workspace_id)
         validate_census(self.storage, config, scenario_id, workspace_id)
         stamp_pack_provenance(config, scenario_path)
         write_config(config, config_path)
