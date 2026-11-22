@@ -359,25 +359,59 @@ def _negative_growth(
     return _growth_conservation(case, database, -0.05)
 
 
+# Custom range [110k, 130k] is pinned here (not read from YAML) so mutating
+# the fixture fails the case (#490). int_workforce_needs_by_level places
+# new_hire_avg_compensation inside that range using comp_levers.csv's seeded
+# percentile and market multiplier (0.25 * 1.02 for Level 1 -> $115,100), and
+# int_hiring_events applies the zero-mean 0.91..1.09 variance cycle (#384),
+# which can step an individual offer slightly outside the raw range bounds
+# (docs/guides/configuration_field_inventory.md).
+_CUSTOM_HIRE_COMP_MIN = 110000.0
+_CUSTOM_HIRE_COMP_MAX = 130000.0
+_HIRE_OFFER_VARIANCE_MIN = 0.91
+_HIRE_OFFER_VARIANCE_MAX = 1.09
+
+_CUSTOM_HIRE_ROWS = """
+SELECT
+  snapshot.employee_id,
+  snapshot.simulation_year,
+  snapshot.level_id,
+  snapshot.current_age,
+  snapshot.current_compensation,
+  needs.new_hire_avg_compensation
+FROM fct_workforce_snapshot snapshot
+LEFT JOIN int_workforce_needs_by_level needs
+  ON needs.scenario_id = snapshot.scenario_id
+ AND needs.simulation_year = snapshot.simulation_year
+ AND needs.level_id = snapshot.level_id
+WHERE snapshot.simulation_year = ?
+  AND snapshot.employee_id LIKE 'NH_%'
+"""
+
+
 def _custom_hire_inputs(
     case: EdgeConfigScenario, database: Path
 ) -> list[tuple[str, dict[str, Any]]]:
-    rows = _query(
-        database,
-        "SELECT employee_id, simulation_year, current_age, current_compensation "
-        "FROM fct_workforce_snapshot WHERE simulation_year = ? "
-        "AND employee_id LIKE 'NH_%'",
-        [case.start_year],
-    )
+    rows = _query(database, _CUSTOM_HIRE_ROWS, [case.start_year])
     if not rows:
         return [("custom new-hire configuration produced no hires", {})]
     violations: list[tuple[str, dict[str, Any]]] = []
     for row in rows:
         if row["current_age"] != 55:
             violations.append(("new hire did not use the configured age", row))
-        if not 109000 <= row["current_compensation"] <= 131000:
+        avg_comp = row["new_hire_avg_compensation"]
+        if avg_comp is None or not (
+            _CUSTOM_HIRE_COMP_MIN <= avg_comp <= _CUSTOM_HIRE_COMP_MAX
+        ):
             violations.append(
                 ("new hire compensation ignored the configured range", row)
+            )
+            continue
+        offer_min = round(avg_comp * _HIRE_OFFER_VARIANCE_MIN, 2) - TOLERANCE
+        offer_max = round(avg_comp * _HIRE_OFFER_VARIANCE_MAX, 2) + TOLERANCE
+        if not offer_min <= row["current_compensation"] <= offer_max:
+            violations.append(
+                ("new hire offer fell outside the level average variance band", row)
             )
     return violations
 
