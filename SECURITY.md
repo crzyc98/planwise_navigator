@@ -98,17 +98,11 @@ Security-relevant properties of the simulation engine itself:
 The dated upgrade records below describe validation of the versions used at
 that time; they are historical evidence, not the current dependency inventory.
 
-Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/planwise_navigator/issues/705). Owner: crzyc98. Review by: 2026-12-01.
-
 `pytest`/`pytest-cov`/`pytest-mock`/`pytest-xdist`/`pytest-split` and `mkdocs`/`mkdocs-material`/`pymdown-extensions` were bumped directly (2026-09-21) — no longer exceptions. Verified: full fast suite (2,776 tests) plus the `--splits`/`--group`/`--cov` flags CI's sharded job relies on all pass unchanged under pytest 9.1.1.
 
 `dbt-core` 1.8.8 -> 1.9.11, `dbt-duckdb` 1.8.1 -> 1.9.6, and `duckdb` 1.0.0 -> 1.1.3 were bumped (#705 phase 2, 2026-09-21), which pulled `dbt-common` to 1.39.0, `deepdiff` to 8.6.2, and `protobuf` to 6.33.6 via the resolver -- clearing the four exceptions below. Verified: fast suite (2,766 tests, plus 10 pre-existing local-only tests not tracked in git) and the full `multi_year_invariants`/`edge_config_matrix` integration suite (68 tests) pass; a same-config 5-year simulation (2025-2029, seed 42) run in parallel on an isolated DB against both the old and new engine pins produced byte-identical `fct_yearly_events` and `fct_workforce_snapshot` on every business column (compensation, deferral rates, event counts, ages, tenure) -- the only differences were the expected non-deterministic `created_at`/`snapshot_created_at` timestamps and float64 last-bit noise (max abs diff 1.4e-17) in 1,079 of 93,904 rows' diagnostic `event_probability` column, not used in any decision logic. The bump also surfaced a real dbt-core 1.9 breaking change: a bare `data_tests:` key in `dbt/tests/schema.yml` (used as directory-scoped config with `+severity`/`+store_failures`/`+schema`) is only valid as a list of test definitions per dbt's own docs, not `+`-prefixed config -- dbt-core 1.8 silently tolerated it, 1.9 correctly rejects it. Consolidated into `dbt_project.yml`'s existing `data_tests:` block, the only supported location for this config.
 
-| Advisory | Package | Fix version | Exposure assessment |
-|---|---|---|---|
-| PYSEC-2026-3696, PYSEC-2026-3697, PYSEC-2026-3698, PYSEC-2026-3699 | sqlparse 0.5.5 | 0.6.0 | Code-gen string-breakout and formatting-filter issues in sqlparse's Python/PHP export modes and statement splitting. PlanAlign never calls those export modes; sqlparse is used internally by dbt to parse first-party SQL. dbt-core 1.12.6 permits sqlparse 0.6.x; review the sqlparse upgrade separately with multi-year simulation validation. |
-| PYSEC-2026-3923 | sqlparse 0.5.5 | 0.6.0 | Quadratic-CPU DoS in `ReindentFilter` on attacker-controlled SQL near the grouping-token cap. All SQL processed here is first-party dbt project code (see the sqlparse `MAX_GROUPING_TOKENS` auto-patch in `planalign_orchestrator`), not attacker-controlled. dbt-core 1.12.6 permits the fix; review it with the other sqlparse advisories. |
-| PYSEC-2024-48, PYSEC-2026-2120, PYSEC-2026-2121 | black 23.9.1 | 26.3.1 | Regex/formatting DoS issues in black's own source-processing. Dev/CI tooling only. dbt-core 1.12.6 now permits `pathspec>=1.0`, removing the earlier resolver conflict. Review the Black upgrade and its formatting impact separately. |
+There are currently **no active Python `pip-audit` exceptions**. The previously tracked `sqlparse` (`PYSEC-2026-3696`–`3699`, `PYSEC-2026-3923`, fixed in `0.6.0` / locked at `0.6.1`, #1191) and `black` (`PYSEC-2024-48`, `PYSEC-2026-2120`, `PYSEC-2026-2121`, fixed in `26.3.1` / pinned at `26.10.1`) entries have been resolved and removed from `.github/workflows/ci.yml`.
 
 ### Approved Studio Dependency Exceptions
 

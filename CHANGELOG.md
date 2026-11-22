@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The census import wizard now says when saving the field mapping fails or the mapping suggestions can't load (#1203). Before, the spinner stopped with no message.
 - Census import now reads `f` as no in yes/no columns, matching `t` for yes (#1250). Before, a column coded `t`/`f` was rejected on its `f` rows.
 
+### Security
+
+- Updated locked Python dependencies (`Pillow`, `WeasyPrint`, `GitPython`, `deepdiff`, `anyio`, `starlette`, `urllib3`, `certifi`, `brotli`, `py7zr`, `python-multipart`, `sqlparse`, and dev tooling) to patched versions, clearing open Dependabot advisories and retiring the resolved `sqlparse` and `black` audit exceptions (#1191).
+
 ## [3.6.0] - 2026-11-20
 
 ### Added
