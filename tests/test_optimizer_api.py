@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from planalign_api.config import APISettings
 from planalign_api.routers import optimizer as optimizer_router
 from planalign_optimizer.models import (
     Candidate,
@@ -30,11 +31,14 @@ BASELINE_CONFIG = "config/simulation_config.yaml"
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(tmp_path: Path) -> TestClient:
     from fastapi import FastAPI
 
+    # API runs may only write under optimizer_runs_root; tests use tmp_path.
+    settings = APISettings(optimizer_runs_root=tmp_path)
     app = FastAPI()
     app.include_router(optimizer_router.router, prefix="/api")
+    app.dependency_overrides[optimizer_router.get_settings] = lambda: settings
     return TestClient(app)
 
 

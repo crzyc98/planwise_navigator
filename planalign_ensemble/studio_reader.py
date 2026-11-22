@@ -7,6 +7,7 @@ Ensemble databases (``ensemble.duckdb``) are written by :mod:`.aggregate` and
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import duckdb
@@ -105,12 +106,20 @@ def validate_ensemble_database(path: Path) -> Path:
     return resolved
 
 
-def discover_ensemble_databases(root: Path) -> list[EnsembleDatabaseSummary]:
-    """List ensemble databases under ``root``, skipping files that don't qualify."""
+def discover_ensemble_databases(
+    root: Path, *, include: Callable[[Path], bool] | None = None
+) -> list[EnsembleDatabaseSummary]:
+    """List ensemble databases under ``root``, skipping files that don't qualify.
+
+    ``include``, when given, is asked about each found file before it is
+    opened; the API uses it to skip links that point outside its roots.
+    """
     if not root.is_dir():
         raise InvalidEnsembleDatabaseError(f"root is not a directory: {root}")
     summaries: list[EnsembleDatabaseSummary] = []
     for candidate in sorted(root.rglob("ensemble.duckdb")):
+        if include is not None and not include(candidate):
+            continue
         try:
             validate_ensemble_database(candidate)
             summaries.append(_summarize(candidate))

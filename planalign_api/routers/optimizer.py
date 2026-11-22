@@ -48,13 +48,27 @@ from planalign_orchestrator.config import SimulationConfig
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
-from ..models.scenario import Scenario, ScenarioCreate
-from ..storage.workspace_storage import WorkspaceStorage
 from ..models.base import APIModel
+from ..models.scenario import Scenario, ScenarioCreate
+from ..services.path_guard import (
+    PathGuardError,
+    require_canonical_uuid,
+    resolve_within_roots,
+)
+from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Generic messages: a response never echoes a server path or file contents, and
+# a path outside the allowed roots fails exactly like a missing one.
+_OUTPUT_DIR_ERROR = (
+    "optimizer output directories must be inside the optimizer runs directory"
+)
+_BASELINE_CONFIG_ERROR = "baseline configuration not found or not allowed"
+_COMPARE_BASELINE_ERROR = "comparison baseline not found or not allowed"
+_ENSEMBLE_DATABASE_ERROR = "ensemble database not found or not allowed"
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -131,16 +145,16 @@ def _reserve_fresh_directories(database_dir: Path, output_dir: Path) -> None:
         if collisions:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    "optimizer run already in progress for directory: "
-                    f"{next(iter(collisions))}"
-                ),
+                detail="optimizer run already in progress for the requested directory",
             )
         for path in targets:
             try:
                 require_fresh_directory(path, "optimizer output")
-            except ValueError as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            except (ValueError, NotADirectoryError) as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail="optimizer output target is not an empty directory",
+                ) from exc
         _reserved_dirs.update(targets)
 
 
@@ -259,11 +273,13 @@ class OptimizerPromoteRequest(APIModel):
 def _workspace_baseline_path(
     workspace_id: str, storage: WorkspaceStorage
 ) -> Optional[Path]:
+    try:
+        require_canonical_uuid(workspace_id, label="workspace_id")
+    except PathGuardError as exc:
+        raise HTTPException(status_code=404, detail="Workspace not found") from exc
     workspace = storage.get_workspace(workspace_id)
     if workspace is None:
-        raise HTTPException(
-            status_code=404, detail=f"Workspace {workspace_id} not found"
-        )
+        raise HTTPException(status_code=404, detail="Workspace not found")
     config = dict(workspace.base_config or {})
     if not config:
         return None
@@ -292,6 +308,106 @@ def _remove_temp_config(path: Optional[Path]) -> None:
         path.unlink(missing_ok=True)
     except OSError as e:
         logger.warning("Could not remove temp optimizer baseline %s: %s", path, e)
+
+
+# ---------------------------------------------------------------------------
+# API path containment. The CLI accepts any path; API callers are confined to
+# server-controlled roots (see planalign_api.services.path_guard).
+# ---------------------------------------------------------------------------
+
+
+def _contained(raw: str | Path, roots: List[Path], error: str) -> Path:
+    try:
+        return resolve_within_roots(raw, roots, anchor=roots[0])
+    except PathGuardError as exc:
+        raise ValueError(error) from exc
+
+
+def _api_output_paths(
+    database_dir: Optional[str], output_dir: Optional[str], settings: APISettings
+) -> tuple[Path, Path]:
+    """Resolve run directories strictly below ``optimizer_runs_root``."""
+    root = settings.optimizer_runs_root.resolve()
+    requested: list[Optional[Path]] = []
+    for raw in (database_dir, output_dir):
+        path = _contained(raw, [root], _OUTPUT_DIR_ERROR) if raw else None
+        if path == root:
+            raise ValueError(_OUTPUT_DIR_ERROR)
+        requested.append(path)
+    database, output = requested
+    if database is None and output is None:
+        database = root / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    return resolve_output_paths(database, output)
+
+
+def _api_baseline_config(raw: Path, settings: APISettings) -> Path:
+    """A caller-named baseline config must be a file in the server config dir."""
+    config_root = settings.default_config_path.resolve().parent
+    path = _contained(raw, [config_root], _BASELINE_CONFIG_ERROR)
+    if not path.is_file():
+        raise ValueError(_BASELINE_CONFIG_ERROR)
+    return path
+
+
+def _load_api_baseline(path: Path) -> SimulationConfig:
+    try:
+        return load_baseline(path)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        logger.warning("Optimizer baseline config could not be loaded: %s", exc)
+        raise ValueError(_BASELINE_CONFIG_ERROR) from exc
+
+
+def _api_ensemble_database(spec: OptimizerSpec, settings: APISettings) -> OptimizerSpec:
+    """Swap the spec's ensemble database for its contained, resolved path."""
+    raw = spec.baseline.ensemble_database
+    if raw is None:
+        return spec
+    contained = _contained(raw, settings.ensemble_roots, _ENSEMBLE_DATABASE_ERROR)
+    baseline = spec.baseline.model_copy(update={"ensemble_database": contained})
+    return spec.model_copy(update={"baseline": baseline})
+
+
+def _log_baseline_drift(
+    baseline: SimulationConfig, raw: Optional[str], settings: APISettings
+) -> None:
+    """Compare against a prior run's results file under ``optimizer_runs_root``."""
+    if raw is None:
+        return
+    root = settings.optimizer_runs_root.resolve()
+    path = _contained(raw, [root], _COMPARE_BASELINE_ERROR)
+    try:
+        drift_warning = stale_baseline_warning(baseline, path)
+    except (OSError, ValueError, AttributeError) as exc:
+        raise ValueError(_COMPARE_BASELINE_ERROR) from exc
+    if drift_warning:
+        logger.warning("Optimizer run baseline drift: %s", drift_warning)
+
+
+def _with_workspace_baseline(
+    spec: OptimizerSpec, workspace_id: Optional[str], storage: WorkspaceStorage
+) -> tuple[OptimizerSpec, Optional[Path]]:
+    """Point the spec at the workspace's base config, when it has one."""
+    if workspace_id is None:
+        return spec, None
+    workspace_config = _workspace_baseline_path(workspace_id, storage)
+    if workspace_config is None:
+        return spec, None
+    baseline = spec.baseline.model_copy(update={"config_path": workspace_config})
+    return spec.model_copy(update={"baseline": baseline}), workspace_config
+
+
+def _run_baseline(
+    spec: OptimizerSpec,
+    workspace_config: Optional[Path],
+    compare_baseline_to: Optional[str],
+    settings: APISettings,
+) -> SimulationConfig:
+    """Load the run's baseline: the workspace's, else a contained config file."""
+    path = workspace_config or _api_baseline_config(spec.baseline.config_path, settings)
+    baseline = _load_api_baseline(path)
+    validate_levers_against_baseline(baseline, spec.design_space.levers)
+    _log_baseline_drift(baseline, compare_baseline_to, settings)
+    return baseline
 
 
 def _parse_spec(spec: Optional[dict], spec_yaml: Optional[str]) -> OptimizerSpec:
@@ -331,6 +447,7 @@ def _generate_unique_scenario_name(base_name: str, scenarios: list[Scenario]) ->
 @router.post("/optimizer/validate", response_model=OptimizerValidateResponse)
 def validate_optimizer_spec(
     request: OptimizerValidateRequest,
+    settings: APISettings = Depends(get_settings),
 ) -> OptimizerValidateResponse:
     """Cheap, synchronous spec validation + optional seed-phase dry-run preview.
 
@@ -350,11 +467,11 @@ def validate_optimizer_spec(
         else:
             parsed = OptimizerSpec.model_validate(request.spec)
         parsed = validate_spec(parsed)
-        baseline = load_baseline(parsed.baseline.config_path)
+        _api_ensemble_database(parsed, settings)
+        config_path = _api_baseline_config(parsed.baseline.config_path, settings)
+        baseline = _load_api_baseline(config_path)
         validate_levers_against_baseline(baseline, parsed.design_space.levers)
     except (yaml.YAMLError, ValidationError, OptimizerSpecError, ValueError) as exc:
-        return OptimizerValidateResponse(valid=False, error=str(exc))
-    except OSError as exc:
         return OptimizerValidateResponse(valid=False, error=str(exc))
 
     response = OptimizerValidateResponse(valid=True, resolved_spec=parsed)
@@ -370,6 +487,7 @@ def validate_optimizer_spec(
 def start_optimizer_run(
     request: OptimizerRunRequest,
     storage: WorkspaceStorage = Depends(get_storage),
+    settings: APISettings = Depends(get_settings),
 ) -> OptimizerStartResponse:
     """Enqueue a plan-design optimizer search; poll /optimizer/runs/{run_id}.
 
@@ -378,28 +496,17 @@ def start_optimizer_run(
     record instead (409 spec/baseline resolution issue, 500 unexpected).
     """
     spec = _parse_spec(request.spec, None)
-
-    workspace_config: Optional[Path] = None
-    if request.workspace_id is not None:
-        workspace_config = _workspace_baseline_path(request.workspace_id, storage)
-        if workspace_config is not None:
-            spec = spec.model_copy(
-                update={
-                    "baseline": spec.baseline.model_copy(
-                        update={"config_path": workspace_config}
-                    )
-                }
-            )
-
     try:
-        database_dir, output_dir = resolve_output_paths(
-            Path(request.database_dir) if request.database_dir else None,
-            Path(request.output_dir) if request.output_dir else None,
+        database_dir, output_dir = _api_output_paths(
+            request.database_dir, request.output_dir, settings
         )
+        spec = _api_ensemble_database(spec, settings)
     except ValueError as exc:
-        _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    spec, workspace_config = _with_workspace_baseline(
+        spec, request.workspace_id, storage
+    )
     try:
         _reserve_fresh_directories(database_dir, output_dir)
     except HTTPException:
@@ -407,20 +514,13 @@ def start_optimizer_run(
         raise
 
     try:
-        baseline = load_baseline(spec.baseline.config_path)
-        validate_levers_against_baseline(baseline, spec.design_space.levers)
-    except (OSError, ValueError) as exc:
+        baseline = _run_baseline(
+            spec, workspace_config, request.compare_baseline_to, settings
+        )
+    except ValueError as exc:
         _release_reserved_directories(database_dir, output_dir)
         _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    drift_warning: Optional[str] = None
-    if request.compare_baseline_to is not None:
-        drift_warning = stale_baseline_warning(
-            baseline, Path(request.compare_baseline_to)
-        )
-        if drift_warning:
-            logger.warning("Optimizer run baseline drift: %s", drift_warning)
 
     job = _register_job()
     search_seed = request.search_seed if request.search_seed is not None else 0
