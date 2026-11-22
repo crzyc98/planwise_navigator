@@ -41,7 +41,7 @@ from .census_schema import (
     census_date_order_is_ambiguous,
     matching_census_date_formats,
 )
-from .path_guard import resolve_child_path
+from .path_guard import resolve_child_path, resolve_workspace_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -174,19 +174,9 @@ class FileService:
 
     def _resolve_workspace_file_path(self, workspace_id: str, file_path: str) -> Path:
         """Validate workspace_id, resolve file_path, and enforce workspaces_root containment."""
-        workspace_dir = self._workspace_path(workspace_id)
-        if "\x00" in file_path:
-            raise SQLSecurityError("Invalid census file path")
-        raw_path = Path(file_path)
-        candidate = raw_path if raw_path.is_absolute() else workspace_dir / raw_path
-        try:
-            resolved = candidate.resolve()
-            allowed_root = self.workspaces_root.resolve()
-        except (OSError, ValueError, RuntimeError) as exc:
-            raise SQLSecurityError("Invalid census file path") from exc
-        if not resolved.is_relative_to(allowed_root):
-            raise SQLSecurityError("Invalid census file path")
-        return resolved
+        return resolve_workspace_file_path(
+            self.workspaces_root, workspace_id, file_path
+        )
 
     def _get_data_directory(self, workspace_id: str) -> Path:
         """Get the data directory for a workspace."""

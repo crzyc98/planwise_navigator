@@ -249,7 +249,10 @@ class TestErrorPaths:
         client = TestClient(app)
         response = client.post(
             "/api/workspaces/test-ws/analyze-opt-out-rate",
-            json={"file_path": str(tmp_path / "nonexistent.csv"), "lookback_years": 3},
+            json={
+                "file_path": str(workspaces_root / "test-ws" / "nonexistent.csv"),
+                "lookback_years": 3,
+            },
         )
         assert response.status_code == 400
         assert "not found" in response.json()["detail"].lower()

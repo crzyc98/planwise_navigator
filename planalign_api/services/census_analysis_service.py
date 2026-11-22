@@ -33,6 +33,7 @@ from .census_plausibility import (
     deferral_limits_for_year,
 )
 from .census_schema import active_filter_sql, get_field
+from .path_guard import resolve_workspace_file_path
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
     CENSUS_COMPENSATION_COLUMNS,
@@ -44,7 +45,6 @@ from .sql_security import (
     CENSUS_JOB_LEVEL_COLUMNS,
     CENSUS_TERMINATION_DATE_COLUMNS,
     VALID_IDENTIFIER_PATTERN,
-    SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,
 )
@@ -179,12 +179,9 @@ class CensusAnalysisService:
         exclude_zeros: bool = False,
     ) -> CensusAnalysisResult:
         resolved = self._resolve_path(workspace_id, file_path)
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as exc:
-            raise ValueError(str(exc)) from exc
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         conn = duckdb.connect(":memory:")
         try:
@@ -328,10 +325,8 @@ class CensusAnalysisService:
     # ------------------------------------------------------------------
 
     def _resolve_path(self, workspace_id: str, file_path: str) -> Path:
-        resolved = (
-            Path(file_path)
-            if file_path.startswith("/")
-            else self.workspaces_root / workspace_id / file_path
+        resolved = resolve_workspace_file_path(
+            self.workspaces_root, workspace_id, file_path
         )
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")

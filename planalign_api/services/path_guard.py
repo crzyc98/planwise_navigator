@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Dict
 
-from .sql_security import validate_file_path
+from .sql_security import SQLSecurityError, validate_file_path
 
 _SAFE_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 
@@ -159,3 +159,29 @@ def resolve_within_roots(
             except ValueError:  # outside this root, or a NUL byte in the path
                 continue
     raise PathGuardError("path is outside the allowed directories")
+
+
+def resolve_workspace_file_path(
+    workspaces_root: Path, workspace_id: str, file_path: str
+) -> Path:
+    """Validate workspace_id, resolve file_path, and enforce workspaces_root containment.
+
+    Checks workspace identifier syntax and root containment before any
+    filesystem existence or metadata check, raising a uniform error so callers
+    never reveal whether a path outside ``workspaces_root`` exists.
+    """
+    workspace_dir = resolve_child_path(
+        workspaces_root, workspace_id, label="workspace_id"
+    )
+    if "\x00" in file_path:
+        raise SQLSecurityError("Invalid census file path")
+    raw_path = Path(file_path)
+    candidate = raw_path if raw_path.is_absolute() else workspace_dir / raw_path
+    try:
+        resolved = candidate.resolve()
+        allowed_root = workspaces_root.resolve()
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise SQLSecurityError("Invalid census file path") from exc
+    if not resolved.is_relative_to(allowed_root):
+        raise SQLSecurityError("Invalid census file path")
+    return resolved
