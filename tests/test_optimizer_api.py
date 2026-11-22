@@ -329,3 +329,22 @@ def test_build_failure_maps_to_500_with_logged_exception(
     # Raw exception text is never exposed; only a stable message + error ID.
     assert "scenario pool exploded" not in job["error"]
     assert "error_id:" in job["error"]
+
+
+def test_workspace_baseline_rejects_census_outside_workspaces_root(tmp_path) -> None:
+    from fastapi import HTTPException
+    from planalign_api.models.workspace import WorkspaceCreate
+    from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+    outside = tmp_path / "outside.parquet"
+    outside.write_bytes(b"PAR1dummy")
+    storage = WorkspaceStorage(tmp_path / "workspaces")
+    ws = storage.create_workspace(
+        WorkspaceCreate(name="WS"),
+        {"setup": {"census_parquet_path": str(outside)}},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        optimizer_router._workspace_baseline_path(ws.id, storage)
+    assert exc_info.value.status_code == 422
+    assert "outside allowed directories" in exc_info.value.detail

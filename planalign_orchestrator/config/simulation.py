@@ -6,7 +6,7 @@ E073: Config Module Refactoring - simulation module.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -65,9 +65,9 @@ class PromotionCompensationSettings(BaseModel):
     max_cap_amount: int = Field(
         default=500000, ge=0, description="Maximum promotion increase amount in dollars"
     )
-    distribution_type: str = Field(
+    distribution_type: Literal["uniform", "normal"] = Field(
         default="uniform",
-        description="Distribution type: uniform, normal, deterministic",
+        description="Distribution type: uniform or normal",
     )
     level_overrides: Optional[Dict[int, float]] = Field(
         default=None, description="Level-specific base increase overrides"

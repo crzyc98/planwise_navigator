@@ -51,11 +51,15 @@ def is_active_census(
 ) -> bool:
     """Whether ``census_path`` is the workspace's configured census."""
     from .simulation.run_execution import resolve_census_path
+    from .sql_security import SQLSecurityError
 
     configured = _workspace_setup(storage, workspace_id).get("census_parquet_path")
     if not configured:
         return False
-    resolved = resolve_census_path(storage, str(configured), workspace_id)
+    try:
+        resolved = resolve_census_path(storage, str(configured), workspace_id)
+    except SQLSecurityError:
+        return False
     return resolved is not None and resolved == Path(census_path).resolve()
 
 

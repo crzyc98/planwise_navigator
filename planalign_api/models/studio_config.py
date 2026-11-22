@@ -4,8 +4,10 @@ Only fields read directly by Studio are declared. Unknown engine settings are
 preserved at every level; omitted fields must never become null overrides.
 """
 
-from typing import Annotated, Any, Literal
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal, get_args
 
+from planalign_orchestrator.config.plan_design import MatchTemplate, check_identifier
 from planalign_orchestrator.config.simulation import MinimumWageStep
 from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
@@ -24,6 +26,7 @@ from pydantic import (
     GetJsonSchemaHandler,
     ValidateAs,
     WrapSerializer,
+    model_validator,
 )
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
@@ -272,6 +275,117 @@ class StudioPromotionHazardConfig(PartialConfig):
     tenure_multipliers: list[StudioTenureMultiplier] | None = None
 
 
+_VALID_AUTO_ENROLL_SCOPES = frozenset({"all_eligible_employees", "new_hires_only"})
+_VALID_STUDIO_AUTO_ENROLL_SCOPES = frozenset(
+    {"all_eligible", "all_eligible_employees", "new_hires_only"}
+)
+_VALID_MATCH_TEMPLATES = frozenset(get_args(MatchTemplate))
+
+
+def _check_allowed(field: str, value: Any, allowed: frozenset[str]) -> None:
+    if value is not None and (not isinstance(value, str) or value not in allowed):
+        raise ValueError(f"{field} must be one of {sorted(allowed)}")
+
+
+def _validate_optional_identifier(field: str, value: Any) -> None:
+    if value is None or value == "":
+        return
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    check_identifier(value)
+
+
+def _validate_plan_design_assignment(value: Any) -> None:
+    if value is None:
+        return
+    if not isinstance(value, Mapping):
+        raise ValueError("plan_design_assignment must be a mapping")
+    default_id = value.get("default_plan_design_id")
+    if default_id is not None:
+        if not isinstance(default_id, str):
+            raise ValueError("default_plan_design_id must be a string")
+        check_identifier(default_id)
+    rules = value.get("rules")
+    if rules is None:
+        return
+    if not isinstance(rules, list):
+        raise ValueError("plan_design_assignment.rules must be a list")
+    for rule in rules:
+        rule_id = rule.get("plan_design_id") if isinstance(rule, Mapping) else None
+        if rule_id is not None:
+            if not isinstance(rule_id, str):
+                raise ValueError(
+                    "plan_design_assignment rule plan_design_id must be a string"
+                )
+            check_identifier(rule_id)
+
+
+def _validate_plan_design_parameters(value: Any) -> None:
+    if value is None:
+        return
+    if not isinstance(value, Mapping):
+        raise ValueError("plan_design_parameters must be a mapping")
+    for design_id, params in value.items():
+        if not isinstance(design_id, str):
+            raise ValueError("plan_design_parameters keys must be strings")
+        check_identifier(design_id)
+        if not isinstance(params, Mapping):
+            continue
+        match = params.get("match")
+        if isinstance(match, Mapping):
+            _check_allowed(
+                "match_template", match.get("match_template"), _VALID_MATCH_TEMPLATES
+            )
+        auto = params.get("auto_enrollment")
+        if isinstance(auto, Mapping):
+            _check_allowed(
+                "auto_enrollment.scope", auto.get("scope"), _VALID_AUTO_ENROLL_SCOPES
+            )
+
+
+def _validate_dc_plan(value: Any) -> None:
+    if not isinstance(value, Mapping):
+        return
+    _check_allowed(
+        "dc_plan.auto_enroll_scope",
+        value.get("auto_enroll_scope"),
+        _VALID_STUDIO_AUTO_ENROLL_SCOPES,
+    )
+    _check_allowed(
+        "dc_plan.match_template",
+        value.get("match_template"),
+        _VALID_MATCH_TEMPLATES,
+    )
+
+
+def _validate_enrollment(value: Any) -> None:
+    auto = value.get("auto_enrollment") if isinstance(value, Mapping) else None
+    if isinstance(auto, Mapping):
+        _check_allowed(
+            "enrollment.auto_enrollment.scope",
+            auto.get("scope"),
+            _VALID_AUTO_ENROLL_SCOPES,
+        )
+
+
+def validate_studio_config_values(config: Mapping[str, Any]) -> None:
+    """Validate identifiers and bounded options carried in partial API configs."""
+    for key, value in config.items():
+        if not isinstance(key, str):
+            continue
+        lower = key.lower()
+        if lower in {"scenario_id", "plan_design_id"}:
+            _validate_optional_identifier(key, value)
+        elif lower == "plan_design_assignment":
+            _validate_plan_design_assignment(value)
+        elif lower == "plan_design_parameters":
+            _validate_plan_design_parameters(value)
+        elif lower == "dc_plan":
+            _validate_dc_plan(value)
+        elif lower == "enrollment":
+            _validate_enrollment(value)
+
+
 class StudioConfig(PartialConfig):
     """Partial simulation config exposed in scenario, template and run APIs."""
 
@@ -283,6 +397,11 @@ class StudioConfig(PartialConfig):
     promotion_hazard: StudioPromotionHazardConfig | None = None
     age_bands: list[StudioBand] | None = None
     tenure_bands: list[StudioBand] | None = None
+
+    @model_validator(mode="after")
+    def _validate_config_identifiers(self) -> "StudioConfig":
+        validate_studio_config_values(self.model_dump(exclude_unset=True))
+        return self
 
 
 def _as_overrides(config: StudioConfig) -> dict[str, Any]:

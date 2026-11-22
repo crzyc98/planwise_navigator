@@ -17,6 +17,7 @@ import yaml
 
 from planalign_core.constants import DATABASE_FILENAME
 
+from ...models.studio_config import validate_studio_config_values
 from ...storage.workspace_storage import WorkspaceStorage
 from ..provenance.capture import ProvenanceRecorder
 from ..sql_security import SQLSecurityError, validate_file_path_for_sql
@@ -128,14 +129,25 @@ def get_memory_mb() -> float:
         return 0.0
 
 
+def _allowed_census_roots(storage: WorkspaceStorage, workspace_id: str) -> List[Path]:
+    root = getattr(storage, "workspaces_root", None)
+    if root is not None:
+        return [Path(root)]
+    return [storage._workspace_path(workspace_id)]
+
+
 def resolve_census_path(
     storage: WorkspaceStorage, census_path: str, workspace_id: str
 ) -> Optional[Path]:
     candidate = Path(census_path)
-    if candidate.is_absolute():
-        return candidate if candidate.exists() else None
-    resolved = storage._workspace_path(workspace_id) / census_path
-    return resolved if resolved.exists() else None
+    if not candidate.is_absolute():
+        candidate = storage._workspace_path(workspace_id) / census_path
+    if not candidate.exists():
+        return None
+    safe_path = validate_file_path_for_sql(
+        candidate, _allowed_census_roots(storage, workspace_id), context="census"
+    )
+    return Path(safe_path)
 
 
 def workspace_census_fallback(
@@ -182,6 +194,18 @@ def _census_error(
     )
 
 
+def validate_run_config(
+    config: Dict[str, Any], scenario_id: str, workspace_id: str
+) -> None:
+    """Validate identifiers and bounded options before writing a run config."""
+    try:
+        validate_studio_config_values(config)
+    except ValueError as exc:
+        raise _census_error(
+            str(exc), scenario_id, {"workspace_id": workspace_id}
+        ) from exc
+
+
 def validate_census(
     storage: WorkspaceStorage,
     config: Dict[str, Any],
@@ -199,26 +223,22 @@ def validate_census(
             },
         )
     metadata = {"expected_path": str(configured), "workspace_id": workspace_id}
-    resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
-    if resolved is None or not resolved.exists():
-        raise _census_error(
-            f"Census file not found at '{configured}'. Upload a valid census parquet file and retry.",
-            scenario_id,
-            metadata,
-        )
     try:
-        # dbt reads the census through a quoted SQL string literal.
-        safe_path = validate_file_path_for_sql(
-            resolved, [storage.workspaces_root], context="census"
-        )
+        resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
     except SQLSecurityError as exc:
         raise _census_error(
             f"{exc}. Upload the census to this workspace and retry.",
             scenario_id,
             metadata,
         ) from exc
+    if resolved is None or not resolved.exists():
+        raise _census_error(
+            f"Census file not found at '{configured}'. Upload a valid census parquet file and retry.",
+            scenario_id,
+            metadata,
+        )
     setup = config.setdefault("setup", {})
-    setup["census_parquet_path"] = safe_path
+    setup["census_parquet_path"] = str(resolved)
     # The run's own census decides the date, not the workspace default.
     from ..census_activation import census_as_of_for
 

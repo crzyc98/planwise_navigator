@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from planalign_orchestrator.config import (
+    OrchestrationConfig,
     PlanDesignAssignmentSettings,
     PlanDesignParametersMap,
     SimulationConfig,
@@ -141,7 +142,18 @@ REAL_IDENTIFIERS = [
     "Plan A 2026",
     "v1.2:draft",
 ]
-UNSAFE_IDENTIFIERS = ["o'brien", "plan\\a", "plan\na", "tab\tid", "x" * 129]
+UNSAFE_IDENTIFIERS = [
+    "o'brien",
+    "plan;a",
+    'plan"a',
+    "plan\\a",
+    "plan\na",
+    "tab\tid",
+    "   ",
+    " plan-a",
+    "plan-a ",
+    "x" * 129,
+]
 
 
 @pytest.mark.parametrize("value", REAL_IDENTIFIERS)
@@ -189,6 +201,44 @@ def test_plan_design_ids_reject_unsafe_values(value):
     raw = _two_design_parameters()
     with pytest.raises(ValueError, match="invalid identifier"):
         PlanDesignParametersMap.model_validate({value: raw["legacy"]})
+
+
+@pytest.mark.fast
+@pytest.mark.parametrize("value", UNSAFE_IDENTIFIERS)
+@pytest.mark.parametrize("field", ["scenario_id", "plan_design_id"])
+def test_orchestration_config_identifiers_reject_unsafe_values(
+    minimal_config, field, value
+):
+    raw = minimal_config.model_dump()
+    raw[field] = value
+    with pytest.raises(ValueError, match="invalid identifier"):
+        OrchestrationConfig.model_validate(raw)
+
+
+@pytest.mark.fast
+@pytest.mark.parametrize("value", ["baseline", "plan-a", "v1.2_draft"])
+def test_orchestration_config_identifiers_accept_valid_values(minimal_config, value):
+    raw = minimal_config.model_dump()
+    raw.update(scenario_id=value, plan_design_id=value)
+    config = OrchestrationConfig.model_validate(raw)
+    assert config.scenario_id == value
+    assert config.plan_design_id == value
+
+
+@pytest.mark.fast
+def test_plan_design_match_template_rejects_unknown_value():
+    raw = _two_design_parameters()
+    raw["legacy"]["match"]["match_template"] = "custom'template"
+    with pytest.raises(ValueError, match="match_template"):
+        PlanDesignParametersMap.model_validate(raw)
+
+
+@pytest.mark.fast
+def test_promotion_distribution_type_rejects_unknown_value(minimal_config):
+    raw = minimal_config.model_dump()
+    raw["compensation"]["promotion_compensation"]["distribution_type"] = "custom'type"
+    with pytest.raises(ValueError, match="distribution_type"):
+        SimulationConfig.model_validate(raw)
 
 
 @pytest.mark.parametrize("scope", ["all_eligible_employees", "new_hires_only", None])
