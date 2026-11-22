@@ -289,6 +289,9 @@ class JobRunner:
     ) -> Optional[int]:
         if self.registry.was_cancelled(job.job_id):
             return None
+        if job.mode != "backtest":
+            # A fit runs no simulation, so it never waits for a slot.
+            return self._execute(job, paths, tail, failure)
         with simulation_slot_sync(
             is_cancelled=lambda: self.registry.was_cancelled(job.job_id)
         ) as has_slot:

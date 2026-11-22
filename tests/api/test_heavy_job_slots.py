@@ -42,6 +42,7 @@ from planalign_optimizer.models import (
     OptimizerRun,
 )
 from planalign_orchestrator.calibration_runner import PerYearCompensationResult
+from planalign_api.services.param_fit.runner import ProcessRegistry as ParamFitRegistry
 from tests.fixtures.param_fit import (
     StubCommands as ParamFitStubCommands,
     build_fixture_pack,
@@ -448,8 +449,35 @@ def _gated_param_fit_command(
     return _factory, behaviours, started
 
 
+def _backtest_harnesses(
+    tmp_path: Path,
+    command: Callable[..., list[str]],
+    history: list[Path],
+    count: int,
+) -> list[tuple[Any, str]]:
+    """One workspace per backtest (one active backtest per workspace), one registry."""
+    registry = ParamFitRegistry()
+    harnesses = []
+    for index in range(count):
+        harness = make_param_fit_harness(
+            tmp_path / f"ws{index}", command, registry=registry
+        )
+        harnesses.append((harness, harness.upload(history).json()["history_id"]))
+    return harnesses
+
+
+def _start_backtest(harness: Any, history_id: str) -> str:
+    response = harness.start(history_id, mode="backtest", seeds=[42, 43])
+    assert response.status_code == 202, response.text
+    return response.json()["job_id"]
+
+
+def _status(harness: Any, job_id: str) -> str:
+    return harness.client.get(harness.url(f"/param-fits/{job_id}")).json()["status"]
+
+
 @pytest.mark.parametrize("limit,total", [(1, 3), (2, 4)])
-def test_param_fit_respects_concurrency_limit_and_queues_excess(
+def test_backtest_respects_concurrency_limit_and_queues_excess(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     param_fit_history: list[Path],
@@ -461,27 +489,23 @@ def test_param_fit_respects_concurrency_limit_and_queues_excess(
     gate_dir = tmp_path / "gates"
     gate_dir.mkdir()
     command, _, _ = _gated_param_fit_command(gate_dir, param_fit_pack)
-    harness = make_param_fit_harness(tmp_path, command)
-    history_id = harness.upload(param_fit_history).json()["history_id"]
+    harnesses = _backtest_harnesses(tmp_path, command, param_fit_history, total)
 
-    job_ids = [harness.start(history_id).json()["job_id"] for _ in range(total)]
+    jobs = [(h, _start_backtest(h, history_id)) for h, history_id in harnesses]
     _wait(lambda: len(list(gate_dir.glob("*.active"))) == limit)
     time.sleep(0.1)
     assert len(list(gate_dir.glob("*.active"))) == limit
 
-    statuses = [
-        harness.client.get(harness.url(f"/param-fits/{jid}")).json()["status"]
-        for jid in job_ids
-    ]
+    statuses = [_status(h, jid) for h, jid in jobs]
     assert statuses.count("running") == limit
     assert statuses.count("queued") == total - limit
 
     (gate_dir / "release_all").write_text("go")
-    for jid in job_ids:
-        assert harness.wait(jid)["status"] == "completed"
+    for h, jid in jobs:
+        assert h.wait(jid)["status"] == "completed"
 
 
-def test_param_fit_cancel_queued_and_release_after_failure_and_cancel(
+def test_backtest_cancel_queued_and_release_after_failure_and_cancel(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     param_fit_history: list[Path],
@@ -491,25 +515,21 @@ def test_param_fit_cancel_queued_and_release_after_failure_and_cancel(
     gate_dir = tmp_path / "gates"
     gate_dir.mkdir()
     command, behaviours, started = _gated_param_fit_command(gate_dir, param_fit_pack)
-    harness = make_param_fit_harness(tmp_path, command)
-    history_id = harness.upload(param_fit_history).json()["history_id"]
-
-    behaviours["default"] = "fail"
-    first = harness.start(history_id).json()["job_id"]
-    _wait(lambda: (gate_dir / f"{first}.active").exists())
-
-    behaviours["default"] = "fit"
-    queued_cancelled = harness.start(history_id).json()["job_id"]
-    queued_next = harness.start(history_id).json()["job_id"]
-    assert (
-        harness.client.get(harness.url(f"/param-fits/{queued_cancelled}")).json()[
-            "status"
-        ]
-        == "queued"
+    (first_h, first_hist), (cancel_h, cancel_hist), (next_h, next_hist) = (
+        _backtest_harnesses(tmp_path, command, param_fit_history, 3)
     )
 
-    cancelled = harness.client.post(
-        harness.url(f"/param-fits/{queued_cancelled}/cancel")
+    behaviours["default"] = "fail"
+    first = _start_backtest(first_h, first_hist)
+    _wait(lambda: (gate_dir / f"{first}.active").exists())
+
+    behaviours["default"] = "backtest"
+    queued_cancelled = _start_backtest(cancel_h, cancel_hist)
+    queued_next = _start_backtest(next_h, next_hist)
+    assert _status(cancel_h, queued_cancelled) == "queued"
+
+    cancelled = cancel_h.client.post(
+        cancel_h.url(f"/param-fits/{queued_cancelled}/cancel")
     )
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "cancelled"
@@ -518,47 +538,75 @@ def test_param_fit_cancel_queued_and_release_after_failure_and_cancel(
     # Release failing job -> slot frees -> queued_next starts.
     (gate_dir / f"{first}.release").write_text("go")
     _wait(lambda: (gate_dir / f"{queued_next}.active").exists())
-    assert harness.wait(first)["status"] == "failed"
+    assert first_h.wait(first)["status"] == "failed"
 
     # Cancel running job -> slot frees -> new backtest completes with 1 slot.
     assert (
-        harness.client.post(harness.url(f"/param-fits/{queued_next}/cancel")).json()[
+        next_h.client.post(next_h.url(f"/param-fits/{queued_next}/cancel")).json()[
             "status"
         ]
         == "cancelled"
     )
-    backtest = harness.start(history_id, mode="backtest", seeds=[42, 43]).json()[
-        "job_id"
-    ]
+    backtest = _start_backtest(first_h, first_hist)
     (gate_dir / "release_all").write_text("go")
-    assert harness.wait(backtest)["status"] == "completed"
+    assert first_h.wait(backtest)["status"] == "completed"
     assert queued_cancelled not in started
 
 
-def test_param_fit_queue_cap_returns_429(
+def test_backtest_queue_cap_returns_429_but_fits_still_start(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     param_fit_history: list[Path],
     param_fit_pack: Path,
 ) -> None:
     _set_limits(monkeypatch, max_concurrent=1, max_queued=1)
-    commands = ParamFitStubCommands(fixture_pack=param_fit_pack, behaviour="sleep")
+    gate_dir = tmp_path / "gates"
+    gate_dir.mkdir()
+    command, _, _ = _gated_param_fit_command(gate_dir, param_fit_pack)
+    (run_h, run_hist), (queue_h, queue_hist), (reject_h, reject_hist) = (
+        _backtest_harnesses(tmp_path, command, param_fit_history, 3)
+    )
+
+    running = _start_backtest(run_h, run_hist)
+    _wait(lambda: (gate_dir / f"{running}.active").exists())
+    queued = _start_backtest(queue_h, queue_hist)
+    assert _status(queue_h, queued) == "queued"
+
+    rejected = reject_h.start(reject_hist, mode="backtest", seeds=[42, 43])
+    assert rejected.status_code == 429
+    assert reject_h.client.get(reject_h.url("/param-fits")).json() == []
+
+    # Fits never wait for a slot, so the backtest queue cap does not apply.
+    fits = [reject_h.start(reject_hist).json()["job_id"] for _ in range(2)]
+    _wait(lambda: all((gate_dir / f"{fit}.active").exists() for fit in fits))
+    assert [_status(reject_h, fit) for fit in fits] == ["running", "running"]
+
+    (gate_dir / "release_all").write_text("go")
+    for harness, job_id in [(run_h, running), (queue_h, queued)] + [
+        (reject_h, fit) for fit in fits
+    ]:
+        assert harness.wait(job_id)["status"] == "completed"
+    assert run_slots.available_slots() == 1
+
+
+def test_fit_starts_and_completes_while_the_only_slot_is_held(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    param_fit_history: list[Path],
+    param_fit_pack: Path,
+) -> None:
+    _set_limits(monkeypatch, max_concurrent=1, max_queued=0)
+    commands = ParamFitStubCommands(fixture_pack=param_fit_pack, behaviour="success")
     harness = make_param_fit_harness(tmp_path, commands)
     history_id = harness.upload(param_fit_history).json()["history_id"]
 
-    first = harness.start(history_id)
-    assert first.status_code == 202
-    harness.wait_for_stage(first.json()["job_id"], "fitting")
-
-    second = harness.start(history_id)
-    assert second.status_code == 202
-
-    rejected = harness.start(history_id)
-    assert rejected.status_code == 429
-    assert len(harness.client.get(harness.url("/param-fits")).json()) == 2
-
-    for item in harness.client.get(harness.url("/param-fits")).json():
-        harness.client.post(harness.url(f"/param-fits/{item['job_id']}/cancel"))
+    with run_slots.simulation_slot_sync() as held:
+        assert held
+        response = harness.start(history_id)
+        assert response.status_code == 202
+        assert harness.wait(response.json()["job_id"])["status"] == "completed"
+        assert run_slots.available_slots() == 0
+    assert run_slots.available_slots() == 1
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Calibration, parameter-fit, backtest and optimizer jobs now wait in the same server-wide queue as simulations so only one heavy job runs at a time by default, and starting too many queued jobs at once is refused with a clear message instead of overloading the machine.
+- Calibration, backtest and optimizer jobs now wait in the same server-wide queue as simulations so only one heavy job runs at a time by default, and starting too many queued jobs at once is refused with a clear message instead of overloading the machine. Parameter fits run no simulation, so they still start straight away.
 - The optimizer and ensemble pages now only read and save files inside PlanAlign's own folders (the config folder, optimizer runs, ensembles and workspaces), and turn down any other location on the server.
 - Studio now refuses a workspace or scenario link with a malformed name instead of reading or saving files outside that workspace, and a census upload to a workspace that does not exist is refused instead of creating an empty folder.
 - A scenario can now set promotion raises to "deterministic", so every promoted employee gets exactly the configured raise with no random spread. This documented option was previously rejected as invalid.

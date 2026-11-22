@@ -141,14 +141,7 @@ class ParamFitService:
                 )
             # Claimed before the record exists, so a concurrent read can never
             # mistake the new job for one interrupted by a restart.
-            if not self.registry.try_claim(
-                job.job_id, lambda queued: not queue_capacity_exceeded(queued)
-            ):
-                raise ParamFitError(
-                    429,
-                    "Too many parameter fit jobs are already queued. Wait for one "
-                    "to finish or cancel a queued job before starting another.",
-                )
+            self._claim(job)
             try:
                 paths = self._prepare_inputs(job, merged, scenario)
                 self.jobs.save(job)
@@ -408,6 +401,23 @@ class ParamFitService:
         if option.split is None:
             raise ParamFitError(422, option.error or "invalid backtest split")
         return option.split
+
+    def _claim(self, job: ParamFitJob) -> None:
+        """Claim ``job``; only backtests wait for a slot, so only they queue."""
+        if job.mode != "backtest":
+            # A fit only reads census files and starts at once, so it is
+            # never counted against the backtest queue cap.
+            self.registry.claim(job.job_id)
+            self.registry.begin(job.job_id)
+            return
+        if not self.registry.try_claim(
+            job.job_id, lambda queued: not queue_capacity_exceeded(queued)
+        ):
+            raise ParamFitError(
+                429,
+                "Too many backtests are already queued. Wait for one to "
+                "finish or cancel a queued backtest before starting another.",
+            )
 
     def _has_active_backtest(self, workspace_id: str) -> bool:
         return any(
