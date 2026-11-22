@@ -19,14 +19,17 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Dict
+
+from .sql_security import validate_file_path
 
 _SAFE_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 
 
 class PathGuardError(ValueError):
-    """A client-supplied identifier is malformed."""
+    """A client-supplied identifier or path is malformed or not permitted."""
 
 
 class ProtectedPathError(LookupError):
@@ -126,3 +129,33 @@ def _parse(value: str) -> uuid.UUID:
         return require_canonical_uuid(value, label="identifier")
     except PathGuardError as exc:
         raise ProtectedPathError(str(exc)) from exc
+
+
+def resolve_within_roots(
+    raw_path: str | Path,
+    allowed_roots: Sequence[Path],
+    *,
+    anchor: Path | None = None,
+) -> Path:
+    """Resolve a client-supplied path inside one of ``allowed_roots``.
+
+    The path is fully resolved, following symlinks, before containment is
+    checked, so ``..`` segments and links that leave every root are refused.
+    A relative path is tried as given (against the working directory), then
+    under ``anchor``.
+
+    Raises:
+        PathGuardError: One generic message for every rejection, so callers
+            never reveal whether a path outside the roots exists.
+    """
+    path = Path(raw_path)
+    candidates = [path]
+    if anchor is not None and not path.is_absolute():
+        candidates.append(anchor / path)
+    for candidate in candidates:
+        for root in allowed_roots:
+            try:
+                return validate_file_path(candidate, root, context="request")
+            except ValueError:  # outside this root, or a NUL byte in the path
+                continue
+    raise PathGuardError("path is outside the allowed directories")

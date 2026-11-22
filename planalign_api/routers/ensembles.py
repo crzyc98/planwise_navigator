@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+import duckdb
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from planalign_ensemble.models import (
@@ -44,9 +45,15 @@ from ..models.ensemble_job import (
     EnsembleRequest,
 )
 from ..services.ensemble_jobs import EnsembleJobError, EnsembleJobService
+from ..services.path_guard import PathGuardError, resolve_within_roots
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
+
+# One message for outside, missing and unusable paths, so a response never
+# tells a caller whether some path exists on the server.
+_ROOT_NOT_FOUND = "ensemble directory not found"
+_DATABASE_NOT_FOUND = "ensemble database not found"
 
 
 def get_ensemble_job_service(
@@ -61,16 +68,26 @@ def discover_ensembles(
     settings: APISettings = Depends(get_settings),
 ) -> list[EnsembleDatabaseSummary]:
     """List ensemble databases under a scan root for the Studio picker."""
-    scan_root = Path(root) if root else settings.ensembles_root
+    # The root, and each database found under it, must resolve inside the
+    # ensemble roots, so a link inside a root never leads outside it.
+    roots = settings.ensemble_roots
     try:
-        return discover_ensemble_databases(scan_root)
-    except InvalidEnsembleDatabaseError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        scan_root = resolve_within_roots(
+            root or settings.ensembles_root, roots, anchor=settings.ensembles_root
+        )
+        return discover_ensemble_databases(
+            scan_root, include=lambda path: _is_contained(path, roots)
+        )
+    except (PathGuardError, InvalidEnsembleDatabaseError) as exc:
+        raise HTTPException(status_code=404, detail=_ROOT_NOT_FOUND) from exc
 
 
 @router.get("/ensembles/distributions", response_model=list[MetricDistribution])
 def get_distributions(
-    database: str, ensemble_scenario_id: str, ensemble_id: str
+    database: str,
+    ensemble_scenario_id: str,
+    ensemble_id: str,
+    settings: APISettings = Depends(get_settings),
 ) -> list[MetricDistribution]:
     """Read P10-P90 distributions for one scenario/ensemble.
 
@@ -79,7 +96,7 @@ def get_distributions(
     scenario resource, so it must not be mistaken for one of the run-tracked
     scenario reads that owe an ``X-PlanAlign-Run-*`` consistency header.
     """
-    validated = _validate(database)
+    validated = _validate(database, settings)
     return read_distributions(validated, ensemble_scenario_id, ensemble_id)
 
 
@@ -89,6 +106,7 @@ def get_risk(
     ensemble_scenario_id: str,
     ensemble_id: str,
     threshold: list[str] = Query(default=[]),
+    settings: APISettings = Depends(get_settings),
 ) -> list[RiskStatement]:
     """Evaluate ad hoc metric:value thresholds against stored seed evidence.
 
@@ -96,7 +114,7 @@ def get_risk(
     input only), so Studio supplies them per request, the same way
     ``--threshold metric:value`` does on the CLI.
     """
-    validated = _validate(database)
+    validated = _validate(database, settings)
     thresholds = [_parse_threshold(item) for item in threshold]
     return read_risk_statements(
         validated, ensemble_scenario_id, ensemble_id, thresholds
@@ -105,10 +123,13 @@ def get_risk(
 
 @router.get("/ensembles/attribution", response_model=list[AttributionShare])
 def get_attribution(
-    database: str, ensemble_scenario_id: str, ensemble_id: str
+    database: str,
+    ensemble_scenario_id: str,
+    ensemble_id: str,
+    settings: APISettings = Depends(get_settings),
 ) -> list[AttributionShare]:
     """Read variance attribution, ranked like the Excel Variance_Attribution sheet."""
-    validated = _validate(database)
+    validated = _validate(database, settings)
     return read_attribution(validated, ensemble_scenario_id, ensemble_id)
 
 
@@ -209,11 +230,23 @@ def _job_errors() -> Iterator[None]:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
 
-def _validate(database: str) -> Path:
+def _validate(database: str, settings: APISettings) -> Path:
+    """Contain ``database`` in the ensemble roots before anything opens it."""
     try:
-        return validate_ensemble_database(Path(database))
-    except InvalidEnsembleDatabaseError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        contained = resolve_within_roots(
+            database, settings.ensemble_roots, anchor=settings.ensembles_root
+        )
+        return validate_ensemble_database(contained)
+    except (PathGuardError, InvalidEnsembleDatabaseError, duckdb.Error) as exc:
+        raise HTTPException(status_code=404, detail=_DATABASE_NOT_FOUND) from exc
+
+
+def _is_contained(path: Path, roots: list[Path]) -> bool:
+    try:
+        resolve_within_roots(path, roots)
+    except PathGuardError:
+        return False
+    return True
 
 
 def _parse_threshold(raw: str) -> Threshold:

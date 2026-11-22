@@ -76,6 +76,11 @@ class APISettings(BaseSettings):
     # Default scan root for the Studio ensemble-database picker
     ensembles_root: Path = Field(default_factory=lambda: Path("var/ensembles"))
 
+    # Optimizer runs started through the API write only under this root
+    optimizer_runs_root: Path = Field(
+        default_factory=lambda: Path("var/optimizer_runs")
+    )
+
     # Git remote sync policy (SSRF / outbound-network control)
     # Allowed URL schemes for sync remotes; widen only deliberately.
     git_remote_allowed_schemes: List[str] = ["https", "ssh"]
@@ -125,6 +130,12 @@ class APISettings(BaseSettings):
         if self.host in _WILDCARD_BIND_HOSTS or self.host in self.allowed_hosts:
             return list(self.allowed_hosts)
         return [*self.allowed_hosts, self.host]
+
+    @property
+    def ensemble_roots(self) -> List[Path]:
+        """Where API callers may read ensemble databases: the picker root, and
+        workspaces, where Studio ensemble jobs write their databases."""
+        return [self.ensembles_root, self.workspaces_root]
 
     @model_validator(mode="after")
     def validate_network_security(self) -> "APISettings":

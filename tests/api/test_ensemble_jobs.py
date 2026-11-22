@@ -140,9 +140,14 @@ def harness(tmp_path) -> Harness:
 
 @pytest.fixture
 def client(harness) -> Iterator[TestClient]:
+    settings = APISettings(
+        workspaces_root=harness.storage.workspaces_root,
+        ensembles_root=harness.storage.workspaces_root.parent / "ensembles",
+    )
     app = FastAPI()
     app.include_router(ensembles.router, prefix="/api")
     app.dependency_overrides[ensembles.get_ensemble_job_service] = harness.service
+    app.dependency_overrides[ensembles.get_settings] = lambda: settings
     with TestClient(app) as test_client:
         yield test_client
 
