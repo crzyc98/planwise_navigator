@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A scenario can now set promotion raises to "deterministic", so every promoted employee gets exactly the configured raise with no random spread. This documented option was previously rejected as invalid.
 - Studio now rejects a scenario or plan design id with unsupported characters, an unknown auto-enrollment scope or match template, or a census path outside the workspaces folder when you save or start a run, instead of failing partway through the run.
 - Imported workspaces now only use data files stored inside the workspace, and archive imports reject entries with unsafe paths or links.
 - The census tie-out no longer counts impossible employer match or core dollars in the census total (#1262). A census row whose match or core amount is negative, or above that person's gross pay, is left out of the "Employer match" or "Employer core" census value, and the row's message says how many rows were left out. These are the same rows Census Analysis flags as impossible. Tie-outs for censuses without such rows are unchanged.
