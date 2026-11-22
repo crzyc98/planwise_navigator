@@ -16,6 +16,11 @@ import warnings
 import duckdb
 import pytest
 
+# Starlette's TestClient sends Host "testserver"; allow it for tests only.
+# Set at import time so child conftest modules (e.g. tests/api/conftest.py)
+# see it before planalign_api.config instantiates module-level settings.
+os.environ["PLANALIGN_API_ALLOWED_HOSTS"] = "localhost,127.0.0.1,::1,testserver"
+
 from scripts import ci_policy as _ci_policy
 
 # Register fixtures here for pytest auto-discovery so individual test modules
@@ -67,8 +72,6 @@ def shared_dev_database_guard() -> Iterator[FileSignature]:
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     # Markers are defined in pyproject.toml
-    # Starlette's TestClient sends Host "testserver"; allow it for tests only.
-    os.environ["PLANALIGN_API_ALLOWED_HOSTS"] = "localhost,127.0.0.1,::1,testserver"
     if os.environ.get("PYTEST_XDIST_WORKER"):
         _default_duckdb_to_one_thread()
 

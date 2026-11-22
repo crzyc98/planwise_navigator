@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from starlette.testclient import WebSocketDenialResponse
+from starlette.types import Message, Receive, Scope, Send
 
 import planalign_api.config as api_config
-from planalign_api.trusted_hosts import normalize_host
+from planalign_api.trusted_hosts import TrustedHostMiddleware, normalize_host
 
 pytestmark = [pytest.mark.fast]
 
@@ -22,7 +25,15 @@ def default_hosts_client(client_factory, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "host", ["localhost", "localhost:8000", "127.0.0.1:5173", "[::1]:8000"]
+    "host",
+    [
+        "localhost",
+        "localhost:8000",
+        "127.0.0.1",
+        "127.0.0.1:5173",
+        "[::1]",
+        "[::1]:8000",
+    ],
 )
 def test_loopback_hosts_are_accepted(default_hosts_client, host: str) -> None:
     response = default_hosts_client.get("/api/health", headers={"Host": host})
@@ -30,11 +41,15 @@ def test_loopback_hosts_are_accepted(default_hosts_client, host: str) -> None:
     assert response.status_code == 200
 
 
-@pytest.mark.parametrize("host", ["evil.example", "evil.example:8000", "testserver"])
+@pytest.mark.parametrize(
+    "host", ["evil.example", "evil.example:8000", "testserver", "localhost:abc"]
+)
 def test_unlisted_hosts_are_rejected(default_hosts_client, host: str) -> None:
     response = default_hosts_client.get("/api/health", headers={"Host": host})
 
     assert response.status_code == 400
+    assert response.text == "Invalid host header"
+    assert host not in response.text
 
 
 def test_allowed_hosts_env_replaces_the_defaults(client_factory, monkeypatch) -> None:
@@ -51,7 +66,9 @@ def test_allowed_hosts_env_replaces_the_defaults(client_factory, monkeypatch) ->
     assert status("evil.example") == 400
 
 
-@pytest.mark.parametrize("value", ["", " , ", "*", "*.corp.example"])
+@pytest.mark.parametrize(
+    "value", ["", " , ", "*", "*.corp.example", "[::1", ":8000", "localhost:abc"]
+)
 def test_empty_or_wildcard_allowed_hosts_are_rejected(monkeypatch, value: str) -> None:
     monkeypatch.setenv("PLANALIGN_API_ALLOWED_HOSTS", value)
 
@@ -99,8 +116,42 @@ def test_websocket_with_loopback_host_connects(default_hosts_client) -> None:
         ("[::1", ""),
         ("[::1]evil.example", ""),
         ("[::1]:80:80", ""),
+        ("localhost:abc", ""),
+        ("localhost:", ""),
+        (":8000", ""),
         ("", ""),
     ],
 )
 def test_normalize_host(raw: str, expected: str) -> None:
     assert normalize_host(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [],
+        [(b"host", b"localhost"), (b"host", b"evil.example")],
+    ],
+)
+def test_missing_or_duplicate_host_headers_are_rejected(
+    headers: list[tuple[bytes, bytes]],
+) -> None:
+    sent: list[Message] = []
+
+    async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+        raise AssertionError("inner app should not be called")
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b""}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    middleware = TrustedHostMiddleware(inner, allowed_hosts=["localhost", "[::1"])
+    scope: Scope = {"type": "http", "headers": headers}
+
+    asyncio.run(middleware(scope, receive, send))
+
+    assert sent[0]["type"] == "http.response.start"
+    assert sent[0]["status"] == 400
+    assert sent[1]["body"] == b"Invalid host header"
