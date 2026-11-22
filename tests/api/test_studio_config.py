@@ -217,3 +217,175 @@ def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path)
     merged = service.get_merged_config(workspace.id, created.id)
     loaded = AcquisitionSettings.model_validate(merged["workforce"]["acquisitions"][0])
     assert loaded.model_dump(mode="json", exclude_none=True) == acquisition
+
+
+@pytest.mark.parametrize("field", ["scenario_id", "plan_design_id", "SCENARIO_ID"])
+@pytest.mark.parametrize("bad_value", ["o'brien", "plan;drop", "   ", " lead", 123])
+def test_api_rejects_invalid_identifiers_in_overrides_and_base_config(
+    client_factory, field: str, bad_value: object
+) -> None:
+    headers = {"Authorization": "Bearer secret"}
+    client = client_factory("secret")
+
+    ws_create = client.post(
+        "/api/workspaces",
+        json={"name": "Bad WS", "base_config": {field: bad_value}},
+        headers=headers,
+    )
+    assert ws_create.status_code == 422
+
+    ws_ok = client.post("/api/workspaces", json={"name": "Good WS"}, headers=headers)
+    assert ws_ok.status_code == 201
+    workspace_id = ws_ok.json()["id"]
+
+    ws_update = client.put(
+        f"/api/workspaces/{workspace_id}",
+        json={"base_config": {field: bad_value}},
+        headers=headers,
+    )
+    assert ws_update.status_code == 422
+
+    sc_create = client.post(
+        f"/api/workspaces/{workspace_id}/scenarios",
+        json={"name": "Bad Scenario", "config_overrides": {field: bad_value}},
+        headers=headers,
+    )
+    assert sc_create.status_code == 422
+
+    sc_ok = client.post(
+        f"/api/workspaces/{workspace_id}/scenarios",
+        json={"name": "Good Scenario", "config_overrides": {}},
+        headers=headers,
+    )
+    assert sc_ok.status_code == 201
+    scenario_id = sc_ok.json()["id"]
+
+    sc_update = client.put(
+        f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
+        json={"config_overrides": {field: bad_value}},
+        headers=headers,
+    )
+    assert sc_update.status_code == 422
+
+
+def test_api_accepts_valid_identifiers_and_rejects_invalid_scopes(
+    client_factory,
+) -> None:
+    headers = {"Authorization": "Bearer secret"}
+    client = client_factory("secret")
+
+    ws_resp = client.post(
+        "/api/workspaces",
+        json={
+            "name": "Valid WS",
+            "base_config": {
+                "scenario_id": "baseline_v1.0",
+                "plan_design_id": "standard-401k",
+                "simulation": {"start_year": 2026, "end_year": 2028},
+            },
+        },
+        headers=headers,
+    )
+    assert ws_resp.status_code == 201
+    workspace_id = ws_resp.json()["id"]
+
+    sc_resp = client.post(
+        f"/api/workspaces/{workspace_id}/scenarios",
+        json={
+            "name": "Valid Scenario",
+            "config_overrides": {
+                "scenario_id": "alt-design.1",
+                "plan_design_id": "enhanced_401k",
+                "dc_plan": {"auto_enroll_scope": "all_eligible"},
+            },
+        },
+        headers=headers,
+    )
+    assert sc_resp.status_code == 201
+
+    bad_scope = client.post(
+        f"/api/workspaces/{workspace_id}/scenarios",
+        json={
+            "name": "Bad Scope",
+            "config_overrides": {"dc_plan": {"auto_enroll_scope": "bad'scope"}},
+        },
+        headers=headers,
+    )
+    assert bad_scope.status_code == 422
+
+    bad_nested_scope = client.put(
+        f"/api/workspaces/{workspace_id}",
+        json={
+            "base_config": {"enrollment": {"auto_enrollment": {"scope": "bad'scope"}}}
+        },
+        headers=headers,
+    )
+    assert bad_nested_scope.status_code == 422
+
+
+def test_api_rejects_invalid_nested_plan_design_ids(client_factory) -> None:
+    headers = {"Authorization": "Bearer secret"}
+    client = client_factory("secret")
+    ws_id = client.post("/api/workspaces", json={"name": "WS"}, headers=headers).json()[
+        "id"
+    ]
+
+    bad_assignment = client.post(
+        f"/api/workspaces/{ws_id}/scenarios",
+        json={
+            "name": "Bad Assignment",
+            "config_overrides": {
+                "plan_design_assignment": {
+                    "default_plan_design_id": "legacy",
+                    "rules": [
+                        {
+                            "type": "hire_date_cutoff",
+                            "cutoff": "2026-01-01",
+                            "plan_design_id": "bad'design",
+                        }
+                    ],
+                }
+            },
+        },
+        headers=headers,
+    )
+    assert bad_assignment.status_code == 422
+
+    bad_params = client.post(
+        f"/api/workspaces/{ws_id}/scenarios",
+        json={
+            "name": "Bad Params",
+            "config_overrides": {
+                "plan_design_parameters": {"bad;design": {"eligibility": {}}}
+            },
+        },
+        headers=headers,
+    )
+    assert bad_params.status_code == 422
+
+
+def test_simulation_start_rejects_tampered_stored_identifier_with_422(
+    client_factory, tmp_path
+) -> None:
+    import yaml
+
+    headers = {"Authorization": "Bearer secret"}
+    client = client_factory("secret")
+    ws_id = client.post("/api/workspaces", json={"name": "WS"}, headers=headers).json()[
+        "id"
+    ]
+    sc_id = client.post(
+        f"/api/workspaces/{ws_id}/scenarios",
+        json={"name": "Scenario", "config_overrides": {}},
+        headers=headers,
+    ).json()["id"]
+
+    # Simulate an existing on-disk config containing an invalid identifier.
+    base_cfg_path = tmp_path / "workspaces" / ws_id / "base_config.yaml"
+    raw = yaml.safe_load(base_cfg_path.read_text(encoding="utf-8"))
+    raw["scenario_id"] = "bad'id"
+    base_cfg_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    resp = client.post(f"/api/scenarios/{sc_id}/run", headers=headers)
+    assert resp.status_code == 422
+    assert "invalid identifier" in resp.json()["detail"]

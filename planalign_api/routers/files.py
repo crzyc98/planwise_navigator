@@ -31,6 +31,7 @@ from ..services.census_activation import activate_census, prefill_as_of
 from ..services.census_as_of import suggest_census_as_of_date
 from ..services.file_service import FileService
 from ..services.import_service import ImportService
+from ..services.sql_security import SQLSecurityError
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -511,6 +512,8 @@ def solve_compensation_growth(
                     )
                     for d in distributions
                 ]
+            except SQLSecurityError:
+                raise
             except Exception:
                 level_dist = None
         else:
@@ -546,6 +549,12 @@ def solve_compensation_growth(
             warnings=result.warnings,
         )
 
+    except SQLSecurityError as e:
+        logger.warning("Rejected invalid census path in compensation solver: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid census file path",
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

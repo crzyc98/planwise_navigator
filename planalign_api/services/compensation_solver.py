@@ -23,6 +23,7 @@ from typing import List, Optional, Tuple
 import duckdb
 
 from .census_schema import active_filter_sql
+from .sql_security import SQLSecurityError, validate_file_path_for_sql
 
 logger = logging.getLogger(__name__)
 
@@ -139,28 +140,37 @@ class CompensationSolver:
         Returns:
             Tuple of (level_distributions, avg_compensation, total_headcount)
         """
-        # Resolve the file path
-        if file_path.startswith("data/"):
-            full_path = self.workspaces_root / workspace_id / file_path
-        else:
-            full_path = Path(file_path)
+        if "\x00" in file_path:
+            raise SQLSecurityError("Invalid census path: contains null byte")
 
-        if not full_path.exists():
-            raise ValueError(f"Census file not found: {full_path}")
+        # Resolve relative paths against the workspace and enforce root containment
+        candidate = Path(file_path)
+        full_path = (
+            candidate
+            if candidate.is_absolute()
+            else self.workspaces_root / workspace_id / candidate
+        )
+        safe_path = validate_file_path_for_sql(
+            full_path, [self.workspaces_root], context="census"
+        )
+        resolved_path = Path(safe_path)
+
+        if not resolved_path.exists():
+            raise ValueError(f"Census file not found: {file_path}")
 
         # Use DuckDB to read census data
         conn = duckdb.connect(":memory:")
 
         # Read census data based on file type
-        if full_path.suffix == ".parquet":
+        if resolved_path.suffix.lower() == ".parquet":
             conn.execute(
                 "CREATE TABLE census AS SELECT * FROM read_parquet(?)",
-                [str(full_path)],
+                [safe_path],
             )
         else:
             conn.execute(
                 "CREATE TABLE census AS SELECT * FROM read_csv_auto(?, header=true)",
-                [str(full_path)],
+                [safe_path],
             )
 
         # Get column names (normalized to lowercase)
@@ -588,6 +598,8 @@ class CompensationSolver:
             distributions, avg_comp, headcount = self.analyze_workforce_for_solver(
                 workspace_id, file_path
             )
+        except SQLSecurityError:
+            raise
         except Exception as e:
             logger.warning(f"Could not analyze census: {e}. Using defaults.")
             distributions = None
