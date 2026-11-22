@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Studio now refuses a workspace or scenario link with a malformed name instead of reading or saving files outside that workspace, and a census upload to a workspace that does not exist is refused instead of creating an empty folder.
 - Imported workspaces now only use data files stored inside the workspace, and archive imports reject entries with unsafe paths or links.
 - The census tie-out no longer counts impossible employer match or core dollars in the census total (#1262). A census row whose match or core amount is negative, or above that person's gross pay, is left out of the "Employer match" or "Employer core" census value, and the row's message says how many rows were left out. These are the same rows Census Analysis flags as impossible. Tie-outs for censuses without such rows are unchanged.
 - A census row marked inactive with no termination date no longer starts the simulation as a current employee (#1249). It gets the census plan-year end as an imputed termination date, so the starting headcount matches Census Analysis, and the run shows one warning with the number of rows and the date used. Censuses whose active flags and termination dates agree give the same results as before.

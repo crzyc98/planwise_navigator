@@ -70,6 +70,11 @@ from .routers.census_rollforward import router as census_rollforward_router
 from .routers.census_guide import router as census_guide_router
 from .websocket.handlers import simulation_websocket, batch_websocket
 from .services.current_result import CurrentResultIntegrityError
+from .services.path_guard import (
+    PathGuardError,
+    ProtectedPathError,
+    require_safe_path_component,
+)
 from .services.scenario_read_warning import (
     RUN_CONSISTENCY_HEADERS,
     ScenarioReadRef,
@@ -149,6 +154,20 @@ SCENARIO_READ_ROUTES = {
     "list_ensemble_jobs",
     "get_ensemble_cost_ranges",
 }
+
+
+_PATH_ID_PARAMS = ("workspace_id", "scenario_id")
+
+
+def require_safe_path_ids(request: Request) -> None:
+    """Reject a malformed workspace or scenario id before a route touches disk.
+
+    Raises PathGuardError, which the app maps to 400 in one handler.
+    """
+    for name in _PATH_ID_PARAMS:
+        value = request.path_params.get(name)
+        if value is not None:
+            require_safe_path_component(value, label=name)
 
 
 def _find_workspace(storage: WorkspaceStorage, scenario_id: str) -> str | None:
@@ -298,6 +317,9 @@ def create_app() -> FastAPI:
             headers = build_scenario_read_headers(
                 storage, _scenario_refs(request, storage)
             )
+        except (PathGuardError, ProtectedPathError):
+            # A malformed id was already answered with 400/404 by the route.
+            return response
         except CurrentResultIntegrityError:
             # The pointer content is internal; never echo the exception text.
             sanitize_error(
@@ -312,6 +334,30 @@ def create_app() -> FastAPI:
         for name, value in headers.items():
             response.headers[name] = value
         return response
+
+    @app.exception_handler(PathGuardError)
+    async def path_guard_exception_handler(
+        request: Request, exc: PathGuardError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(ProtectedPathError)
+    async def protected_path_exception_handler(
+        request: Request, exc: ProtectedPathError
+    ) -> JSONResponse:
+        logging.getLogger(__name__).warning(
+            "Refused protected path on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+        )
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Resource not found"},
+        )
 
     # Safety net for unhandled exceptions: full details stay in structured
     # server logs; callers only ever see a stable message plus a correlation ID.
@@ -337,7 +383,10 @@ def create_app() -> FastAPI:
     # endpoints declare require_api_token directly because they expose system data.
     app.include_router(system_router, prefix="/api", tags=["System"])
     app.include_router(artifact_downloads_router, prefix="/api", tags=["Simulations"])
-    protected_dependencies = [Depends(require_api_token)]
+    protected_dependencies = [
+        Depends(require_api_token),
+        Depends(require_safe_path_ids),
+    ]
     app.include_router(
         workspaces_router,
         prefix="/api/workspaces",
