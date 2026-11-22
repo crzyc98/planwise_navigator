@@ -10,10 +10,11 @@ import hashlib
 import json
 import logging
 import shutil
+import stat
 import tempfile
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional, Tuple
 
 import py7zr
@@ -33,6 +34,7 @@ from ..models.export import (
     ImportValidationResponse,
     ManifestContents,
 )
+from .import_service import sanitize_parquet_index
 from .path_guard import PathGuardError, ProtectedPathError
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -57,6 +59,50 @@ class ExportWorkspaceNotFoundError(ValueError):
 
 class ExportWorkspaceRunningError(ValueError):
     """Raised when export is blocked by an active workspace simulation."""
+
+
+def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> None:
+    """Reject absolute paths, drive prefixes, and parent-directory traversal."""
+    if not name or "\x00" in name:
+        raise ValueError("Archive contains an empty or invalid member path")
+    if (
+        name.startswith(("/", "\\"))
+        or PurePosixPath(name).is_absolute()
+        or PureWindowsPath(name).is_absolute()
+        or bool(PureWindowsPath(name).drive)
+    ):
+        raise ValueError(f"Archive contains disallowed absolute path: {name!r}")
+    normalized = name.replace("\\", "/")
+    parts = [part for part in normalized.split("/") if part]
+    if any(part == ".." for part in parts):
+        raise ValueError(f"Archive contains disallowed parent traversal: {name!r}")
+    if output_root is not None:
+        destination = (output_root / PurePosixPath(*parts)).resolve()
+        if not destination.is_relative_to(output_root):
+            raise ValueError(f"Archive member escapes target directory: {name!r}")
+
+
+def _validate_archive_members(
+    archive: py7zr.SevenZipFile, output_root: Optional[Path] = None
+) -> None:
+    """Reject archive members with unsafe paths or non-regular link/special types."""
+    for member in archive.files:
+        _validate_archive_member_path(member.filename, output_root)
+        st_fmt = getattr(member, "st_fmt", None)
+        is_special_fmt = st_fmt is not None and st_fmt not in (
+            stat.S_IFREG,
+            stat.S_IFDIR,
+        )
+        if (
+            member.is_symlink
+            or getattr(member, "is_junction", False)
+            or getattr(member, "is_socket", False)
+            or is_special_fmt
+            or not (member.is_file or member.is_directory)
+        ):
+            raise ValueError(
+                f"Archive contains disallowed link or special entry: {member.filename!r}"
+            )
 
 
 class ExportService:
@@ -247,9 +293,17 @@ class ExportService:
             ValueError: If archive is invalid or missing manifest
         """
         output_path.mkdir(parents=True, exist_ok=True)
+        resolved_output = output_path.resolve()
 
         with py7zr.SevenZipFile(archive_path, "r") as archive:
+            _validate_archive_members(archive, resolved_output)
             archive.extractall(path=output_path)
+
+        for extracted in output_path.rglob("*"):
+            if extracted.is_symlink():
+                raise ValueError(
+                    f"Archive contains disallowed symbolic link: {extracted.name!r}"
+                )
 
         # Read and parse manifest
         manifest_path = output_path / "manifest.json"
@@ -337,9 +391,13 @@ class ExportService:
 
             try:
                 with py7zr.SevenZipFile(archive_path, "r") as archive:
+                    _validate_archive_members(archive)
                     archive.extract(path=temp_path, targets=["manifest.json"])
             except py7zr.exceptions.Bad7zFile:
                 errors.append("Invalid or corrupted 7z archive")
+                return None
+            except ValueError as exc:
+                errors.append(str(exc))
                 return None
 
             manifest_path = temp_path / "manifest.json"
@@ -623,6 +681,15 @@ class ExportService:
 
             with open(workspace_json_path, "w") as f:
                 json.dump(workspace_data, f, indent=2)
+
+            # Keep imported file records inside the new workspace
+            dropped_records = sanitize_parquet_index(
+                new_workspace_path, new_workspace_id
+            )
+            if dropped_records > 0:
+                warnings.append(
+                    f"Skipped {dropped_records} imported file record(s) outside the workspace"
+                )
 
             # Count scenarios
             scenario_count = self._count_scenarios(new_workspace_path)
