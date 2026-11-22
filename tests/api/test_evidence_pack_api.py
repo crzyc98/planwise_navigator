@@ -45,11 +45,13 @@ def test_api_maps_missing_year_and_scenario(client_factory, tmp_path) -> None:
 
 def test_api_route_uses_existing_auth(client_factory, tmp_path) -> None:
     scenario = create_evidence_scenario(tmp_path)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
     url = f"/api/workspaces/{scenario.workspace_id}/scenarios/{scenario.scenario_id}/evidence-pack"
     params = {"metric": "active_headcount", "base_year": 2025, "target_year": 2027}
     assert client.get(url, params=params).status_code == 401
     assert (
-        client.get(url, params=params, headers={"X-API-Token": "secret"}).status_code
+        client.get(
+            url, params=params, headers={"X-API-Token": "test-api-secret-token"}
+        ).status_code
         == 200
     )

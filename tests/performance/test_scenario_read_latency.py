@@ -44,7 +44,7 @@ def test_idle_and_active_scenario_reads_have_sub_two_second_p95(tmp_path, monkey
         json.dumps({"run_id": run_id, "status": "completed"})
     )
     storage.publish_current_result(workspace.id, scenario.id, run_id)
-    monkeypatch.setenv("PLANALIGN_API_TOKEN", "secret")
+    monkeypatch.setenv("PLANALIGN_API_TOKEN", "test-api-secret-token")
     monkeypatch.setattr(
         api_config,
         "settings",
@@ -52,7 +52,7 @@ def test_idle_and_active_scenario_reads_have_sub_two_second_p95(tmp_path, monkey
     )
     client = TestClient(create_app())
     path = f"/api/workspaces/{workspace.id}/scenarios/{scenario.id}"
-    headers = {"Authorization": "Bearer secret"}
+    headers = {"Authorization": "Bearer test-api-secret-token"}
 
     idle_p95 = _measure(client, path, headers)
     storage.update_scenario_status(

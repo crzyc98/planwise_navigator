@@ -224,8 +224,8 @@ def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path)
 def test_api_rejects_invalid_identifiers_in_overrides_and_base_config(
     client_factory, field: str, bad_value: object
 ) -> None:
-    headers = {"Authorization": "Bearer secret"}
-    client = client_factory("secret")
+    headers = {"Authorization": "Bearer test-api-secret-token"}
+    client = client_factory("test-api-secret-token")
 
     ws_create = client.post(
         "/api/workspaces",
@@ -271,8 +271,8 @@ def test_api_rejects_invalid_identifiers_in_overrides_and_base_config(
 def test_api_accepts_valid_identifiers_and_rejects_invalid_scopes(
     client_factory,
 ) -> None:
-    headers = {"Authorization": "Bearer secret"}
-    client = client_factory("secret")
+    headers = {"Authorization": "Bearer test-api-secret-token"}
+    client = client_factory("test-api-secret-token")
 
     ws_resp = client.post(
         "/api/workspaces",
@@ -324,8 +324,8 @@ def test_api_accepts_valid_identifiers_and_rejects_invalid_scopes(
 
 
 def test_api_rejects_invalid_nested_plan_design_ids(client_factory) -> None:
-    headers = {"Authorization": "Bearer secret"}
-    client = client_factory("secret")
+    headers = {"Authorization": "Bearer test-api-secret-token"}
+    client = client_factory("test-api-secret-token")
     ws_id = client.post("/api/workspaces", json={"name": "WS"}, headers=headers).json()[
         "id"
     ]
@@ -369,8 +369,8 @@ def test_simulation_start_rejects_tampered_stored_identifier_with_422(
 ) -> None:
     import yaml
 
-    headers = {"Authorization": "Bearer secret"}
-    client = client_factory("secret")
+    headers = {"Authorization": "Bearer test-api-secret-token"}
+    client = client_factory("test-api-secret-token")
     ws_id = client.post("/api/workspaces", json={"name": "WS"}, headers=headers).json()[
         "id"
     ]

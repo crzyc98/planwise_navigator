@@ -74,7 +74,7 @@ def test_route_table_enumeration_is_nonempty_and_covers_known_routers() -> None:
 def test_every_route_rejects_missing_token_when_token_configured(
     client_factory,
 ) -> None:
-    client = client_factory("shared-secret", raise_server_exceptions=False)
+    client = client_factory("test-shared-secret-token", raise_server_exceptions=False)
 
     unprotected = [
         (path, method)
@@ -93,8 +93,8 @@ def test_every_route_rejects_missing_token_when_token_configured(
 def test_every_route_accepts_valid_token_when_token_configured(
     client_factory,
 ) -> None:
-    client = client_factory("shared-secret", raise_server_exceptions=False)
-    headers = {"Authorization": "Bearer shared-secret"}
+    client = client_factory("test-shared-secret-token", raise_server_exceptions=False)
+    headers = {"Authorization": "Bearer test-shared-secret-token"}
 
     falsely_rejected = [
         (path, method)

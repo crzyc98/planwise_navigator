@@ -34,16 +34,16 @@ def test_batch_uses_service_outcome_and_distinct_run_databases(
     assert successful and failed
     RecordingSimulationService.run_directories = []
     monkeypatch.setattr(batch_router, "SimulationService", RecordingSimulationService)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     created = client.post(
         f"/api/workspaces/{workspace.id}/run-all",
         json={"scenario_ids": [successful.id, failed.id]},
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
     status = client.get(
         f"/api/batches/{created.json()['id']}/status",
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
 
     assert status.status_code == 200
