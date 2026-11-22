@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A scenario can now set promotion raises to "deterministic", so every promoted employee gets exactly the configured raise with no random spread. This documented option was previously rejected as invalid.
 - The compensation growth solver only reads a census stored inside the workspaces folder, and a census upload keeps its original file under a fixed name, so an unusual filename can no longer affect where it is saved.
 - Studio now rejects a scenario or plan design id with unsupported characters, an unknown auto-enrollment scope or match template, or a census path outside the workspaces folder when you save or start a run, instead of failing partway through the run.
 - Imported workspaces now only use data files stored inside the workspace, and archive imports reject entries with unsafe paths or links.

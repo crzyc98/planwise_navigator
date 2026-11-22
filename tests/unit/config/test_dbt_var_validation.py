@@ -73,6 +73,27 @@ def test_plan_minimum_age_is_capped_at_21(age: int, ok: bool) -> None:
     assert (validate_dbt_vars({"minimum_age": age}) == []) is ok
 
 
+@pytest.mark.parametrize(
+    ("value", "ok"),
+    [
+        ("uniform", True),
+        ("normal", True),
+        ("deterministic", True),
+        ("custom'type", False),
+        ("gaussian", False),
+        ("", False),
+        (123, False),
+    ],
+)
+def test_promotion_distribution_type_validation(value: object, ok: bool) -> None:
+    problems = validate_dbt_vars({"promotion_distribution_type": value})
+    assert (problems == []) is ok
+    if not ok:
+        assert [problem["field"] for problem in problems] == [
+            "promotion_distribution_type"
+        ]
+
+
 def test_simulation_rejects_invalid_export_before_dbt(tmp_path):
     payload = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
     payload.setdefault("setup", {})["plan_year_start_date"] = "2025-02-30"

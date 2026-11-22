@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 from datetime import date
-from typing import Any, Mapping, TypedDict
+from typing import Any, Mapping, TypedDict, get_args
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -18,6 +18,7 @@ from .participant_behavior import (
     EasyEnrollSettings,
 )
 from .plan_design import check_identifier
+from .simulation import PromotionDistributionType
 
 # Plans may require age 21 at most, so no simulated hire is ever too young to
 # be eligible. Census employees are trusted as given, whatever their age (#1040).
@@ -142,7 +143,7 @@ ENUM_VARS = {
     "match_template": frozenset({"simple", "tiered", "stretch", "safe_harbor", "qaca"}),
     "deferral_escalation_mode": frozenset({"automatic", "participant_elected"}),
     "auto_enrollment_scope": frozenset({"all_eligible_employees", "new_hires_only"}),
-    "promotion_distribution_type": frozenset({"uniform", "normal"}),
+    "promotion_distribution_type": frozenset(get_args(PromotionDistributionType)),
     "employer_match_status": frozenset(
         {
             "deferral_based",
