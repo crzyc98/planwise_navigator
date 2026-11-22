@@ -173,11 +173,20 @@ class FileService:
         )
 
     def _resolve_workspace_file_path(self, workspace_id: str, file_path: str) -> Path:
-        """Validate workspace_id and resolve a workspace-relative or absolute path."""
+        """Validate workspace_id, resolve file_path, and enforce workspaces_root containment."""
         workspace_dir = self._workspace_path(workspace_id)
-        if file_path.startswith("/"):
-            return Path(file_path)
-        return workspace_dir / file_path
+        if "\x00" in file_path:
+            raise SQLSecurityError("Invalid census file path")
+        raw_path = Path(file_path)
+        candidate = raw_path if raw_path.is_absolute() else workspace_dir / raw_path
+        try:
+            resolved = candidate.resolve()
+            allowed_root = self.workspaces_root.resolve()
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise SQLSecurityError("Invalid census file path") from exc
+        if not resolved.is_relative_to(allowed_root):
+            raise SQLSecurityError("Invalid census file path")
+        return resolved
 
     def _get_data_directory(self, workspace_id: str) -> Path:
         """Get the data directory for a workspace."""
@@ -1023,19 +1032,16 @@ class FileService:
         Returns:
             Dict with age distribution buckets and weights
         """
-        # Resolve path
+        # Resolve and check containment before touching the filesystem
         resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
         # Validate file path for SQL safety
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as e:
-            raise ValueError(str(e))
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         # Read the file using DuckDB
         suffix = resolved.suffix.lower()
@@ -1240,12 +1246,9 @@ class FileService:
             raise ValueError(f"File not found: {file_path}")
 
         # Validate file path for SQL safety
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as e:
-            raise ValueError(str(e))
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         suffix = resolved.suffix.lower()
         if suffix == ".parquet":
@@ -1384,19 +1387,16 @@ class FileService:
             lookback_years, min_val=0, max_val=50, context="lookback_years"
         )
 
-        # Resolve path
+        # Resolve and check containment before touching the filesystem
         resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
         # Validate file path for SQL safety
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as e:
-            raise ValueError(str(e))
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         # Read the file using DuckDB
         suffix = resolved.suffix.lower()

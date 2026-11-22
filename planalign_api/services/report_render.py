@@ -12,6 +12,7 @@ import base64
 import io
 import math
 import os
+import re
 import sys
 from dataclasses import dataclass
 from html import escape
@@ -474,6 +475,9 @@ def _configure_macos_weasyprint_paths() -> None:
 # --------------------------------------------------------------------------
 # HTML
 # --------------------------------------------------------------------------
+_TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{\{ (title|body|trace) \}\}")
+
+
 def _html_table(table: ReportTable) -> str:
     note = f"<sup>{table.note}</sup>" if table.note else ""
     head = "".join(f"<th>{escape(cell)}</th>" for cell in table.header)
@@ -484,7 +488,8 @@ def _html_table(table: ReportTable) -> str:
     if not table.rows:
         body = f"<tr><td colspan='{len(table.header)}'>No results.</td></tr>"
     return (
-        f"<section class='{table.key}'><h2>{escape(table.title)}{note}</h2>"
+        f"<section class='{escape(table.key)}'>"
+        f"<h2>{escape(table.title)}{note}</h2>"
         f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></section>"
     )
 
@@ -492,7 +497,7 @@ def _html_table(table: ReportTable) -> str:
 def _html_list(items: list[str], css: str = "") -> str:
     if not items:
         return ""
-    cls = f" class='{css}'" if css else ""
+    cls = f" class='{escape(css)}'" if css else ""
     return f"<ul{cls}>" + "".join(f"<li>{escape(i)}</li>" for i in items) + "</ul>"
 
 
@@ -530,7 +535,7 @@ def _html_tie_out(report: ScenarioReport) -> str:
     header, *rows = tie_out_cells(tie_out)
     head = "".join(f"<th>{escape(cell)}</th>" for cell in header)
     body = "".join(
-        f"<tr class='tie-{row.status}'>"
+        f"<tr class='tie-{escape(row.status)}'>"
         + "".join(f"<td>{escape(cell)}</td>" for cell in cells)
         + "</tr>"
         for row, cells in zip(tie_out.rows, rows)
@@ -545,7 +550,8 @@ def _html_tie_out(report: ScenarioReport) -> str:
 
 def _html_appendix(report: ScenarioReport) -> str:
     warnings = "".join(
-        f"<li class='{w.severity}'>{escape(w.message)}</li>" for w in report.warnings
+        f"<li class='{escape(w.severity)}'>{escape(w.message)}</li>"
+        for w in report.warnings
     )
     return (
         "<section class='appendix'><h2>Appendix: provenance</h2>"
@@ -584,10 +590,13 @@ def _template(template_dir: Path | None) -> str:
 def render_html(report: ScenarioReport, template_dir: Path | None = None) -> str:
     """Fill the template's {{ title }}, {{ body }} and {{ trace }} placeholders."""
     template = _template(template_dir)
-    return (
-        template.replace("{{ title }}", escape(report.title))
-        .replace("{{ body }}", _html_body(report))
-        .replace("{{ trace }}", escape(trace_line(report)))
+    replacements = {
+        "title": escape(report.title),
+        "body": _html_body(report),
+        "trace": escape(trace_line(report)),
+    }
+    return _TEMPLATE_PLACEHOLDER_RE.sub(
+        lambda match: replacements[match.group(1)], template
     )
 
 
