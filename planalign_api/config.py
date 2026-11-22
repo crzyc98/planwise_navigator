@@ -8,6 +8,8 @@ from typing import Annotated, List
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode
 
+from .trusted_hosts import normalize_host
+
 logger = logging.getLogger(__name__)
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -98,13 +100,17 @@ class APISettings(BaseSettings):
     @field_validator("allowed_hosts")
     @classmethod
     def validate_allowed_hosts(cls, value: List[str]) -> List[str]:
-        """Require explicit host names; wildcards are not supported."""
+        """Require explicit, valid host names; wildcards are not supported."""
         if not value:
             raise ValueError("PLANALIGN_API_ALLOWED_HOSTS must list at least one host")
         if any("*" in host for host in value):
             raise ValueError(
                 "PLANALIGN_API_ALLOWED_HOSTS does not support wildcards; "
                 "list each host name explicitly"
+            )
+        if any(not normalize_host(host) for host in value):
+            raise ValueError(
+                "PLANALIGN_API_ALLOWED_HOSTS contains an invalid host entry"
             )
         return value
 
