@@ -764,7 +764,7 @@ def download_parquet_file(
     return FileResponse(
         path=str(storage_path),
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{pf.filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{storage_path.name}"'},
     )
 
 
@@ -785,7 +785,8 @@ def set_parquet_census_as_of_date(
     pf = service.set_census_as_of_date(workspace_id, file_id, request.census_as_of_date)
     if pf is None:
         raise HTTPException(status_code=404, detail="Parquet file not found")
-    if is_active_census(storage, workspace_id, pf.storage_path):
+    resolved = service.resolve_parquet_path(workspace_id, pf)
+    if resolved is not None and is_active_census(storage, workspace_id, str(resolved)):
         set_active_census_as_of(storage, workspace_id, pf.census_as_of_date)
     return pf
 
@@ -808,7 +809,8 @@ def delete_parquet_file(
         raise HTTPException(
             status_code=403, detail="Only the file creator can delete it"
         )
-    service.delete_parquet_file(workspace_id, file_id, user=x_user_id)
+    if not service.delete_parquet_file(workspace_id, file_id, user=x_user_id):
+        raise HTTPException(status_code=404, detail="Parquet file not found")
 
 
 # ---------------------------------------------------------------------------
