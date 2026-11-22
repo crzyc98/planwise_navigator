@@ -124,7 +124,7 @@
   --color-info-border: var(--studio-info-border);
   --color-info-solid: var(--studio-info-solid);
   --color-info-solid-hover: var(--studio-info-solid-hover);
-  --font-sans: 'Roboto', sans-serif;
+  --font-sans: 'Roboto Variable', 'Roboto', sans-serif;
 }
 
 html,
@@ -137,5 +137,5 @@ body {
   margin: 0;
   background-color: var(--studio-surface);
   color: var(--studio-ink);
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto Variable', 'Roboto', sans-serif;
 }
