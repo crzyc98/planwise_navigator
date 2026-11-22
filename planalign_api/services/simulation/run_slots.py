@@ -1,7 +1,7 @@
 """Limit how many heavy Studio jobs run at once across the API process.
 
 Every simulation, batch step, ensemble, census roll-forward, calibration,
-parameter fit/backtest, and optimizer run takes a slot before it starts, so
+backtest, and optimizer run takes a slot before it starts, so
 ``max_concurrent_simulations`` caps the whole API process across both asyncio
 tasks and worker threads. Jobs that cannot get a slot wait in FIFO order and
 stay ``queued`` until one frees up.
@@ -138,17 +138,17 @@ async def _acquire_async() -> None:
         raise
 
 
-def _claim_or_cancel_locked(
-    waiter: _ThreadWaiter,
-    is_cancelled: Optional[Callable[[], bool]],
-) -> bool:
-    with _lock:
-        if not waiter.granted:
-            return False
-        if is_cancelled is not None and is_cancelled():
-            _release_locked()
-            return False
-        return True
+def _claim_or_cancel(is_cancelled: Optional[Callable[[], bool]]) -> bool:
+    """Keep a granted slot unless the job was cancelled while it waited.
+
+    ``is_cancelled`` runs without ``_lock``: callers check it under their own
+    registry lock, and those registries call into this module while holding
+    it, so calling it under ``_lock`` could deadlock.
+    """
+    if is_cancelled is not None and is_cancelled():
+        _release()
+        return False
+    return True
 
 
 def _abort_thread_waiter(waiter: _ThreadWaiter) -> bool:
@@ -169,8 +169,9 @@ def _wait_for_thread_slot(
     timeout = poll_interval if is_cancelled is not None else None
     try:
         while True:
+            # The event is only set once this waiter has been granted a slot.
             if waiter.event.wait(timeout=timeout):
-                return _claim_or_cancel_locked(waiter, is_cancelled)
+                return _claim_or_cancel(is_cancelled)
             if is_cancelled is not None and is_cancelled():
                 return _abort_thread_waiter(waiter)
     except BaseException:
