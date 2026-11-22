@@ -34,6 +34,7 @@ from ..services.current_result import (
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.run_health import RunHealthReport
 from ..models.scenario import Scenario
+from ..models.studio_config import validate_studio_config_values
 from ..models.workspace import Workspace
 from ..models.census_tie_out import CensusTieOut
 from ..services.census_tie_out import CensusTieOutService
@@ -216,6 +217,13 @@ def start_simulation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to load scenario configuration",
         )
+    try:
+        validate_studio_config_values(config)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     # Create run record
     run_id = str(uuid.uuid4())

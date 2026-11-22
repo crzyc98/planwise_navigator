@@ -41,6 +41,7 @@ from ..models.calibration import CalibrationContext, CalibrationJob
 from ..services.calibration_jobs import get_job_runner, get_job_store
 from ..models.scenario import Scenario
 from ..services.current_result import CurrentResultIntegrityError
+from ..services.sql_security import SQLSecurityError
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.base import APIModel
 
@@ -168,7 +169,15 @@ def _canonical_census(
             status_code=409,
             detail="The target workspace has no uploaded census. Upload one before calibration.",
         )
-    resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
+    try:
+        resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
+    except SQLSecurityError as exc:
+        detail = (
+            "The configured census is not an uploaded artifact in the active workspace."
+            if "outside allowed" in str(exc)
+            else str(exc)
+        )
+        raise HTTPException(status_code=409, detail=detail) from exc
     if resolved is None or not resolved.is_file():
         raise HTTPException(
             status_code=409,

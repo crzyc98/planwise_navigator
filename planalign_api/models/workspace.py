@@ -4,8 +4,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from .base import APIModel
+from .studio_config import validate_studio_config_values
 
 WorkspaceLifecycle = Literal["active", "archived"]
 
@@ -21,6 +22,15 @@ class WorkspaceCreate(APIModel):
         None, description="Base configuration (uses defaults if not provided)"
     )
 
+    @field_validator("base_config")
+    @classmethod
+    def _validate_base_config(
+        cls, value: Optional[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        if value is not None:
+            validate_studio_config_values(value)
+        return value
+
 
 class WorkspaceUpdate(APIModel):
     """Request model for updating a workspace."""
@@ -29,6 +39,15 @@ class WorkspaceUpdate(APIModel):
     description: Optional[str] = Field(None, max_length=500)
     base_config: Optional[Dict[str, Any]] = None
     lifecycle: Optional[WorkspaceLifecycle] = None
+
+    @field_validator("base_config")
+    @classmethod
+    def _validate_base_config(
+        cls, value: Optional[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        if value is not None:
+            validate_studio_config_values(value)
+        return value
 
 
 class Workspace(APIModel):

@@ -42,6 +42,7 @@ from .simulation.run_execution import (
 )
 from .simulation.run_slots import simulation_slot
 from .simulation.subprocess_utils import create_subprocess, wait_subprocess
+from .sql_security import SQLSecurityError
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,11 @@ def census_status(storage: WorkspaceStorage, workspace_id: str) -> CensusStatus:
 
     config = _workspace_config(storage, workspace_id)
     start_year = int(config.get("simulation", {}).get("start_year", 2025))
-    census = _census_path(storage, workspace_id, config)
+    try:
+        census = _census_path(storage, workspace_id, config)
+    except SQLSecurityError as exc:
+        logger.warning("Rejected workspace census path for %s: %s", workspace_id, exc)
+        census = None
     census_year = None
     if census is not None:
         try:
@@ -183,7 +188,10 @@ async def _roll_forward(
 ) -> RollForwardSummary:
     """Run the roll-forward CLI in an isolated run directory."""
     config = _workspace_config(storage, job.workspace_id)
-    census = _census_path(storage, job.workspace_id, config)
+    try:
+        census = _census_path(storage, job.workspace_id, config)
+    except SQLSecurityError as exc:
+        raise RollForwardUnavailable(str(exc)) from exc
     if census is None:
         raise RollForwardUnavailable("The workspace has no census")
     config.setdefault("setup", {})["census_parquet_path"] = str(census)

@@ -17,6 +17,7 @@ from .participant_behavior import (
     DeferralChangeDecreaseMultipliers,
     EasyEnrollSettings,
 )
+from .plan_design import check_identifier
 
 # Plans may require age 21 at most, so no simulated hire is ever too young to
 # be eligible. Census employees are trusted as given, whatever their age (#1040).
@@ -31,6 +32,13 @@ class DbtVarProblem(TypedDict):
 
 # These are the exported vars used in SQL date casts, arithmetic, boolean
 # expressions, or fixed-string branches. Optional vars are checked if present.
+IDENTIFIER_VARS = frozenset(
+    {
+        "scenario_id",
+        "plan_design_id",
+        "parameter_scenario_id",
+    }
+)
 DATE_VARS = frozenset(
     {
         "auto_enrollment_hire_date_cutoff",
@@ -246,6 +254,22 @@ def new_hire_age_problem(value: Any) -> str | None:
     return None
 
 
+def _identifier_problem(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return "must be a valid identifier string"
+    try:
+        check_identifier(value)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _census_path_problem(value: Any) -> str | None:
+    if not isinstance(value, str) or "'" in value:
+        return "must be a path without a single quote"
+    return None
+
+
 def _month_day_problem(value: Any) -> str | None:
     message = "must be a month and day (MM-DD)"
     if not isinstance(value, str) or not re.fullmatch(r"\d{2}-\d{2}", value):
@@ -258,6 +282,10 @@ def _month_day_problem(value: Any) -> str | None:
 
 
 def _validate_scalar(field: str, value: Any) -> str | None:
+    if field in IDENTIFIER_VARS:
+        return _identifier_problem(value)
+    if field == "census_parquet_path":
+        return _census_path_problem(value)
     if field == "new_hire_age_distribution":
         return new_hire_age_problem(value)
     if field in {"minimum_age", "plan_eligibility_minimum_age"} and (

@@ -61,6 +61,9 @@ VALID_ALTERNATES: dict[str, dict[str, Any]] = {
         }
         for dim in ("age", "income")
     },
+    "compensation.promotion_compensation.distribution_type": {
+        "compensation.promotion_compensation.distribution_type": "normal"
+    },
     "enrollment.auto_enrollment.scope": {
         "enrollment.auto_enrollment.scope": "all_eligible_employees"
     },

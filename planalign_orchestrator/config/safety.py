@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .paths import get_database_path
 from .simulation import SimulationSettings, CompensationSettings
@@ -20,7 +20,11 @@ from .workforce import (
     EmployerMatchSettings,
 )
 from .performance import OptimizationSettings
-from .plan_design import PlanDesignAssignmentSettings, PlanDesignParametersMap
+from .plan_design import (
+    PlanDesignAssignmentSettings,
+    PlanDesignParametersMap,
+    check_identifier,
+)
 
 
 class ProductionSafetySettings(BaseModel):
@@ -95,6 +99,12 @@ class OrchestrationConfig(BaseModel):
     plan_design_id: Optional[str] = None
     plan_design_assignment: Optional[PlanDesignAssignmentSettings] = None
     plan_design_parameters: Optional[PlanDesignParametersMap] = None
+
+    @field_validator("scenario_id", "plan_design_id")
+    @classmethod
+    def validate_identifier(cls, value: Optional[str]) -> Optional[str]:
+        """Validate scenario and plan design identifiers; empty means default."""
+        return check_identifier(value) if value else value
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""

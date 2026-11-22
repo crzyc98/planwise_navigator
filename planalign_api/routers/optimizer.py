@@ -49,6 +49,8 @@ from planalign_orchestrator.config import SimulationConfig
 from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
 from ..models.scenario import Scenario, ScenarioCreate
+from ..services.simulation.run_execution import resolve_census_path
+from ..services.sql_security import SQLSecurityError
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.base import APIModel
 
@@ -270,12 +272,13 @@ def _workspace_baseline_path(
 
     setup = config.get("setup", {}) or {}
     census = setup.get("census_parquet_path")
-    if census and not Path(census).is_absolute():
-        candidate = storage._workspace_path(workspace_id) / census
-        if candidate.exists():
-            config.setdefault("setup", {})["census_parquet_path"] = str(
-                candidate.resolve()
-            )
+    if census:
+        try:
+            resolved = resolve_census_path(storage, str(census), workspace_id)
+        except SQLSecurityError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if resolved is not None:
+            config.setdefault("setup", {})["census_parquet_path"] = str(resolved)
 
     tmp = tempfile.NamedTemporaryFile(
         mode="w", suffix=".yaml", prefix="optimizer_baseline_", delete=False
