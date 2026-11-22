@@ -1398,3 +1398,110 @@ class TestFilenameNormalization:
         # Should have 2 rows from second upload
         assert metadata["row_count"] == 2
         assert metadata["original_filename"] == "second.csv"
+
+
+@pytest.mark.fast
+class TestCensusFilePathContainmentOrder:
+    """Census path endpoints check workspaces_root containment before filesystem checks."""
+
+    _ENDPOINTS = [
+        ("validate-path", {}),
+        ("set-census-path", {}),
+        ("analyze-age-distribution", {}),
+        ("analyze-part-time-pct", {}),
+        ("analyze-minimum-wage", {"steps": []}),
+        ("analyze-compensation-by-level", {"lookback_years": 4}),
+    ]
+
+    @staticmethod
+    def _seed_workspace_with_census(client, tmp_path: Path) -> tuple[str, Path]:
+        ws_resp = client.post("/api/workspaces", json={"name": "Containment WS"})
+        assert ws_resp.status_code == 201
+        workspace_id = ws_resp.json()["id"]
+        data_dir = tmp_path / "workspaces" / workspace_id / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        census_path = data_dir / "census.csv"
+        census_path.write_text(
+            "employee_id,employee_birth_date,employee_hire_date,"
+            "employee_gross_compensation,scheduled_hours_per_week,active\n"
+            "E001,1985-04-10,2020-01-15,75000,40,true\n"
+            "E002,1990-08-20,2021-06-01,85000,15,true\n",
+            encoding="utf-8",
+        )
+        return workspace_id, census_path
+
+    @pytest.mark.parametrize(("endpoint", "extra_payload"), _ENDPOINTS)
+    def test_outside_paths_return_identical_response_regardless_of_existence(
+        self,
+        client_factory,
+        tmp_path: Path,
+        endpoint: str,
+        extra_payload: dict,
+    ) -> None:
+        client = client_factory(None)
+        workspace_id, _ = self._seed_workspace_with_census(client, tmp_path)
+
+        outside_file = tmp_path / "outside_existing.csv"
+        outside_file.write_text("employee_id\nE1\n", encoding="utf-8")
+        outside_txt = tmp_path / "outside_notes.txt"
+        outside_txt.write_text("plain text", encoding="utf-8")
+        outside_dir = tmp_path / "outside_dir"
+        outside_dir.mkdir()
+        outside_missing = tmp_path / "outside_missing.csv"
+
+        link_escape = (
+            tmp_path / "workspaces" / workspace_id / "data" / "escape_link.csv"
+        )
+        link_escape.symlink_to(outside_file)
+
+        outside_cases = [
+            str(outside_file),
+            str(outside_txt),
+            str(outside_dir),
+            str(outside_missing),
+            "../../outside_existing.csv",
+            "data/escape_link.csv",
+        ]
+
+        url = f"/api/workspaces/{workspace_id}/{endpoint}"
+        responses = [
+            client.post(url, json={"file_path": candidate, **extra_payload})
+            for candidate in outside_cases
+        ]
+
+        first = responses[0]
+        assert first.status_code == 400
+        assert first.json() == {"detail": "Invalid census file path"}
+        for resp in responses:
+            assert resp.status_code == first.status_code
+            assert resp.json() == first.json()
+            assert str(tmp_path) not in resp.text
+
+    @pytest.mark.parametrize(("endpoint", "extra_payload"), _ENDPOINTS)
+    def test_inside_root_relative_and_absolute_paths_still_work(
+        self,
+        client_factory,
+        tmp_path: Path,
+        endpoint: str,
+        extra_payload: dict,
+    ) -> None:
+        client = client_factory(None)
+        workspace_id, census_path = self._seed_workspace_with_census(client, tmp_path)
+        url = f"/api/workspaces/{workspace_id}/{endpoint}"
+
+        for valid_path in ("data/census.csv", str(census_path.resolve())):
+            resp = client.post(url, json={"file_path": valid_path, **extra_payload})
+            assert resp.status_code == 200, (endpoint, valid_path, resp.text)
+
+        missing_resp = client.post(
+            url, json={"file_path": "data/does_not_exist.csv", **extra_payload}
+        )
+        if endpoint == "validate-path":
+            assert missing_resp.status_code == 200
+            body = missing_resp.json()
+            assert body["valid"] is False
+            assert body["exists"] is False
+            assert "File not found" in body["error_message"]
+        else:
+            assert missing_resp.status_code == 422
+            assert "File not found" in missing_resp.json()["detail"]

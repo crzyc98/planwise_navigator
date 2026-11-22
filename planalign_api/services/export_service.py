@@ -13,6 +13,7 @@ import shutil
 import stat
 import tempfile
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional, Tuple
@@ -61,6 +62,35 @@ class ExportWorkspaceRunningError(ValueError):
     """Raised when export is blocked by an active workspace simulation."""
 
 
+@dataclass(frozen=True)
+class _ArchiveLimits:
+    """Bounds on unpacked workspace import archive size and entry count."""
+
+    max_unpacked_bytes: int
+    max_member_bytes: int
+    max_member_count: int
+
+
+def _archive_limits(settings: APISettings) -> _ArchiveLimits:
+    """Build archive extraction limits from API settings."""
+    return _ArchiveLimits(
+        max_unpacked_bytes=settings.import_max_unpacked_bytes,
+        max_member_bytes=settings.import_max_member_bytes,
+        max_member_count=settings.import_max_member_count,
+    )
+
+
+def _format_byte_limit(limit_bytes: int) -> str:
+    """Format a byte cap cleanly for client-facing validation messages."""
+    gib = 1024 * 1024 * 1024
+    mib = 1024 * 1024
+    if limit_bytes >= gib and limit_bytes % gib == 0:
+        return f"{limit_bytes // gib} GB"
+    if limit_bytes >= mib:
+        return f"{limit_bytes / mib:.1f} MB"
+    return f"{limit_bytes} bytes"
+
+
 def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> None:
     """Reject absolute paths, drive prefixes, and parent-directory traversal."""
     if not name or "\x00" in name:
@@ -82,26 +112,68 @@ def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> Non
             raise ValueError(f"Archive member escapes target directory: {name!r}")
 
 
-def _validate_archive_members(
-    archive: py7zr.SevenZipFile, output_root: Optional[Path] = None
-) -> None:
-    """Reject archive members with unsafe paths or non-regular link/special types."""
-    for member in archive.files:
-        _validate_archive_member_path(member.filename, output_root)
-        st_fmt = getattr(member, "st_fmt", None)
-        is_special_fmt = st_fmt is not None and st_fmt not in (
-            stat.S_IFREG,
-            stat.S_IFDIR,
+def _validate_archive_member_entry(
+    member: Any,
+    output_root: Optional[Path],
+    limits: _ArchiveLimits,
+) -> int:
+    """Validate one archive member's path, type, and declared unpacked size."""
+    _validate_archive_member_path(member.filename, output_root)
+    st_fmt = getattr(member, "st_fmt", None)
+    is_special_fmt = st_fmt is not None and st_fmt not in (
+        stat.S_IFREG,
+        stat.S_IFDIR,
+    )
+    if (
+        member.is_symlink
+        or getattr(member, "is_junction", False)
+        or getattr(member, "is_socket", False)
+        or is_special_fmt
+        or not (member.is_file or member.is_directory)
+    ):
+        raise ValueError(
+            f"Archive contains disallowed link or special entry: {member.filename!r}"
         )
-        if (
-            member.is_symlink
-            or getattr(member, "is_junction", False)
-            or getattr(member, "is_socket", False)
-            or is_special_fmt
-            or not (member.is_file or member.is_directory)
-        ):
+
+    member_size = getattr(member, "uncompressed", 0)
+    if (
+        not isinstance(member_size, int)
+        or isinstance(member_size, bool)
+        or member_size < 0
+    ):
+        raise ValueError("Archive contains an entry with an invalid declared size")
+    if member_size > limits.max_member_bytes:
+        raise ValueError(
+            "Archive entry exceeds maximum unpacked file size "
+            f"({_format_byte_limit(limits.max_member_bytes)})"
+        )
+    return member_size
+
+
+def _validate_archive_members(
+    archive: py7zr.SevenZipFile,
+    output_root: Optional[Path] = None,
+    *,
+    limits: Optional[_ArchiveLimits] = None,
+) -> None:
+    """Reject archive members with unsafe paths, special types, or excessive size."""
+    active_limits = limits or _archive_limits(get_settings())
+    member_count = len(archive.files)
+    if member_count > active_limits.max_member_count:
+        raise ValueError(
+            f"Archive contains too many entries ({member_count} exceeds limit of "
+            f"{active_limits.max_member_count})"
+        )
+
+    total_unpacked = 0
+    for member in archive.files:
+        total_unpacked += _validate_archive_member_entry(
+            member, output_root, active_limits
+        )
+        if total_unpacked > active_limits.max_unpacked_bytes:
             raise ValueError(
-                f"Archive contains disallowed link or special entry: {member.filename!r}"
+                "Archive unpacked size exceeds maximum allowed "
+                f"({_format_byte_limit(active_limits.max_unpacked_bytes)})"
             )
 
 
@@ -292,11 +364,14 @@ class ExportService:
         Raises:
             ValueError: If archive is invalid or missing manifest
         """
-        output_path.mkdir(parents=True, exist_ok=True)
         resolved_output = output_path.resolve()
+        limits = _archive_limits(self.settings)
 
         with py7zr.SevenZipFile(archive_path, "r") as archive:
-            _validate_archive_members(archive, resolved_output)
+            _validate_archive_members(archive, resolved_output, limits=limits)
+            # py7zr writes at most each member's declared size, so the check
+            # above bounds what extraction can put on disk.
+            output_path.mkdir(parents=True, exist_ok=True)
             archive.extractall(path=output_path)
 
         for extracted in output_path.rglob("*"):
@@ -389,9 +464,12 @@ class ExportService:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
+            resolved_temp = temp_path.resolve()
+            limits = _archive_limits(self.settings)
+
             try:
                 with py7zr.SevenZipFile(archive_path, "r") as archive:
-                    _validate_archive_members(archive)
+                    _validate_archive_members(archive, resolved_temp, limits=limits)
                     archive.extract(path=temp_path, targets=["manifest.json"])
             except py7zr.exceptions.Bad7zFile:
                 errors.append("Invalid or corrupted 7z archive")

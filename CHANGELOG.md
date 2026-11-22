@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A scenario name or warning that contains text like `{{ body }}` now appears as written in the HTML and PDF scenario report, instead of being replaced with report content.
+- The census path checks in Studio now give the same "Invalid census file path" answer for any location outside the workspaces folder, whether or not a file exists there.
+- Importing a workspace archive is refused when it would unpack to more than 10 GB in total, 4 GB for one file, or 10,000 files, so a small crafted archive can no longer fill the disk. The limits can be changed with `PLANALIGN_API_IMPORT_MAX_UNPACKED_BYTES`, `PLANALIGN_API_IMPORT_MAX_MEMBER_BYTES` and `PLANALIGN_API_IMPORT_MAX_MEMBER_COUNT`.
 - The optimizer and ensemble pages now only read and save files inside PlanAlign's own folders (the config folder, optimizer runs, ensembles and workspaces), and turn down any other location on the server.
 - Studio now refuses a workspace or scenario link with a malformed name instead of reading or saving files outside that workspace, and a census upload to a workspace that does not exist is refused instead of creating an empty folder.
 - A scenario can now set promotion raises to "deterministic", so every promoted employee gets exactly the configured raise with no random spread. This documented option was previously rejected as invalid.

@@ -62,6 +62,15 @@ def get_file_service() -> FileService:
     return FileService(settings.workspaces_root)
 
 
+def _invalid_census_path_http_error(exc: SQLSecurityError) -> HTTPException:
+    """Return a uniform 400 response when a census path fails containment."""
+    logger.warning("Rejected invalid census path: %s", exc)
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid census file path",
+    )
+
+
 @router.post(
     "/{workspace_id}/upload",
     response_model=FileUploadResponse,
@@ -235,10 +244,13 @@ def validate_file_path(
     """Validate a file path and return metadata."""
     service = get_file_service()
 
-    result = service.validate_path(
-        workspace_id=workspace_id,
-        file_path=request.file_path,
-    )
+    try:
+        result = service.validate_path(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+        )
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
 
     return FileValidationResponse(
         file_path=request.file_path,
@@ -264,9 +276,12 @@ def set_census_path(
             detail=f"Workspace {workspace_id} not found",
         )
     service = get_file_service()
-    result = service.validate_path(
-        workspace_id=workspace_id, file_path=request.file_path
-    )
+    try:
+        result = service.validate_path(
+            workspace_id=workspace_id, file_path=request.file_path
+        )
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
 
     if not result.get("valid"):
         raise HTTPException(
@@ -311,6 +326,8 @@ def analyze_age_distribution(
             as_of_date=request.as_of_date,
         )
         return AgeDistributionResponse(**result)
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -345,6 +362,8 @@ def analyze_part_time_pct(
             file_path=request.file_path,
         )
         return PartTimePctResponse(**result)
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -381,6 +400,8 @@ def analyze_minimum_wage(
             steps=[(step.hourly_rate, step.effective_date) for step in request.steps],
         )
         return MinimumWagePreviewResponse(**result)
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -416,6 +437,8 @@ def analyze_compensation_by_level(
             lookback_years=request.lookback_years,
         )
         return CompensationByLevelResponse(**result)
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

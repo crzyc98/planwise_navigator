@@ -727,3 +727,192 @@ class TestImportedParquetContainment:
         assert validation.valid is False
         with pytest.raises(ValueError):
             svc.extract_archive(archive_path, tmp_path / "out")
+
+
+@pytest.mark.fast
+class TestImportUnpackedLimits:
+    """Unpacked archive size, single-entry size, and entry count are capped."""
+
+    def test_settings_accept_env_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from planalign_api.config import APISettings
+
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_UNPACKED_BYTES", "123456")
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_MEMBER_BYTES", "45678")
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_MEMBER_COUNT", "42")
+
+        settings = APISettings()
+        assert settings.import_max_unpacked_bytes == 123456
+        assert settings.import_max_member_bytes == 45678
+        assert settings.import_max_member_count == 42
+
+    def test_rejects_archive_exceeding_total_unpacked_size_without_extracting(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, client_factory
+    ) -> None:
+        from planalign_api.config import APISettings
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+        # Highly compressible payload: tiny .7z archive, large unpacked total.
+        archive_path = _write_archive_with_index(
+            tmp_path / "src",
+            workspace_name="Total Oversized",
+            index_entries=[],
+            extra_files={
+                "data/part1.bin": b"A" * 60_000,
+                "data/part2.bin": b"B" * 60_000,
+            },
+        )
+        assert archive_path.stat().st_size < 10_000
+
+        settings = APISettings(
+            workspaces_root=tmp_path / "workspaces",
+            import_max_unpacked_bytes=100_000,
+            import_max_member_bytes=80_000,
+            import_max_member_count=100,
+        )
+        svc = ExportService(WorkspaceStorage(settings.workspaces_root), settings)
+
+        validation = svc.validate_archive(archive_path, archive_path.stat().st_size)
+        assert validation.valid is False
+        assert any("unpacked size" in err.lower() for err in validation.errors)
+        assert str(tmp_path) not in " ".join(validation.errors)
+
+        out_dir = tmp_path / "extracted_total"
+        with pytest.raises(ValueError, match="unpacked size"):
+            svc.extract_archive(archive_path, out_dir)
+        assert not out_dir.exists()
+
+        with pytest.raises(ValueError, match="unpacked size"):
+            svc.import_workspace(archive_path)
+
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_UNPACKED_BYTES", "100000")
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_MEMBER_BYTES", "80000")
+        client = client_factory(None)
+        archive_bytes = archive_path.read_bytes()
+
+        validate_resp = client.post(
+            "/api/workspaces/import/validate",
+            files={
+                "file": ("oversized.7z", archive_bytes, "application/x-7z-compressed")
+            },
+        )
+        assert validate_resp.status_code == 200
+        assert validate_resp.json()["valid"] is False
+        assert any(
+            "unpacked size" in err.lower() for err in validate_resp.json()["errors"]
+        )
+        assert str(tmp_path) not in validate_resp.text
+
+        import_resp = client.post(
+            "/api/workspaces/import",
+            files={
+                "file": ("oversized.7z", archive_bytes, "application/x-7z-compressed")
+            },
+        )
+        assert import_resp.status_code == 400
+        assert "unpacked size" in import_resp.json()["detail"].lower()
+        assert str(tmp_path) not in import_resp.text
+
+    def test_rejects_archive_exceeding_single_member_size_without_extracting(
+        self, tmp_path: Path
+    ) -> None:
+        from planalign_api.config import APISettings
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+        archive_path = _write_archive_with_index(
+            tmp_path / "src",
+            workspace_name="Member Oversized",
+            index_entries=[],
+            extra_files={"data/big.bin": b"Z" * 50_000},
+        )
+        settings = APISettings(
+            workspaces_root=tmp_path / "workspaces",
+            import_max_unpacked_bytes=500_000,
+            import_max_member_bytes=20_000,
+            import_max_member_count=100,
+        )
+        svc = ExportService(WorkspaceStorage(settings.workspaces_root), settings)
+
+        validation = svc.validate_archive(archive_path, archive_path.stat().st_size)
+        assert validation.valid is False
+        assert any("unpacked file size" in err.lower() for err in validation.errors)
+
+        out_dir = tmp_path / "extracted_member"
+        with pytest.raises(ValueError, match="unpacked file size"):
+            svc.extract_archive(archive_path, out_dir)
+        assert not out_dir.exists()
+
+    def test_rejects_archive_exceeding_member_count_without_extracting(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, client_factory
+    ) -> None:
+        from planalign_api.config import APISettings
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+        archive_path = _write_archive_with_index(
+            tmp_path / "src",
+            workspace_name="Too Many Files",
+            index_entries=[],
+            extra_files={f"data/f{i}.txt": b"x" for i in range(6)},
+        )
+        settings = APISettings(
+            workspaces_root=tmp_path / "workspaces",
+            import_max_unpacked_bytes=1_000_000,
+            import_max_member_bytes=1_000_000,
+            import_max_member_count=5,
+        )
+        svc = ExportService(WorkspaceStorage(settings.workspaces_root), settings)
+
+        validation = svc.validate_archive(archive_path, archive_path.stat().st_size)
+        assert validation.valid is False
+        assert any("too many entries" in err.lower() for err in validation.errors)
+
+        out_dir = tmp_path / "extracted_count"
+        with pytest.raises(ValueError, match="too many entries"):
+            svc.extract_archive(archive_path, out_dir)
+        assert not out_dir.exists()
+
+        monkeypatch.setenv("PLANALIGN_API_IMPORT_MAX_MEMBER_COUNT", "5")
+        client = client_factory(None)
+        resp = client.post(
+            "/api/workspaces/import",
+            files={
+                "file": (
+                    "many.7z",
+                    archive_path.read_bytes(),
+                    "application/x-7z-compressed",
+                )
+            },
+        )
+        assert resp.status_code == 400
+        assert "too many entries" in resp.json()["detail"].lower()
+
+    def test_normal_exported_workspace_roundtrips_under_default_limits(
+        self, tmp_path: Path
+    ) -> None:
+        from planalign_api.models.scenario import ScenarioCreate
+        from planalign_api.models.workspace import WorkspaceCreate
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+        storage = WorkspaceStorage(tmp_path / "workspaces")
+        ws = storage.create_workspace(WorkspaceCreate(name="Legit Export"), {})
+        sc = storage.create_scenario(ws.id, ScenarioCreate(name="Baseline"))
+        assert sc is not None
+        (storage._scenario_path(ws.id, sc.id) / "simulation.duckdb").write_bytes(
+            b"duckdb-placeholder"
+        )
+
+        svc = ExportService(storage)
+        archive_path, export_result = svc.export_workspace(ws.id, tmp_path / "exports")
+        assert export_result.status.value == "success"
+
+        validation = svc.validate_archive(archive_path, archive_path.stat().st_size)
+        assert validation.valid is True
+
+        imported = svc.import_workspace(
+            archive_path,
+            conflict_resolution=ConflictResolution.RENAME,
+            new_name="Legit Export Copy",
+        )
+        assert imported.status == ImportStatus.SUCCESS
+        assert imported.scenario_count == 1
