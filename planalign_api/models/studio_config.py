@@ -5,9 +5,9 @@ preserved at every level; omitted fields must never become null overrides.
 """
 
 from collections.abc import Mapping
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
-from planalign_orchestrator.config.plan_design import check_identifier
+from planalign_orchestrator.config.plan_design import MatchTemplate, check_identifier
 from planalign_orchestrator.config.simulation import MinimumWageStep
 from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
@@ -279,9 +279,7 @@ _VALID_AUTO_ENROLL_SCOPES = frozenset({"all_eligible_employees", "new_hires_only
 _VALID_STUDIO_AUTO_ENROLL_SCOPES = frozenset(
     {"all_eligible", "all_eligible_employees", "new_hires_only"}
 )
-_VALID_MATCH_TEMPLATES = frozenset(
-    {"simple", "tiered", "stretch", "safe_harbor", "qaca"}
-)
+_VALID_MATCH_TEMPLATES = frozenset(get_args(MatchTemplate))
 
 
 def _check_allowed(field: str, value: Any, allowed: frozenset[str]) -> None:
