@@ -234,6 +234,16 @@ def test_plan_design_match_template_rejects_unknown_value():
 
 
 @pytest.mark.fast
+@pytest.mark.parametrize("value", ["uniform", "normal", "deterministic"])
+def test_promotion_distribution_type_accepts_valid_values(minimal_config, value):
+    raw = minimal_config.model_dump()
+    raw["compensation"]["promotion_compensation"]["distribution_type"] = value
+    config = SimulationConfig.model_validate(raw)
+    assert config.compensation.promotion_compensation.distribution_type == value
+    assert to_dbt_vars(config)["promotion_distribution_type"] == value
+
+
+@pytest.mark.fast
 def test_promotion_distribution_type_rejects_unknown_value(minimal_config):
     raw = minimal_config.model_dump()
     raw["compensation"]["promotion_compensation"]["distribution_type"] = "custom'type"

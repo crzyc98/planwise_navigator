@@ -170,11 +170,12 @@ def test_band_config_domain_value_error_message_is_preserved(tmp_path, monkeypat
 
 
 def test_census_upload_save_failure_is_sanitized(tmp_path, monkeypatch):
+    _, workspace_id, _ = _scenario(tmp_path)
     client = _client(tmp_path, monkeypatch)
     monkeypatch.setattr(FileService, "save_uploaded_file", _raise_secret)
 
     response = client.post(
-        "/api/workspaces/ws/upload",
+        f"/api/workspaces/{workspace_id}/upload",
         files=CENSUS_UPLOAD,
     )
 

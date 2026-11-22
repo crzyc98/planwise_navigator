@@ -41,6 +41,7 @@ from .census_schema import (
     census_date_order_is_ambiguous,
     matching_census_date_formats,
 )
+from .path_guard import resolve_child_path
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +166,22 @@ class FileService:
         """Initialize file service with workspace root directory."""
         self.workspaces_root = workspaces_root
 
+    def _workspace_path(self, workspace_id: str) -> Path:
+        """Resolve a contained workspace directory under workspaces_root."""
+        return resolve_child_path(
+            self.workspaces_root, workspace_id, label="workspace_id"
+        )
+
+    def _resolve_workspace_file_path(self, workspace_id: str, file_path: str) -> Path:
+        """Validate workspace_id and resolve a workspace-relative or absolute path."""
+        workspace_dir = self._workspace_path(workspace_id)
+        if file_path.startswith("/"):
+            return Path(file_path)
+        return workspace_dir / file_path
+
     def _get_data_directory(self, workspace_id: str) -> Path:
         """Get the data directory for a workspace."""
-        data_dir = self.workspaces_root / workspace_id / "data"
+        data_dir = self._workspace_path(workspace_id) / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         return data_dir
 
@@ -894,10 +908,7 @@ class FileService:
             Dict with validation result and metadata
         """
         # Resolve path
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         # Check existence
         if not resolved.exists():
@@ -968,7 +979,7 @@ class FileService:
         Returns:
             List of file info dicts
         """
-        data_dir = self.workspaces_root / workspace_id / "data"
+        data_dir = self._workspace_path(workspace_id) / "data"
         if not data_dir.exists():
             return []
 
@@ -1013,10 +1024,7 @@ class FileService:
             Dict with age distribution buckets and weights
         """
         # Resolve path
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
@@ -1226,10 +1234,7 @@ class FileService:
         Returns the census columns. Raises ValueError for a missing, unsafe or
         unsupported file.
         """
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
@@ -1380,10 +1385,7 @@ class FileService:
         )
 
         # Resolve path
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        resolved = self._resolve_workspace_file_path(workspace_id, file_path)
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")

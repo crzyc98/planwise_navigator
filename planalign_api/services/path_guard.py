@@ -1,8 +1,10 @@
 """Filesystem containment guards for client-supplied storage identifiers.
 
 Workspace and scenario identifiers arrive as route strings and are used to
-build deletion targets. This module centralizes the fail-closed validation
-pattern already used by ``current_result.resolve_run_directory``:
+build storage paths. Every lookup goes through ``resolve_child_path``: the
+id must be one safe path component and the result a direct child of its
+root. Deletion targets additionally follow the fail-closed pattern already
+used by ``current_result.resolve_run_directory``:
 
 1. The identifier must be a canonical UUID string (server-generated IDs).
 2. The target must resolve to a *direct child* of the expected root.
@@ -15,6 +17,7 @@ pattern already used by ``current_result.resolve_run_directory``:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -22,14 +25,16 @@ from typing import Dict
 
 from .sql_security import validate_file_path
 
+_SAFE_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
+
 
 class PathGuardError(ValueError):
-    """A client-supplied identifier or path is not permitted."""
+    """A client-supplied identifier or path is malformed or not permitted."""
 
 
 class ProtectedPathError(LookupError):
-    """A deletion target is missing, escapes its expected root, is a
-    symlink, or fails its metadata marker identity check."""
+    """A target is missing, escapes its expected root, is a symlink,
+    or fails its metadata marker identity check."""
 
 
 def require_canonical_uuid(value: str, *, label: str) -> uuid.UUID:
@@ -43,6 +48,34 @@ def require_canonical_uuid(value: str, *, label: str) -> uuid.UUID:
     return parsed
 
 
+def require_safe_path_component(value: str, *, label: str) -> str:
+    """Require ``value`` to be one safe path component and return it.
+
+    Accepts ASCII letters, digits, ``-`` and ``_`` starting with a letter or
+    digit, up to 128 characters. That covers canonical UUIDs and the
+    readable ids older workspaces and tests use, and rules out separators of
+    either kind, ``.``/``..``, null bytes and hidden names.
+    """
+    if not isinstance(value, str) or not _SAFE_COMPONENT.fullmatch(value):
+        raise PathGuardError(f"{label} is not a valid identifier")
+    return value
+
+
+def resolve_child_path(root: Path, identifier: str, *, label: str) -> Path:
+    """Return ``root / identifier`` once it is proven a contained direct child.
+
+    The target need not exist. The unresolved path is returned so valid ids
+    keep the same path strings as before.
+
+    Raises:
+        PathGuardError: ``identifier`` is not a safe path component.
+        ProtectedPathError: The candidate is a symlink or escapes ``root``.
+    """
+    component = require_safe_path_component(identifier, label=label)
+    _contained_child(root, component)
+    return root / component
+
+
 def resolve_direct_child(root: Path, identifier: uuid.UUID | str) -> Path:
     """Resolve ``root / identifier`` and prove it is a contained directory.
 
@@ -51,15 +84,21 @@ def resolve_direct_child(root: Path, identifier: uuid.UUID | str) -> Path:
             or does not exist as a directory.
     """
     canonical = identifier if isinstance(identifier, uuid.UUID) else _parse(identifier)
-    contained_root = root.resolve()
-    raw_candidate = contained_root / str(canonical)
-    if raw_candidate.is_symlink():
-        raise ProtectedPathError(f"Target {canonical} is not a permitted directory")
-    candidate = raw_candidate.resolve()
-    if candidate.parent != contained_root:
-        raise ProtectedPathError(f"Target {canonical} escapes its expected root")
+    candidate = _contained_child(root, str(canonical))
     if not candidate.is_dir():
         raise ProtectedPathError(f"Target {canonical} not found")
+    return candidate
+
+
+def _contained_child(root: Path, component: str) -> Path:
+    """Resolve ``root / component``, refusing symlinks and escapes."""
+    contained_root = root.resolve()
+    raw_candidate = contained_root / component
+    if raw_candidate.is_symlink():
+        raise ProtectedPathError(f"Target {component} is not a permitted directory")
+    candidate = raw_candidate.resolve()
+    if candidate.parent != contained_root:
+        raise ProtectedPathError(f"Target {component} escapes its expected root")
     return candidate
 
 

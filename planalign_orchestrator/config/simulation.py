@@ -41,6 +41,9 @@ class SimulationSettings(BaseModel):
     target_growth_rate: float = Field(default=0.03, ge=-1, le=1)
 
 
+PromotionDistributionType = Literal["uniform", "normal", "deterministic"]
+
+
 class PromotionCompensationSettings(BaseModel):
     """Promotion compensation increase configuration."""
 
@@ -65,9 +68,9 @@ class PromotionCompensationSettings(BaseModel):
     max_cap_amount: int = Field(
         default=500000, ge=0, description="Maximum promotion increase amount in dollars"
     )
-    distribution_type: Literal["uniform", "normal"] = Field(
+    distribution_type: PromotionDistributionType = Field(
         default="uniform",
-        description="Distribution type: uniform or normal",
+        description="Distribution type: uniform, normal, or deterministic",
     )
     level_overrides: Optional[Dict[int, float]] = Field(
         default=None, description="Level-specific base increase overrides"

@@ -20,6 +20,7 @@ from ..models.workspace import (
     WorkspaceSummary,
 )
 from ..models.scenario import Scenario, ScenarioCreate
+from ..services.path_guard import require_safe_path_component, resolve_child_path
 from ..services.storage_usage import directory_bytes, iter_workspace_dirs
 
 if TYPE_CHECKING:
@@ -38,7 +39,9 @@ class WorkspaceStorage:
 
     def _workspace_path(self, workspace_id: str) -> Path:
         """Get path to workspace directory."""
-        return self.workspaces_root / workspace_id
+        return resolve_child_path(
+            self.workspaces_root, workspace_id, label="workspace_id"
+        )
 
     def _workspace_json_path(self, workspace_id: str) -> Path:
         """Get path to workspace.json file."""
@@ -54,7 +57,9 @@ class WorkspaceStorage:
 
     def _scenario_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario directory."""
-        return self._scenarios_path(workspace_id) / scenario_id
+        return resolve_child_path(
+            self._scenarios_path(workspace_id), scenario_id, label="scenario_id"
+        )
 
     def _scenario_json_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario.json file."""
@@ -199,6 +204,7 @@ class WorkspaceStorage:
         is orders of magnitude more expensive than it needs to be, because
         that builds full summaries; this only probes for scenario.json.
         """
+        require_safe_path_component(scenario_id, label="scenario_id")
         for workspace_dir in iter_workspace_dirs(self.workspaces_root):
             if (workspace_dir / "scenarios" / scenario_id / "scenario.json").exists():
                 return workspace_dir.name
@@ -421,7 +427,7 @@ class WorkspaceStorage:
     ) -> Optional[Scenario]:
         """Create a new scenario in a workspace."""
         # Verify workspace exists
-        if not self._workspace_path(workspace_id).exists():
+        if not self._workspace_json_path(workspace_id).exists():
             return None
 
         scenario_id = str(uuid.uuid4())
