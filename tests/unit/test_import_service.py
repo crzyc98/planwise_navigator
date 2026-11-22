@@ -353,25 +353,79 @@ def test_resolve_reroots_path_from_exported_workspace(
 
 
 def test_download_outside_workspace_returns_404(
-    api_client, service, workspace_id, outside_file
+    api_client, service, workspace_id, outside_file, caplog
 ):
     pf = _record(service, workspace_id, str(outside_file))
-    resp = api_client.get(
-        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}/download"
-    )
+    with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
+        resp = api_client.get(
+            f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}/download"
+        )
     assert resp.status_code == 404
+    assert outside_file.read_bytes() == b"keep me"
+    assert any(pf.file_id in rec.message for rec in caplog.records)
 
 
 def test_delete_outside_workspace_keeps_outside_file(
-    api_client, service, workspace_id, outside_file
+    api_client, service, workspace_id, outside_file, caplog
 ):
     pf = _record(service, workspace_id, str(outside_file))
-    resp = api_client.delete(
-        f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
-    )
+    with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
+        resp = api_client.delete(
+            f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+        )
     assert resp.status_code == 204
     assert outside_file.read_bytes() == b"keep me"
     assert service.list_parquet_files(workspace_id) == []
+    assert any(pf.file_id in rec.message for rec in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "../../../elsewhere/outside.parquet",
+        "imports/../../../../elsewhere/outside.parquet",
+    ],
+)
+def test_dotdot_record_not_served_and_not_deleted(
+    api_client, service, workspace_id, outside_file, stored, caplog
+):
+    pf = _record(service, workspace_id, stored)
+    url = f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
+        assert api_client.get(f"{url}/download").status_code == 404
+        assert api_client.delete(url).status_code == 204
+    assert outside_file.read_bytes() == b"keep me"
+    assert any(pf.file_id in rec.message for rec in caplog.records)
+
+
+def test_symlink_escaping_workspace_not_served_and_not_deleted(
+    api_client, service, workspace_id, tmp_workspaces, outside_file, caplog
+):
+    link = tmp_workspaces / workspace_id / "data" / "imports" / "link.parquet"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(outside_file)
+    pf = _record(service, workspace_id, str(link))
+    url = f"/api/workspaces/{workspace_id}/parquet-files/{pf.file_id}"
+    with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
+        assert api_client.get(f"{url}/download").status_code == 404
+        assert api_client.delete(url).status_code == 204
+    assert outside_file.read_bytes() == b"keep me"
+    assert link.is_symlink()
+    assert any(pf.file_id in rec.message for rec in caplog.records)
+
+
+def test_set_as_of_date_rejects_outside_workspace_record(
+    service, workspace_id, outside_file, caplog
+):
+    from datetime import date
+
+    pf = _record(service, workspace_id, str(outside_file))
+    with caplog.at_level("WARNING", logger="planalign_api.services.import_service"):
+        updated = service.set_census_as_of_date(
+            workspace_id, pf.file_id, date(2025, 12, 31)
+        )
+    assert updated is None
+    assert any(pf.file_id in rec.message for rec in caplog.records)
 
 
 def test_download_and_delete_record_inside_workspace(

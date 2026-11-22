@@ -321,3 +321,97 @@ def test_negative_growth_assertion_rejects_over_termination(tmp_path: Path) -> N
         "did not track the target" in violation.observed
         for violation in result.violations
     )
+
+
+def _custom_hire_database(
+    path: Path, age: int, compensation: float, level_avg: float | None
+) -> None:
+    with duckdb.connect(str(path)) as connection:
+        connection.execute("""
+            CREATE TABLE fct_workforce_snapshot (
+              scenario_id VARCHAR,
+              employee_id VARCHAR,
+              simulation_year INTEGER,
+              level_id INTEGER,
+              current_age INTEGER,
+              current_compensation DOUBLE
+            );
+            CREATE TABLE int_workforce_needs_by_level (
+              scenario_id VARCHAR,
+              simulation_year INTEGER,
+              level_id INTEGER,
+              new_hire_avg_compensation DOUBLE
+            )
+            """)
+        connection.execute(
+            "INSERT INTO fct_workforce_snapshot VALUES "
+            "('edge_custom_hires', 'NH_2025_000001', 2025, 1, ?, ?)",
+            [age, compensation],
+        )
+        if level_avg is not None:
+            connection.execute(
+                "INSERT INTO int_workforce_needs_by_level VALUES "
+                "('edge_custom_hires', 2025, 1, ?)",
+                [level_avg],
+            )
+
+
+def test_custom_hire_assertion_accepts_configured_range_with_offer_variance(
+    tmp_path: Path,
+) -> None:
+    """Seed Level-1 percentile (0.25 * 1.02) gives $115,100 avg; seq 1 (x0.93) gives $107,043."""
+    database = tmp_path / "custom-hire-valid.duckdb"
+    _custom_hire_database(database, age=55, compensation=107043.0, level_avg=115100.0)
+
+    assert targeted_query(_case("custom_new_hire_inputs"), database).passed
+
+
+@pytest.mark.parametrize(
+    ("level_avg", "compensation"),
+    [(62120.0, 57771.6), (None, 107043.0)],
+    ids=["seed_range_fallback", "missing_level_average"],
+)
+def test_custom_hire_assertion_rejects_out_of_range_or_missing_level_avg(
+    tmp_path: Path, level_avg: float | None, compensation: float
+) -> None:
+    """Ignoring job_level_compensation falls back to seed Level 1 ($62,120 avg -> $57,771.60)."""
+    database = tmp_path / "custom-hire-seed-fallback.duckdb"
+    _custom_hire_database(
+        database, age=55, compensation=compensation, level_avg=level_avg
+    )
+
+    result = targeted_query(_case("custom_new_hire_inputs"), database)
+
+    assert not result.passed
+    assert any(
+        "ignored the configured range" in violation.observed
+        for violation in result.violations
+    )
+
+
+def test_custom_hire_assertion_rejects_offer_outside_variance_band(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "custom-hire-outside-variance.duckdb"
+    _custom_hire_database(database, age=55, compensation=100000.0, level_avg=115100.0)
+
+    result = targeted_query(_case("custom_new_hire_inputs"), database)
+
+    assert not result.passed
+    assert any(
+        "outside the level average variance band" in violation.observed
+        for violation in result.violations
+    )
+
+
+def test_custom_hire_assertion_rejects_wrong_age(tmp_path: Path) -> None:
+    database = tmp_path / "custom-hire-wrong-age.duckdb"
+    _custom_hire_database(database, age=32, compensation=107043.0, level_avg=115100.0)
+
+    result = targeted_query(_case("custom_new_hire_inputs"), database)
+
+    assert not result.passed
+    assert any(
+        "did not use the configured age" in violation.observed
+        for violation in result.violations
+    )

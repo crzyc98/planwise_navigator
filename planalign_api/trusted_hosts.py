@@ -20,7 +20,7 @@ _BRACKETED_IPV6 = re.compile(r"\[([0-9a-f:.]+)\](?::\d+)?")
 def normalize_host(host: str) -> str:
     """Return a Host value without its port, IPv6 brackets or letter case.
 
-    A malformed bracketed value returns ``""``, which is never allowed.
+    A malformed value returns ``""``, which is never allowed.
     """
     host = host.strip().lower()
     if host.startswith("["):
@@ -28,7 +28,10 @@ def normalize_host(host: str) -> str:
         return match.group(1) if match else ""
     if host.count(":") > 1:  # bare IPv6 literal, e.g. from configuration
         return host
-    return host.split(":", 1)[0]
+    if ":" in host:
+        name, port = host.split(":", 1)
+        return name if port.isascii() and port.isdigit() else ""
+    return host
 
 
 class TrustedHostMiddleware:
@@ -36,12 +39,15 @@ class TrustedHostMiddleware:
 
     def __init__(self, app: ASGIApp, allowed_hosts: Iterable[str]) -> None:
         self.app = app
-        self.allowed_hosts = frozenset(normalize_host(h) for h in allowed_hosts)
+        self.allowed_hosts = frozenset(
+            normalized for h in allowed_hosts if (normalized := normalize_host(h))
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] in ("http", "websocket"):
-            host = normalize_host(Headers(scope=scope).get("host", ""))
-            if host not in self.allowed_hosts:
+            hosts = Headers(scope=scope).getlist("host")
+            host = normalize_host(hosts[0]) if len(hosts) == 1 else ""
+            if not host or host not in self.allowed_hosts:
                 response = PlainTextResponse("Invalid host header", status_code=400)
                 await response(scope, receive, send)
                 return

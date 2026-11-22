@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import asdict
 from datetime import date, datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -11,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import duckdb
 import pandas as pd
+from pydantic import ValidationError
 
 from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 
@@ -40,6 +42,160 @@ def _after_last_data_dir(stored: str) -> tuple[str, ...]:
     parts = pure.parts
     indexes = [i for i, part in enumerate(parts) if part == "data"]
     return parts[indexes[-1] + 1 :] if indexes else ()
+
+
+def _is_foreign_windows_path(stored: str) -> bool:
+    """True when ``stored`` uses Windows syntax on a POSIX host."""
+    if os.name == "nt":
+        return False
+    return "\\" in stored or bool(PureWindowsPath(stored).drive)
+
+
+def _contained_parquet(
+    candidate: Path, data_dir: Path, *, must_exist: bool
+) -> Optional[Path]:
+    """Return ``candidate`` resolved inside ``data_dir`` if it is a safe parquet path."""
+    if candidate.is_symlink():
+        return None
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    if resolved.suffix.lower() != ".parquet" or not resolved.is_relative_to(data_dir):
+        return None
+    if must_exist:
+        return resolved if resolved.is_file() else None
+    return None if resolved.is_dir() else resolved
+
+
+def resolve_workspace_parquet_path(
+    workspace_path: Path,
+    pf: ParquetFile,
+    *,
+    reroot: bool = True,
+    must_exist: bool = True,
+) -> Optional[Path]:
+    """Return the record's ``.parquet`` file if it is inside the workspace ``data/``.
+
+    Every candidate is resolved, following symlinks, before the containment
+    check. With ``reroot``, a path from a moved or exported workspace (POSIX
+    or Windows) is retried as the part after its last ``data`` component and
+    must exist on disk. Records failing containment are logged at warning
+    level and treated as not found.
+    """
+    stored = pf.storage_path
+    if not stored or "\x00" in stored:
+        logger.warning(
+            "Ignoring parquet file record %s in workspace %s: invalid storage path",
+            pf.file_id,
+            workspace_path.name,
+        )
+        return None
+
+    data_dir = (workspace_path / "data").resolve()
+    direct_contained: Optional[Path] = None
+    if not _is_foreign_windows_path(stored):
+        direct_contained = _contained_parquet(
+            data_dir / stored, data_dir, must_exist=False
+        )
+        if direct_contained is not None and direct_contained.is_file():
+            return direct_contained
+
+    if reroot:
+        tail = _after_last_data_dir(stored)
+        if tail and ".." not in tail:
+            rerooted = _contained_parquet(
+                data_dir.joinpath(*tail), data_dir, must_exist=True
+            )
+            if rerooted is not None:
+                return rerooted
+
+    if direct_contained is not None:
+        return None if must_exist else direct_contained
+
+    logger.warning(
+        "Ignoring parquet file record %s in workspace %s: path is outside workspace data directory",
+        pf.file_id,
+        workspace_path.name,
+    )
+    return None
+
+
+def _load_index_entries(index_path: Path, workspace_id: str) -> Optional[List[Any]]:
+    """Load JSON entries from ``index_path``, resetting unreadable files to ``[]``."""
+    try:
+        raw_entries = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "Resetting unreadable imports index in workspace %s: %s", workspace_id, exc
+        )
+        index_path.write_text("[]", encoding="utf-8")
+        return None
+    if not isinstance(raw_entries, list):
+        logger.warning(
+            "Resetting invalid imports index in workspace %s: expected a list",
+            workspace_id,
+        )
+        index_path.write_text("[]", encoding="utf-8")
+        return None
+    return raw_entries
+
+
+def sanitize_parquet_index(workspace_path: Path, workspace_id: str) -> int:
+    """Rewrite imported ``data/imports/index.json`` records to stay inside the workspace.
+
+    Valid records whose files exist under ``workspace_path / 'data'`` are
+    rewritten with the new workspace ID and resolved local path; records that
+    fail validation or point outside the workspace are dropped.
+
+    Returns the number of dropped records.
+    """
+    index_path = workspace_path / "data" / "imports" / "index.json"
+    if index_path.is_symlink():
+        logger.warning(
+            "Removing disallowed symlink at %s in workspace %s",
+            index_path.name,
+            workspace_id,
+        )
+        index_path.unlink()
+        return 1
+    if not index_path.exists():
+        return 0
+
+    raw_entries = _load_index_entries(index_path, workspace_id)
+    if raw_entries is None:
+        return 1
+
+    kept: List[Dict[str, Any]] = []
+    dropped = 0
+    for entry in raw_entries:
+        try:
+            pf = ParquetFile.model_validate(entry)
+        except (ValidationError, TypeError) as exc:
+            logger.warning(
+                "Dropping malformed parquet record in workspace %s: %s",
+                workspace_id,
+                exc,
+            )
+            dropped += 1
+            continue
+        resolved = resolve_workspace_parquet_path(
+            workspace_path, pf, reroot=True, must_exist=True
+        )
+        if resolved is None:
+            dropped += 1
+            continue
+        rewritten = pf.model_copy(
+            update={
+                "workspace_id": workspace_id,
+                "storage_path": str(resolved),
+                "filename": resolved.name,
+            }
+        )
+        kept.append(json.loads(rewritten.model_dump_json()))
+
+    index_path.write_text(json.dumps(kept, indent=2), encoding="utf-8")
+    return dropped
 
 
 def _utcnow() -> datetime:
@@ -433,7 +589,12 @@ class ImportService:
         Records are resolved like downloads, so relative paths and paths from
         an exported workspace still match.
         """
-        target = Path(storage_path).resolve()
+        raw = Path(storage_path)
+        target = (
+            raw.resolve()
+            if raw.is_absolute()
+            else (self._ws_path(workspace_id) / raw).resolve()
+        )
         matches = [
             pf
             for pf in self.list_parquet_files(workspace_id)
@@ -446,7 +607,15 @@ class ImportService:
     ) -> Optional[ParquetFile]:
         """Store the analyst's as-of date on a file record; None if no such file."""
         files = self.list_parquet_files(workspace_id)
-        if not any(f.file_id == file_id for f in files):
+        target = next((f for f in files if f.file_id == file_id), None)
+        if target is None:
+            return None
+        if (
+            self.resolve_parquet_path(
+                workspace_id, target, reroot=True, must_exist=False
+            )
+            is None
+        ):
             return None
         files = [
             (
@@ -462,32 +631,17 @@ class ImportService:
         return next(f for f in files if f.file_id == file_id)
 
     def resolve_parquet_path(
-        self, workspace_id: str, pf: ParquetFile, *, reroot: bool = True
+        self,
+        workspace_id: str,
+        pf: ParquetFile,
+        *,
+        reroot: bool = True,
+        must_exist: bool = True,
     ) -> Optional[Path]:
-        """Return the record's ``.parquet`` file if it is inside the workspace ``data/``.
-
-        Records written by older versions or carried in a workspace export hold
-        an absolute path, possibly from another machine (POSIX or Windows).
-        With ``reroot``, a path outside this workspace is retried as the part
-        after its last ``data`` component, which is where an exported archive
-        puts the file. Every candidate is resolved, following symlinks, before
-        the containment check. Returns ``None`` when nothing qualifies.
-        """
-        data_dir = (self._ws_path(workspace_id) / "data").resolve()
-        candidates = [data_dir / pf.storage_path]  # an absolute path replaces data_dir
-        if reroot:
-            tail = _after_last_data_dir(pf.storage_path)
-            if tail:
-                candidates.append(data_dir.joinpath(*tail))
-        for candidate in candidates:
-            resolved = candidate.resolve()
-            if (
-                resolved.suffix.lower() == ".parquet"
-                and resolved.is_relative_to(data_dir)
-                and resolved.is_file()
-            ):
-                return resolved
-        return None
+        """Return the record's ``.parquet`` file if it is inside the workspace ``data/``."""
+        return resolve_workspace_parquet_path(
+            self._ws_path(workspace_id), pf, reroot=reroot, must_exist=must_exist
+        )
 
     def delete_parquet_file(
         self, workspace_id: str, file_id: str, user: str = "system"
@@ -498,8 +652,12 @@ class ImportService:
             return False
         # No re-rooting: a stale record must never delete a different file
         # that happens to share its name, such as the active census.
-        storage = self.resolve_parquet_path(workspace_id, target, reroot=False)
-        if storage is not None:
+        storage = self.resolve_parquet_path(
+            workspace_id, target, reroot=False, must_exist=False
+        )
+        # A record that points outside the workspace is dropped from the index,
+        # so it can be cleared, but nothing on disk is touched.
+        if storage is not None and storage.is_file():
             storage.unlink()
         remaining = [
             json.loads(f.model_dump_json()) for f in files if f.file_id != file_id
