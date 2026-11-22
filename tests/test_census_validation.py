@@ -13,7 +13,9 @@ from pathlib import Path
 
 import pytest
 
+from planalign_api.services.simulation.run_execution import resolve_census_path
 from planalign_api.services.simulation.service import SimulationService
+from planalign_api.services.sql_security import SQLSecurityError
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 from planalign_orchestrator.exceptions import ConfigurationError
 
@@ -288,3 +290,50 @@ def test_validate_census_accepts_absolute_path_inside_root(tmp_path):
         config, scenario_id="test_scenario", workspace_id="ws1"
     )
     assert config["setup"]["census_parquet_path"] == str(census_file.resolve())
+
+
+@pytest.mark.fast
+def test_resolve_census_path_accepts_paths_inside_root(tmp_path):
+    root = tmp_path / "workspaces"
+    data_dir = root / "ws1" / "data"
+    data_dir.mkdir(parents=True)
+    census_file = data_dir / "census.parquet"
+    census_file.write_bytes(b"PAR1dummy")
+    storage = WorkspaceStorage(root)
+
+    assert resolve_census_path(storage, "data/census.parquet", "ws1") == (
+        census_file.resolve()
+    )
+    assert resolve_census_path(storage, str(census_file), "ws1") == (
+        census_file.resolve()
+    )
+
+
+@pytest.mark.fast
+def test_resolve_census_path_rejects_outside_absolute_and_traversal(tmp_path):
+    outside = tmp_path / "outside.parquet"
+    outside.write_bytes(b"PAR1dummy")
+    root = tmp_path / "workspaces"
+    (root / "ws1").mkdir(parents=True)
+    storage = WorkspaceStorage(root)
+
+    with pytest.raises(SQLSecurityError, match="outside allowed directories"):
+        resolve_census_path(storage, str(outside), "ws1")
+
+    with pytest.raises(SQLSecurityError, match="outside allowed directories"):
+        resolve_census_path(storage, "../../outside.parquet", "ws1")
+
+
+@pytest.mark.fast
+def test_resolve_census_path_rejects_symlink_escaping_root(tmp_path):
+    outside = tmp_path / "outside.parquet"
+    outside.write_bytes(b"PAR1dummy")
+    root = tmp_path / "workspaces"
+    data_dir = root / "ws1" / "data"
+    data_dir.mkdir(parents=True)
+    link = data_dir / "escape.parquet"
+    link.symlink_to(outside)
+    storage = WorkspaceStorage(root)
+
+    with pytest.raises(SQLSecurityError, match="outside allowed directories"):
+        resolve_census_path(storage, "data/escape.parquet", "ws1")

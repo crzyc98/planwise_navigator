@@ -37,6 +37,26 @@ def test_invalid_escalation_month_day_rejected(value: object) -> None:
     assert validate_dbt_vars({"deferral_escalation_effective_mmdd": value})
 
 
+@pytest.mark.parametrize(
+    "field", ["scenario_id", "plan_design_id", "parameter_scenario_id"]
+)
+@pytest.mark.parametrize("value", ["o'brien", "bad;id", "   ", " lead", 123])
+def test_identifier_dbt_vars_reject_invalid_values(field: str, value: object) -> None:
+    assert validate_dbt_vars({field: value})
+
+
+@pytest.mark.parametrize(
+    "field", ["scenario_id", "plan_design_id", "parameter_scenario_id"]
+)
+def test_identifier_dbt_vars_accept_valid_values(field: str) -> None:
+    assert not validate_dbt_vars({field: "baseline_2026-v1.0"})
+
+
+def test_census_path_dbt_var_rejects_single_quote() -> None:
+    assert validate_dbt_vars({"census_parquet_path": "/srv/o'brien/census.parquet"})
+    assert not validate_dbt_vars({"census_parquet_path": "/srv/data/census.parquet"})
+
+
 def test_band_label_rejects_quotes() -> None:
     fields = {"band_id": 1, "min_value": 0, "max_value": 25, "display_order": 1}
     assert Band(band_label="< 25", **fields).band_label == "< 25"

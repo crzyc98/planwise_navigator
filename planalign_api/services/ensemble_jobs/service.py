@@ -257,7 +257,12 @@ class EnsembleJobService:
         work.mkdir(parents=True, exist_ok=True)
         scenario_path = self.storage._scenario_path(job.workspace_id, scenario.id)
         try:
+            from ...models.studio_config import validate_studio_config_values
+
+            validate_studio_config_values(config)
             validate_census(self.storage, config, scenario.id, job.workspace_id)
+        except ValueError as exc:
+            raise EnsembleJobError(422, str(exc)) from exc
         except ConfigurationError as exc:
             raise EnsembleJobError(422, exc.message) from exc
         stamp_pack_provenance(config, scenario_path)

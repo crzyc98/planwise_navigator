@@ -20,6 +20,7 @@ from .workforce import ReenrollmentSweepSettings
 MatchFormulaFamily = Literal[
     "deferral_based", "graded_by_service", "tenure_graded", "points_based"
 ]
+MatchTemplate = Literal["simple", "tiered", "stretch", "safe_harbor", "qaca"]
 CoreFormulaFamily = Literal["flat", "graded_by_service", "points_based", "age_banded"]
 
 # Scenario and plan-design ids are written into dbt SQL as string literals, so
@@ -29,10 +30,10 @@ _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9 _.:-]{1,128}")
 
 def check_identifier(value: str) -> str:
     """Return ``value`` if it is a safe scenario or plan-design identifier."""
-    if not _IDENTIFIER_PATTERN.fullmatch(value):
+    if not value or value != value.strip() or not _IDENTIFIER_PATTERN.fullmatch(value):
         raise ValueError(
             f"invalid identifier {value!r}: use 1-128 letters, digits, spaces, "
-            "or the characters _ . : -"
+            "or the characters _ . : - with no leading or trailing spaces"
         )
     return value
 
@@ -125,7 +126,7 @@ class MatchParameterSet(BaseModel):
     """Formula selector and numeric inputs for one design's match."""
 
     family: MatchFormulaFamily | None = None
-    match_template: str | None = Field(default=None, min_length=1)
+    match_template: MatchTemplate | None = None
     cap_percent: float = Field(ge=0.0, le=1.0)
     tiers: list[MatchTier] = Field(default_factory=list)
     graded_schedule: list[ServiceMatchBand] = Field(default_factory=list)
@@ -269,10 +270,6 @@ class PlanDesignParametersMap(RootModel[dict[str, PlanDesignParameters]]):
     @model_validator(mode="after")
     def validate_designs(self) -> "PlanDesignParametersMap":
         for design_id in self.root:
-            if not design_id or design_id != design_id.strip():
-                raise ValueError(
-                    "plan design parameter ids must be nonblank and trimmed"
-                )
             check_identifier(design_id)
         return self
 
