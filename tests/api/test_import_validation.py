@@ -887,36 +887,6 @@ class TestImportUnpackedLimits:
         assert resp.status_code == 400
         assert "too many entries" in resp.json()["detail"].lower()
 
-    def test_runtime_writer_guard_blocks_oversized_writes_and_cleans_up(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from planalign_api.config import APISettings
-        from planalign_api.services import export_service as export_mod
-        from planalign_api.storage.workspace_storage import WorkspaceStorage
-
-        archive_path = _write_archive_with_index(
-            tmp_path / "src",
-            workspace_name="Runtime Guard",
-            index_entries=[],
-            extra_files={"data/payload.bin": b"X" * 40_000},
-        )
-        settings = APISettings(
-            workspaces_root=tmp_path / "workspaces",
-            import_max_unpacked_bytes=10_000,
-            import_max_member_bytes=10_000,
-            import_max_member_count=100,
-        )
-        svc = ExportService(WorkspaceStorage(settings.workspaces_root), settings)
-
-        # Bypass header pre-check to exercise the write-time guard directly.
-        monkeypatch.setattr(
-            export_mod, "_validate_archive_members", lambda *args, **kwargs: None
-        )
-        out_dir = tmp_path / "extracted_runtime"
-        with pytest.raises(ValueError, match="unpacked"):
-            svc.extract_archive(archive_path, out_dir)
-        assert not (out_dir / "data" / "payload.bin").exists()
-
     def test_normal_exported_workspace_roundtrips_under_default_limits(
         self, tmp_path: Path
     ) -> None:

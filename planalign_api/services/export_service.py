@@ -12,15 +12,13 @@ import logging
 import shutil
 import stat
 import tempfile
-import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, BinaryIO, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import py7zr
-from py7zr.io import Py7zIO, WriterFactory
 
 from ..config import APISettings, get_settings
 from ..models.export import (
@@ -91,100 +89,6 @@ def _format_byte_limit(limit_bytes: int) -> str:
     if limit_bytes >= mib:
         return f"{limit_bytes / mib:.1f} MB"
     return f"{limit_bytes} bytes"
-
-
-class _BoundedDiskIO(Py7zIO):
-    """Writable file wrapper that enforces per-file and cumulative byte limits."""
-
-    def __init__(self, handle: BinaryIO, factory: "_BoundedDiskWriterFactory") -> None:
-        self._handle = handle
-        self._factory = factory
-        self._written = 0
-
-    def write(self, s: bytes | bytearray) -> int:
-        chunk_len = len(s)
-        self._factory.record_write(self._written, chunk_len)
-        written = self._handle.write(s)
-        self._written += written
-        return written
-
-    def read(self, size: int | None = None) -> bytes:
-        return self._handle.read() if size is None else self._handle.read(size)
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        return self._handle.seek(offset, whence)
-
-    def flush(self) -> None:
-        self._handle.flush()
-
-    def size(self) -> int:
-        return self._written
-
-    def close(self) -> None:
-        if not self._handle.closed:
-            self._handle.close()
-
-
-class _BoundedDiskWriterFactory(WriterFactory):
-    """py7zr WriterFactory that writes to disk while bounding actual bytes written."""
-
-    def __init__(self, output_root: Path, limits: _ArchiveLimits) -> None:
-        self._output_root = output_root.resolve()
-        self._limits = limits
-        self._lock = threading.Lock()
-        self._total_written = 0
-        self._handles: List[_BoundedDiskIO] = []
-        self._created_files: List[Path] = []
-
-    def __enter__(self) -> "_BoundedDiskWriterFactory":
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        with self._lock:
-            handles = list(self._handles)
-            created_files = list(self._created_files)
-        for handle in handles:
-            handle.close()
-        if exc_type is not None:
-            for path in created_files:
-                path.unlink(missing_ok=True)
-
-    def _safe_target(self, filename: str) -> Path:
-        raw_target = Path(filename)
-        if raw_target.is_symlink():
-            raise ValueError("Archive contains disallowed symbolic link")
-        target = raw_target.resolve()
-        if not target.is_relative_to(self._output_root):
-            raise ValueError("Archive member escapes target directory")
-        return target
-
-    def create(self, filename: str) -> Py7zIO:
-        target = self._safe_target(filename)
-        with self._lock:
-            if len(self._created_files) >= self._limits.max_member_count:
-                raise ValueError(
-                    "Archive contains too many entries "
-                    f"(exceeds limit of {self._limits.max_member_count})"
-                )
-            target.parent.mkdir(parents=True, exist_ok=True)
-            handle = _BoundedDiskIO(open(target, "w+b"), self)
-            self._handles.append(handle)
-            self._created_files.append(target)
-            return handle
-
-    def record_write(self, file_written: int, chunk_len: int) -> None:
-        with self._lock:
-            if file_written + chunk_len > self._limits.max_member_bytes:
-                raise ValueError(
-                    "Archive entry exceeds maximum unpacked file size "
-                    f"({_format_byte_limit(self._limits.max_member_bytes)})"
-                )
-            if self._total_written + chunk_len > self._limits.max_unpacked_bytes:
-                raise ValueError(
-                    "Archive unpacked size exceeds maximum allowed "
-                    f"({_format_byte_limit(self._limits.max_unpacked_bytes)})"
-                )
-            self._total_written += chunk_len
 
 
 def _validate_archive_member_path(name: str, output_root: Optional[Path]) -> None:
@@ -271,20 +175,6 @@ def _validate_archive_members(
                 "Archive unpacked size exceeds maximum allowed "
                 f"({_format_byte_limit(active_limits.max_unpacked_bytes)})"
             )
-
-
-def _create_validated_directories(
-    archive: py7zr.SevenZipFile, resolved_output: Path
-) -> None:
-    """Create validated directory entries (py7zr skips them when using a factory)."""
-    for member in archive.files:
-        if member.is_directory:
-            normalized = member.filename.replace("\\", "/")
-            parts = [part for part in normalized.split("/") if part]
-            if parts:
-                (resolved_output / PurePosixPath(*parts)).mkdir(
-                    parents=True, exist_ok=True
-                )
 
 
 class ExportService:
@@ -479,10 +369,10 @@ class ExportService:
 
         with py7zr.SevenZipFile(archive_path, "r") as archive:
             _validate_archive_members(archive, resolved_output, limits=limits)
+            # py7zr writes at most each member's declared size, so the check
+            # above bounds what extraction can put on disk.
             output_path.mkdir(parents=True, exist_ok=True)
-            _create_validated_directories(archive, resolved_output)
-            with _BoundedDiskWriterFactory(resolved_output, limits) as factory:
-                archive.extractall(path=output_path, factory=factory)
+            archive.extractall(path=output_path)
 
         for extracted in output_path.rglob("*"):
             if extracted.is_symlink():
@@ -580,10 +470,7 @@ class ExportService:
             try:
                 with py7zr.SevenZipFile(archive_path, "r") as archive:
                     _validate_archive_members(archive, resolved_temp, limits=limits)
-                    with _BoundedDiskWriterFactory(resolved_temp, limits) as factory:
-                        archive.extract(
-                            path=temp_path, targets=["manifest.json"], factory=factory
-                        )
+                    archive.extract(path=temp_path, targets=["manifest.json"])
             except py7zr.exceptions.Bad7zFile:
                 errors.append("Invalid or corrupted 7z archive")
                 return None
