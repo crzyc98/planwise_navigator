@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- HTML scenario reports now escape interpolated attributes and substitute template placeholders in a single pass so special characters or template tokens in scenario names and warnings always display as plain text.
 - Census path validation and analysis endpoints now verify that a requested file stays inside the workspaces folder before inspecting the filesystem, returning a uniform error for outside paths.
 - Workspace archive imports now cap the total unpacked size, individual file size, and number of files before and during extraction, rejecting oversized archives cleanly.
 - Studio now refuses a workspace or scenario link with a malformed name instead of reading or saving files outside that workspace, and a census upload to a workspace that does not exist is refused instead of creating an empty folder.

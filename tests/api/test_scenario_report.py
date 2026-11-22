@@ -580,3 +580,66 @@ def test_template_without_body_placeholder_is_rejected(env, tmp_path):
         "<h1>{{ title }}</h1>{{ body }}<p>{{ trace }}</p>", encoding="utf-8"
     )
     assert "Plan designs" in render_html(report, templates)
+
+
+def test_html_report_escapes_markup_and_does_not_reexpand_placeholders(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from planalign_api.main import create_app
+    from planalign_api.models.report import ReportWarning
+
+    settings = api_config.APISettings(workspaces_root=tmp_path / "workspaces")
+    monkeypatch.setattr(api_config, "settings", settings)
+    storage = WorkspaceStorage(settings.workspaces_root)
+
+    ws_name = 'Acme & "Co" <script>alert("ws")</script>'
+    sc_name = 'Plan & "A" <script>alert("sc")</script> {{ body }} {{ trace }}'
+    workspace = storage.create_workspace(WorkspaceCreate(name=ws_name), {})
+    scenario = storage.create_scenario(
+        workspace.id,
+        ScenarioCreate(name=sc_name, config_overrides={"dc_plan": BASELINE_DESIGN}),
+    )
+    assert scenario is not None
+    storage.update_scenario_status(workspace.id, scenario.id, "completed")
+    _build_db(
+        storage._scenario_path(workspace.id, scenario.id) / "simulation.duckdb",
+        1.0,
+        "run-escape-test",
+    )
+
+    report = build_scenario_report(storage, workspace.id, scenario.id)
+    report.warnings.append(
+        ReportWarning(
+            code="custom_warning",
+            message='Check "Q&A" <script>alert("warn")</script> {{ trace }}',
+            severity="warning",
+        )
+    )
+    html = render_html(report)
+
+    assert "<script>" not in html
+    assert "</script>" not in html
+    expected_sc = (
+        "Plan &amp; &quot;A&quot; &lt;script&gt;alert(&quot;sc&quot;)&lt;/script&gt; "
+        "{{ body }} {{ trace }}"
+    )
+    assert f"<title>Plan design and employer cost: {expected_sc}</title>" in html
+    assert f"<h1>Plan design and employer cost: {expected_sc}</h1>" in html
+    assert (
+        "Check &quot;Q&amp;A&quot; &lt;script&gt;alert(&quot;warn&quot;)&lt;/script&gt; "
+        "{{ trace }}"
+    ) in html
+    # Normal generated report structure renders without double-escaping.
+    assert "<h2>Plan designs<sup>1</sup></h2>" in html
+    assert "<h2>Appendix: provenance</h2>" in html
+    assert "data:image/png;base64," in html
+
+    client = TestClient(create_app())
+    resp = client.get(
+        ENDPOINT.format(ws=workspace.id, sid=scenario.id), params={"format": "html"}
+    )
+    assert resp.status_code == 200
+    assert "<script>" not in resp.text
+    assert expected_sc in resp.text

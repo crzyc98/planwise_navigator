@@ -12,6 +12,7 @@ import base64
 import io
 import math
 import os
+import re
 import sys
 from dataclasses import dataclass
 from html import escape
@@ -474,17 +475,26 @@ def _configure_macos_weasyprint_paths() -> None:
 # --------------------------------------------------------------------------
 # HTML
 # --------------------------------------------------------------------------
+_TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{\{ (title|body|trace) \}\}")
+
+
+def _escape_html(text: str) -> str:
+    """Escape text and attribute values for safe HTML interpolation."""
+    return escape(text, quote=True)
+
+
 def _html_table(table: ReportTable) -> str:
     note = f"<sup>{table.note}</sup>" if table.note else ""
-    head = "".join(f"<th>{escape(cell)}</th>" for cell in table.header)
+    head = "".join(f"<th>{_escape_html(cell)}</th>" for cell in table.header)
     body = "".join(
-        "<tr>" + "".join(f"<td>{escape(cell)}</td>" for cell in row) + "</tr>"
+        "<tr>" + "".join(f"<td>{_escape_html(cell)}</td>" for cell in row) + "</tr>"
         for row in table.rows
     )
     if not table.rows:
         body = f"<tr><td colspan='{len(table.header)}'>No results.</td></tr>"
     return (
-        f"<section class='{table.key}'><h2>{escape(table.title)}{note}</h2>"
+        f"<section class='{_escape_html(table.key)}'>"
+        f"<h2>{_escape_html(table.title)}{note}</h2>"
         f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></section>"
     )
 
@@ -492,14 +502,16 @@ def _html_table(table: ReportTable) -> str:
 def _html_list(items: list[str], css: str = "") -> str:
     if not items:
         return ""
-    cls = f" class='{css}'" if css else ""
-    return f"<ul{cls}>" + "".join(f"<li>{escape(i)}</li>" for i in items) + "</ul>"
+    cls = f" class='{_escape_html(css)}'" if css else ""
+    return (
+        f"<ul{cls}>" + "".join(f"<li>{_escape_html(i)}</li>" for i in items) + "</ul>"
+    )
 
 
 def _html_body(report: ScenarioReport) -> str:
     lead, *glance = lead_lines(report)
     missing = missing_lines(report)
-    parts = [f"<p class='lead'>{escape(lead)}</p>", _html_list(glance, "glance")]
+    parts = [f"<p class='lead'>{_escape_html(lead)}</p>", _html_list(glance, "glance")]
     if missing:
         parts.append(
             "<div class='missing'><strong>Not included (no usable result):</strong>"
@@ -512,7 +524,7 @@ def _html_body(report: ScenarioReport) -> str:
             "alt='Employer cost by year'/></section>"
         )
     parts.append(_html_tie_out(report))
-    notes = "".join(f"<li>{escape(d.text)}</li>" for d in report.definitions)
+    notes = "".join(f"<li>{_escape_html(d.text)}</li>" for d in report.definitions)
     parts.append(f"<section class='notes'><h2>Notes</h2><ol>{notes}</ol></section>")
     parts.append(_html_appendix(report))
     return "\n".join(parts)
@@ -523,21 +535,21 @@ def _html_tie_out(report: ScenarioReport) -> str:
     if scenario is None or scenario.census_tie_out is None:
         return ""
     tie_out = scenario.census_tie_out
-    heading = f"<h2>{escape(tie_out_title(scenario))}</h2>"
+    heading = f"<h2>{_escape_html(tie_out_title(scenario))}</h2>"
     if not tie_out.available:
-        reason = escape(tie_out.unavailable_reason or "")
+        reason = _escape_html(tie_out.unavailable_reason or "")
         return f"<section class='tie-out'>{heading}<p>{reason}</p></section>"
     header, *rows = tie_out_cells(tie_out)
-    head = "".join(f"<th>{escape(cell)}</th>" for cell in header)
+    head = "".join(f"<th>{_escape_html(cell)}</th>" for cell in header)
     body = "".join(
-        f"<tr class='tie-{row.status}'>"
-        + "".join(f"<td>{escape(cell)}</td>" for cell in cells)
+        f"<tr class='tie-{_escape_html(row.status)}'>"
+        + "".join(f"<td>{_escape_html(cell)}</td>" for cell in cells)
         + "</tr>"
         for row, cells in zip(tie_out.rows, rows)
     )
     return (
         f"<section class='tie-out'>{heading}"
-        f"<p>{escape(tie_out.source_note or '')}</p>"
+        f"<p>{_escape_html(tie_out.source_note or '')}</p>"
         f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
         f"{_html_list(_tie_out_gaps(tie_out), 'tie-out-gaps')}</section>"
     )
@@ -545,11 +557,12 @@ def _html_tie_out(report: ScenarioReport) -> str:
 
 def _html_appendix(report: ScenarioReport) -> str:
     warnings = "".join(
-        f"<li class='{w.severity}'>{escape(w.message)}</li>" for w in report.warnings
+        f"<li class='{_escape_html(w.severity)}'>{_escape_html(w.message)}</li>"
+        for w in report.warnings
     )
     return (
         "<section class='appendix'><h2>Appendix: provenance</h2>"
-        f"<p>{escape(generated_line(report))}</p>"
+        f"<p>{_escape_html(generated_line(report))}</p>"
         f"{_html_table(provenance_table(report))}"
         + (f"<h3>Data notes</h3><ul>{warnings}</ul>" if warnings else "")
         + "</section>"
@@ -584,10 +597,13 @@ def _template(template_dir: Path | None) -> str:
 def render_html(report: ScenarioReport, template_dir: Path | None = None) -> str:
     """Fill the template's {{ title }}, {{ body }} and {{ trace }} placeholders."""
     template = _template(template_dir)
-    return (
-        template.replace("{{ title }}", escape(report.title))
-        .replace("{{ body }}", _html_body(report))
-        .replace("{{ trace }}", escape(trace_line(report)))
+    replacements = {
+        "title": _escape_html(report.title),
+        "body": _html_body(report),
+        "trace": _escape_html(trace_line(report)),
+    }
+    return _TEMPLATE_PLACEHOLDER_RE.sub(
+        lambda match: replacements[match.group(1)], template
     )
 
 
