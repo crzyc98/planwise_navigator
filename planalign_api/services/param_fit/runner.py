@@ -30,6 +30,7 @@ from planalign_fit.progress import ENV_FLAG, parse_progress_line
 
 from ...errors import sanitize_job_error
 from ...models.param_fit import JobError, JobProgress, ParamFitJob
+from ..simulation.run_slots import simulation_slot_sync
 from .jobs import LOG_FILENAME, JobStore
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ class ProcessRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._owned: set[str] = set()
+        self._started: set[str] = set()
         self._processes: dict[str, subprocess.Popen[str]] = {}
         self._cancelled: set[str] = set()
         self._finalizing: set[str] = set()
@@ -79,6 +81,24 @@ class ProcessRegistry:
         with self._lock:
             self._owned.add(job_id)
             self._done[job_id] = threading.Event()
+
+    def try_claim(self, job_id: str, can_queue: Callable[[int], bool]) -> bool:
+        """Claim ``job_id`` if ``can_queue`` permits another waiting job."""
+        with self._lock:
+            queued = len(self._owned - self._started - self._cancelled)
+            if not can_queue(queued):
+                return False
+            self._owned.add(job_id)
+            self._done[job_id] = threading.Event()
+            return True
+
+    def begin(self, job_id: str) -> bool:
+        """Mark the job running once it holds a slot; False if cancelled first."""
+        with self._lock:
+            if job_id in self._cancelled:
+                return False
+            self._started.add(job_id)
+            return True
 
     def owns(self, job_id: str) -> bool:
         with self._lock:
@@ -125,6 +145,7 @@ class ProcessRegistry:
     def release(self, job_id: str) -> None:
         with self._lock:
             self._owned.discard(job_id)
+            self._started.discard(job_id)
             self._processes.pop(job_id, None)
             self._cancelled.discard(job_id)
             self._finalizing.discard(job_id)
@@ -245,8 +266,7 @@ class JobRunner:
         failure: dict[str, object] = {}
         return_code: Optional[int] = None
         try:
-            if not self.registry.was_cancelled(job.job_id):
-                return_code = self._execute(job, paths, tail, failure)
+            return_code = self._run_in_slot(job, paths, tail, failure)
             self._finalize(job, paths, return_code, tail, failure)
         except Exception:  # noqa: BLE001 -- surfaced on the job record
             message = sanitize_job_error(
@@ -259,6 +279,22 @@ class JobRunner:
             self.registry.release(job.job_id)
             if self.on_finished is not None:
                 self.on_finished(job.workspace_id)
+
+    def _run_in_slot(
+        self,
+        job: ParamFitJob,
+        paths: JobPaths,
+        tail: deque[str],
+        failure: dict[str, object],
+    ) -> Optional[int]:
+        if self.registry.was_cancelled(job.job_id):
+            return None
+        with simulation_slot_sync(
+            is_cancelled=lambda: self.registry.was_cancelled(job.job_id)
+        ) as has_slot:
+            if not has_slot or not self.registry.begin(job.job_id):
+                return None
+            return self._execute(job, paths, tail, failure)
 
     def _execute(
         self,

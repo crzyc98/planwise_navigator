@@ -40,7 +40,7 @@ from .simulation.run_execution import (
     write_config,
     write_seeds,
 )
-from .simulation.run_slots import simulation_slot
+from .simulation.run_slots import queue_capacity_exceeded, simulation_slot
 from .simulation.subprocess_utils import create_subprocess, wait_subprocess
 from .sql_security import SQLSecurityError
 
@@ -54,6 +54,10 @@ _lock = threading.Lock()
 
 class RollForwardUnavailable(Exception):
     """The workspace census can't be rolled forward right now."""
+
+
+class RollForwardQueueFull(Exception):
+    """Too many census roll-forward jobs are already queued."""
 
 
 def census_status(storage: WorkspaceStorage, workspace_id: str) -> CensusStatus:
@@ -124,6 +128,12 @@ def start_job(storage: WorkspaceStorage, workspace_id: str) -> RollForwardJob:
             for j in _jobs.values()
         ):
             raise RollForwardUnavailable("A roll-forward is already running")
+        queued = sum(1 for j in _jobs.values() if j.status == "queued")
+        if queue_capacity_exceeded(queued):
+            raise RollForwardQueueFull(
+                "Too many census roll-forward jobs are already queued. "
+                "Wait for one to finish before starting another."
+            )
         _jobs[job.id] = job
     return job
 
