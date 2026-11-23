@@ -1,6 +1,7 @@
 import React, { Component, ReactNode, ErrorInfo, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import AuthGate from './components/AuthGate';
 import Dashboard from './components/Dashboard';
 import SimulationControl from './components/SimulationControl';
 import SimulationDetail from './components/SimulationDetail';
@@ -148,42 +149,44 @@ function LegacyWorkspaceRedirect() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <HashRouter>
-        <Routes>
-          <Route path="/w/:workspaceId" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="simulate" element={<SimulationControl />} />
-            <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
-            <Route path="simulate/:scenarioId/runs/:runId/provenance" element={<RunProvenanceReport />} />
-            <Route path="scenarios" element={<ScenariosPage />} />
-            <Route path="census" element={<CensusAnalysis />} />
-            <Route path="config" element={<ConfigStudio />} />
-            <Route path="calibrate" element={<CalibrationPanel />} />
-            <Route path="optimize" element={<OptimizerPanel />} />
-            <Route path="ensembles" element={<EnsemblesPage />} />
-            <Route path="fit" element={<ParamFitPage />} />
-            <Route path="config/:scenarioId" element={<ConfigStudio />} />
-            <Route path="analytics" element={<AnalyticsDashboard />} />
-            <Route path="analytics/compare" element={<ScenarioComparison />} />
-            <Route path="analytics/diff" element={<ScenarioDiff />} />
-            <Route path="analytics/dc-plan" element={<DCPlanAnalytics />} />
-            <Route path="analytics/vesting" element={<VestingAnalysis />} />
-            <Route path="analytics/ndt" element={<NDTTesting />} />
-            <Route path="analytics/winners-losers" element={<WinnersLosersTab />} />
-            <Route path="compare" element={<ScenarioCostComparison />} />
-            <Route path="batch" element={<BatchProcessing />} />
-            <Route path="workspaces" element={<WorkspaceManager />} />
-            <Route path="import" element={<DataImportWizard />} />
-            <Route path="import/census-guide" element={<CensusGuide />} />
-            <Route path="timeline" element={<EmployeeTimelinePage />} />
-            <Route path="timeline/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
-            <Route path="events" element={<EventExplorerPage />} />
-            <Route path="events/:scenarioId" element={<EventExplorerPage />} />
-            <Route path="*" element={<Placeholder title="Page Not Found" />} />
-          </Route>
-          <Route path="*" element={<LegacyWorkspaceRedirect />} />
-        </Routes>
-      </HashRouter>
+      <AuthGate>
+        <HashRouter>
+          <Routes>
+            <Route path="/w/:workspaceId" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="simulate" element={<SimulationControl />} />
+              <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
+              <Route path="simulate/:scenarioId/runs/:runId/provenance" element={<RunProvenanceReport />} />
+              <Route path="scenarios" element={<ScenariosPage />} />
+              <Route path="census" element={<CensusAnalysis />} />
+              <Route path="config" element={<ConfigStudio />} />
+              <Route path="calibrate" element={<CalibrationPanel />} />
+              <Route path="optimize" element={<OptimizerPanel />} />
+              <Route path="ensembles" element={<EnsemblesPage />} />
+              <Route path="fit" element={<ParamFitPage />} />
+              <Route path="config/:scenarioId" element={<ConfigStudio />} />
+              <Route path="analytics" element={<AnalyticsDashboard />} />
+              <Route path="analytics/compare" element={<ScenarioComparison />} />
+              <Route path="analytics/diff" element={<ScenarioDiff />} />
+              <Route path="analytics/dc-plan" element={<DCPlanAnalytics />} />
+              <Route path="analytics/vesting" element={<VestingAnalysis />} />
+              <Route path="analytics/ndt" element={<NDTTesting />} />
+              <Route path="analytics/winners-losers" element={<WinnersLosersTab />} />
+              <Route path="compare" element={<ScenarioCostComparison />} />
+              <Route path="batch" element={<BatchProcessing />} />
+              <Route path="workspaces" element={<WorkspaceManager />} />
+              <Route path="import" element={<DataImportWizard />} />
+              <Route path="import/census-guide" element={<CensusGuide />} />
+              <Route path="timeline" element={<EmployeeTimelinePage />} />
+              <Route path="timeline/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
+              <Route path="events" element={<EventExplorerPage />} />
+              <Route path="events/:scenarioId" element={<EventExplorerPage />} />
+              <Route path="*" element={<Placeholder title="Page Not Found" />} />
+            </Route>
+            <Route path="*" element={<LegacyWorkspaceRedirect />} />
+          </Routes>
+        </HashRouter>
+      </AuthGate>
     </ErrorBoundary>
   );
 }
