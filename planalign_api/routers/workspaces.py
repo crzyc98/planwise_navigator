@@ -1,6 +1,8 @@
 """Workspace management endpoints."""
 
 import logging
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -15,6 +17,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_error, sanitize_job_error
@@ -23,6 +26,7 @@ from ..models.export import (
     BulkExportStatus,
     BulkImportStatus,
     ConflictResolution,
+    ExportStatus,
     ImportResponse,
     ImportStatus,
     ImportValidationResponse,
@@ -40,6 +44,7 @@ from ..services.export_service import (
     ExportWorkspaceNotFoundError,
     ExportWorkspaceRunningError,
     MAX_IMPORT_SIZE_BYTES,
+    SINGLE_EXPORT_DIR_PREFIX,
 )
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
@@ -57,6 +62,9 @@ logger = logging.getLogger(__name__)
 MAX_BULK_IMPORT_SIZE_BYTES = 8 * 1024 * 1024 * 1024
 
 
+_export_services: Dict[Path, ExportService] = {}
+
+
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
     """Dependency to get workspace storage."""
     return WorkspaceStorage(settings.workspaces_root)
@@ -66,8 +74,16 @@ def get_export_service(
     storage: WorkspaceStorage = Depends(get_storage),
     settings: APISettings = Depends(get_settings),
 ) -> ExportService:
-    """Dependency to get export service."""
-    return ExportService(storage, settings)
+    """Dependency to get export service, retaining bulk operation state."""
+    root = storage.workspaces_root.resolve()
+    service = _export_services.get(root)
+    if service is None:
+        service = ExportService(storage, settings)
+        _export_services[root] = service
+    else:
+        service.storage = storage
+        service.settings = settings
+    return service
 
 
 async def get_default_config(
@@ -277,23 +293,14 @@ def delete_workspace(
 # ==================== Export Endpoints ====================
 
 
-@router.post("/{workspace_id}/export")
-def export_workspace(
-    workspace_id: str,
-    export_service: ExportService = Depends(get_export_service),
-) -> FileResponse:
-    """
-    Export a workspace as a 7z archive.
-
-    Returns a downloadable archive containing the workspace data and manifest.
-    The archive filename includes the workspace name and timestamp.
-
-    Raises:
-        404: Workspace not found
-        409: Simulation is currently running
-    """
+def _export_into(
+    export_service: ExportService, workspace_id: str, export_dir: Path
+) -> tuple[Path, str]:
+    """Write a workspace archive into ``export_dir``; map failures to HTTP errors."""
     try:
-        archive_path, result = export_service.export_workspace(workspace_id)
+        archive_path, result = export_service.export_workspace(
+            workspace_id, output_dir=export_dir
+        )
     except ExportWorkspaceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -309,11 +316,41 @@ def export_workspace(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=sanitize_error(logger, "Failed to export workspace"),
         ) from exc
+    if result.status != ExportStatus.SUCCESS or not archive_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=sanitize_error(logger, "Failed to export workspace"),
+        )
+    return archive_path, result.filename
+
+
+@router.post("/{workspace_id}/export")
+def export_workspace(
+    workspace_id: str,
+    export_service: ExportService = Depends(get_export_service),
+) -> FileResponse:
+    """
+    Export a workspace as a 7z archive.
+
+    Returns a downloadable archive containing the workspace data and manifest.
+    The archive filename includes the workspace name and timestamp.
+
+    Raises:
+        404: Workspace not found
+        409: Simulation is currently running
+    """
+    export_dir = Path(tempfile.mkdtemp(prefix=SINGLE_EXPORT_DIR_PREFIX))
+    try:
+        archive_path, filename = _export_into(export_service, workspace_id, export_dir)
+    except BaseException:
+        shutil.rmtree(export_dir, ignore_errors=True)
+        raise
 
     return FileResponse(
         path=archive_path,
-        filename=result.filename,
+        filename=filename,
         media_type="application/x-7z-compressed",
+        background=BackgroundTask(shutil.rmtree, export_dir, ignore_errors=True),
     )
 
 
@@ -377,6 +414,9 @@ def download_bulk_export(
         path=archive_path,
         filename=archive_path.name,
         media_type="application/x-7z-compressed",
+        background=BackgroundTask(
+            export_service.complete_bulk_export_download, operation_id, workspace_id
+        ),
     )
 
 

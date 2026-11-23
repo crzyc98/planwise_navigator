@@ -6,6 +6,7 @@ Provides Excel export functionality for simulation results.
 
 import logging
 import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -15,10 +16,37 @@ from planalign_core.constants import DATABASE_FILENAME
 logger = logging.getLogger(__name__)
 
 
-def _is_ready_export(path: Path) -> bool:
-    """Return whether an export is a non-empty, atomically published file."""
+def _is_contained_without_symlinks(path: Path, expected_dir: Path) -> bool:
+    """Return whether ``path`` resolves inside ``expected_dir`` with no symlink segments."""
+    resolved_dir = expected_dir.resolve(strict=True)
+    resolved_path = path.resolve(strict=True)
+    if resolved_path == resolved_dir or not resolved_path.is_relative_to(resolved_dir):
+        return False
     try:
-        return path.is_file() and path.stat().st_size > 0
+        rel = path.relative_to(expected_dir)
+    except ValueError:
+        return False
+    if ".." in rel.parts:
+        return False
+    current = expected_dir
+    for part in rel.parts:
+        current = current / part
+        if current.is_symlink():
+            return False
+    return True
+
+
+def _is_ready_export(path: Path, expected_dir: Optional[Path] = None) -> bool:
+    """Return whether an export is a non-empty, regular file inside ``expected_dir``."""
+    try:
+        if path.is_symlink():
+            return False
+        st = path.lstat()
+        if not stat.S_ISREG(st.st_mode) or st.st_size <= 0:
+            return False
+        if expected_dir is not None:
+            return _is_contained_without_symlinks(path, expected_dir)
+        return True
     except OSError:
         return False
 
@@ -31,18 +59,20 @@ def find_results_export(
 ) -> Optional[Path]:
     """Find an export for the selected successful run, or for legacy storage."""
     search_dir = selected_run_dir or scenario_path / "results"
+    if search_dir.is_symlink() or not search_dir.is_dir():
+        return None
     for filename in (
         f"{scenario_name}_results.{extension}",
         f"results.{extension}",
     ):
         candidate = search_dir / filename
-        if _is_ready_export(candidate):
+        if _is_ready_export(candidate, expected_dir=search_dir):
             return candidate
     return next(
         (
             path
             for path in search_dir.glob(f"*_results.{extension}")
-            if _is_ready_export(path)
+            if _is_ready_export(path, expected_dir=search_dir)
         ),
         None,
     )
@@ -126,7 +156,7 @@ def export_results_to_excel(
                     seed=seed,
                     export_format="excel",
                 )
-                if not _is_ready_export(staged_path):
+                if not _is_ready_export(staged_path, expected_dir=Path(staging_dir)):
                     raise RuntimeError("Excel exporter did not create a valid workbook")
                 excel_path = results_dir / staged_path.name
                 os.replace(staged_path, excel_path)

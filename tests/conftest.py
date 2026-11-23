@@ -69,6 +69,15 @@ def shared_dev_database_guard() -> Iterator[FileSignature]:
     )
 
 
+@pytest.fixture(autouse=True)
+def _restore_umask() -> Iterator[None]:
+    """Undo the private umask the API lifespan and CLI entry point apply."""
+    original = os.umask(0o022)
+    os.umask(original)
+    yield
+    os.umask(original)
+
+
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     # Markers are defined in pyproject.toml

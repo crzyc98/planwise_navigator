@@ -25,6 +25,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute, iter_route_contexts
 
+from planalign_core.process_security import restrict_file_permissions
+
 from .config import get_settings
 from .trusted_hosts import TrustedHostMiddleware
 from .errors import (
@@ -281,6 +283,7 @@ def _register_docs_routes(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""
+    restrict_file_permissions()
     settings = get_settings()
 
     from .services.calibration_jobs import get_job_runner
@@ -616,6 +619,7 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
+    restrict_file_permissions()
     settings = get_settings()
     uvicorn.run(
         "planalign_api.main:app",
