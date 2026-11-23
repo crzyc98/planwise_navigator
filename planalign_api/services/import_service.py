@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 
 from ..config import get_settings
+from ..errors import sanitize_job_error
 from ..models.files import CensusHourlyRateSummary
 from ..models.imports import (
     DetectedColumn,
@@ -31,10 +32,13 @@ from ..models.imports import (
 )
 from .census_analysis_service import CensusAnalysisService
 from .import_quality import FullFileQuality, flagged_rows_csv, scan_data_quality
-from .mapping_engine import MappingEngine
+from .mapping_engine import MappingEngine, MappingError
+from .mapping_validation import require_valid_mappings
 from .path_guard import require_safe_path_component, resolve_child_path
 
 logger = logging.getLogger(__name__)
+
+MAX_DISTINCT_SOURCE_VALUES = 10_000
 
 
 def _after_last_data_dir(stored: str) -> tuple[str, ...]:
@@ -415,14 +419,14 @@ class ImportService:
 
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
-            raise ValueError("No mapping saved; cannot generate parquet")
+            raise MappingError("No mapping saved; cannot generate parquet")
 
         from .census_schema import get_required_fields
 
         mapped_outputs = {m.output_column for m in mappings if not m.is_excluded}
         missing = [f for f in get_required_fields() if f not in mapped_outputs]
         if missing:
-            raise ValueError(
+            raise MappingError(
                 f"Required census fields not mapped: {', '.join(missing)}. "
                 "All required fields must be mapped before generating parquet."
             )
@@ -433,9 +437,8 @@ class ImportService:
         try:
             transformed = self._engine.apply(df, mappings)
         except Exception as exc:
-            self.update_status(
-                workspace_id, import_id, "failed", error_message=str(exc)
-            )
+            message = _storable_error(exc, import_id)
+            self.update_status(workspace_id, import_id, "failed", error_message=message)
             self._write_audit_log(
                 workspace_id=workspace_id,
                 action="generate_failure",
@@ -444,7 +447,7 @@ class ImportService:
                 row_count=session.row_count,
                 user=user,
                 mapping_config={"field_count": len(mappings)},
-                error_message=str(exc),
+                error_message=message,
             )
             raise
 
@@ -756,6 +759,7 @@ class ImportService:
             for m in template.field_mappings
             if m.input_column in detected_names
         ]
+        require_valid_mappings(matched, detected_names)
         return self.save_mapping(workspace_id, import_id, matched, user=user)
 
     # ------------------------------------------------------------------
@@ -791,7 +795,7 @@ class ImportService:
                 ).df()
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
-            raise ValueError("No mapping saved")
+            raise MappingError("No mapping saved")
         return self._engine.apply_preview(source.head(limit), mappings)
 
     def read_source(self, workspace_id: str, import_id: str) -> pd.DataFrame:
@@ -817,7 +821,7 @@ class ImportService:
         """
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
-            raise ValueError("No mapping saved")
+            raise MappingError("No mapping saved")
         if source is None:
             source = self.read_source(workspace_id, import_id)
         return _normalize_dtypes_for_duckdb(self._engine.apply(source, mappings))
@@ -835,9 +839,16 @@ class ImportService:
         """
         try:
             mapped = self._mapped_source(workspace_id, import_id, source)
-        except ValueError as exc:
+        except MappingError as exc:
             logger.info("Import %s: whole-file checks skipped", import_id)
             return FullFileQuality(None, f"Whole-file checks didn't run: {exc}")
+        except ValueError:
+            logger.warning(
+                "Import %s: whole-file checks failed", import_id, exc_info=True
+            )
+            return FullFileQuality(
+                None, "Whole-file checks didn't run: the file can't be converted."
+            )
         return scan_data_quality(mapped, CensusAnalysisService(self._root))
 
     def get_flagged_rows_csv(self, workspace_id: str, import_id: str) -> str:
@@ -854,14 +865,17 @@ class ImportService:
     def get_source_column_values(
         self, workspace_id: str, import_id: str, column: str
     ) -> list[str]:
-        """Read distinct source values for column-wide date format detection."""
+        """Read distinct source values for column-wide date format detection.
+
+        At most ``MAX_DISTINCT_SOURCE_VALUES`` values are returned.
+        """
         source_path = self._source_parquet_path(workspace_id, import_id)
         identifier = column.replace('"', '""')
         with duckdb.connect(":memory:") as conn:
             rows = conn.execute(
                 f'SELECT DISTINCT CAST("{identifier}" AS VARCHAR) '
                 "FROM read_parquet(?) WHERE "
-                f'"{identifier}" IS NOT NULL',
+                f'"{identifier}" IS NOT NULL LIMIT {MAX_DISTINCT_SOURCE_VALUES}',
                 [str(source_path)],
             ).fetchall()
         return [row[0] for row in rows]
@@ -870,6 +884,18 @@ class ImportService:
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
+
+def _storable_error(exc: Exception, import_id: str) -> str:
+    """The message to keep for a failed generate.
+
+    Engine validation messages name columns and rows only, so they are kept.
+    Anything else may hold file contents or paths: it is logged with a
+    reference and stored as a generic message carrying that reference.
+    """
+    if isinstance(exc, MappingError):
+        return str(exc)
+    return sanitize_job_error(logger, f"import {import_id}", event="Import failed")
 
 
 def _normalize_dtypes_for_duckdb(df: pd.DataFrame) -> pd.DataFrame:

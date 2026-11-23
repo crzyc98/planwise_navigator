@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from .base import APIModel
 from .files import CensusHourlyRateSummary
 
@@ -102,9 +103,24 @@ class DetectedColumn(APIModel):
     sample_values: List[str] = Field(default_factory=list)
 
 
+MAX_TRANSFORMATION_PARAMS_BYTES = 4096
+MAX_TRANSFORMATIONS_PER_FIELD = 16
+MAX_FIELD_MAPPINGS = 500
+
+
 class Transformation(APIModel):
     transform_type: TransformType
     params: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("params")
+    @classmethod
+    def _params_are_small(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        size = len(json.dumps(value, default=str).encode("utf-8"))
+        if size > MAX_TRANSFORMATION_PARAMS_BYTES:
+            raise ValueError(
+                f"Transformation settings exceed {MAX_TRANSFORMATION_PARAMS_BYTES} bytes"
+            )
+        return value
 
 
 class FieldMapping(APIModel):
@@ -115,7 +131,9 @@ class FieldMapping(APIModel):
     output_type: OutputType
     is_required: bool = False
     is_excluded: bool = False
-    transformations: List[Transformation] = Field(default_factory=list)
+    transformations: List[Transformation] = Field(
+        default_factory=list, max_length=MAX_TRANSFORMATIONS_PER_FIELD
+    )
 
 
 class ImportSession(APIModel):
@@ -205,7 +223,7 @@ class MappingValidationError(APIModel):
 
 
 class MappingSaveRequest(APIModel):
-    field_mappings: List[FieldMapping]
+    field_mappings: List[FieldMapping] = Field(..., max_length=MAX_FIELD_MAPPINGS)
 
 
 class MappingSaveResponse(APIModel):

@@ -325,8 +325,9 @@ class TestGenerateParquet:
         assert response.status_code == 422
         detail = response.json()["detail"]
         assert "'ACTIVE'" in detail
-        assert "'sometimes'" in detail
+        assert "sometimes" not in detail
         assert "unsupported boolean value" in detail
+        assert "(row 1)" in detail
 
     def test_generate_without_mapping_returns_409(self, client, workspace_id):
         with open(SAMPLE_CSV, "rb") as f:
