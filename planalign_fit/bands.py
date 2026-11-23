@@ -14,11 +14,13 @@ seeded, so they are mirrored here as constants with a pointer to their source.
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
 DEFAULT_SEEDS_DIR = Path(__file__).resolve().parents[1] / "dbt" / "seeds"
+MAX_BAND_LABEL_LENGTH = 50
 
 AGE_BANDS_SEED = "config_age_bands.csv"
 TENURE_BANDS_SEED = "config_tenure_bands.csv"
@@ -122,14 +124,38 @@ class BandDefinitions:
         return _segment_case(column, INCOME_SEGMENT_EDGES)
 
 
+def _sql_literal(text: str) -> str:
+    return text.replace("'", "''")
+
+
+def _validate_band_label(label: object, source: Path) -> str:
+    if not isinstance(label, str) or not label:
+        raise BandDefinitionError(
+            f"Invalid band_label in {source}: must be non-empty text"
+        )
+    if len(label) > MAX_BAND_LABEL_LENGTH:
+        raise BandDefinitionError(
+            f"Invalid band_label in {source}: exceeds {MAX_BAND_LABEL_LENGTH} characters"
+        )
+    if "'" in label:
+        raise BandDefinitionError(
+            f"Invalid band_label in {source}: must not contain single quotes"
+        )
+    if any(ord(ch) < 0x20 or 0x7F <= ord(ch) <= 0x9F for ch in label):
+        raise BandDefinitionError(
+            f"Invalid band_label in {source}: must not contain control characters"
+        )
+    return label
+
+
 def _band_case(column: str, bands: Sequence[Band]) -> str:
     ordered = sorted(bands, key=lambda b: b.min_value)
     whens = "\n".join(
         f"    WHEN {column} >= {b.min_value} AND {column} < {b.max_value} "
-        f"THEN '{b.label}'"
+        f"THEN '{_sql_literal(b.label)}'"
         for b in ordered
     )
-    fallback = ordered[-1].label if ordered else "unknown"
+    fallback = _sql_literal(ordered[-1].label) if ordered else "unknown"
     return f"CASE\n{whens}\n    ELSE '{fallback}'\n  END"
 
 
@@ -155,15 +181,22 @@ def _parse_bands(rows: Sequence[dict[str, str]], source: Path) -> tuple[Band, ..
     bands: list[Band] = []
     for row in rows:
         try:
+            label = _validate_band_label(row["band_label"], source)
+            min_value = float(row["min_value"])
+            max_value = float(row["max_value"])
+            if not (math.isfinite(min_value) and math.isfinite(max_value)):
+                raise ValueError("band bounds must be finite")
             bands.append(
                 Band(
                     band_id=int(row["band_id"]),
-                    label=row["band_label"],
-                    min_value=float(row["min_value"]),
-                    max_value=float(row["max_value"]),
+                    label=label,
+                    min_value=min_value,
+                    max_value=max_value,
                     display_order=int(row["display_order"]),
                 )
             )
+        except BandDefinitionError:
+            raise
         except (KeyError, TypeError, ValueError) as exc:
             raise BandDefinitionError(f"Malformed band row in {source}: {row}") from exc
     if not bands:

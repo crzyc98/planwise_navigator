@@ -59,8 +59,8 @@ WHERE FALSE
 {%- else -%}
 {%- for row in flat_rows %}
 SELECT
-    {{ row['band_min_years'] }} AS band_min_years,
-    {{ row['band_max_years'] if row['band_max_years'] is not none else 'NULL' }} AS band_max_years,
+    {{ row['band_min_years'] | int }} AS band_min_years,
+    {{ (row['band_max_years'] | int) if row['band_max_years'] is not none else 'NULL' }} AS band_max_years,
     {{ row['employee_min'] }} AS employee_min,
     {{ row['employee_max'] }} AS employee_max,
     {{ row['match_rate'] }} AS match_rate

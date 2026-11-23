@@ -31,7 +31,9 @@ from typing import (
     Tuple,
 )
 
+from .config.dbt_var_validation import validate_dbt_vars
 from .dbt_executable import find_dbt_executable
+from .exceptions import ConfigurationError
 
 if TYPE_CHECKING:
     from .construction.signature import WorkSchedule
@@ -420,6 +422,12 @@ class DbtRunner:
         if dbt_vars:
             vars_dict.update(dbt_vars)
         if vars_dict:
+            var_errors = validate_dbt_vars(vars_dict)
+            if var_errors:
+                details = "; ".join(
+                    f"{error['field']}: {error['message']}" for error in var_errors
+                )
+                raise ConfigurationError(f"Invalid dbt variables: {details}")
             vars_json = json.dumps(vars_dict)
             cmd.extend(["--vars", vars_json])
         # Attach threads if supported and not already present

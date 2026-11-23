@@ -46,7 +46,7 @@
 {%- endfor -%}
 CASE
   {%- for min_pt in sorted_min_points %}
-  WHEN {{ points_col }} >= {{ min_pt }} THEN {{ rate_lookup[min_pt] / 100.0 }}
+  WHEN {{ points_col }} >= {{ min_pt }} THEN {{ (rate_lookup[min_pt] | float) / 100.0 }}
   {%- endfor %}
   ELSE {{ default_rate }}
 END
@@ -71,7 +71,7 @@ END
 {%- endfor -%}
 CASE
   {%- for min_pt in sorted_min_points %}
-  WHEN {{ points_col }} >= {{ min_pt }} THEN {{ max_deferral_lookup[min_pt] / 100.0 }}
+  WHEN {{ points_col }} >= {{ min_pt }} THEN {{ (max_deferral_lookup[min_pt] | float) / 100.0 }}
   {%- endfor %}
   ELSE {{ default_pct }}
 END

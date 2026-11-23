@@ -4,9 +4,9 @@
   CASE
     {%- for item in var('job_level_compensation') | sort(attribute='level', reverse=true) %}
     {%- if not loop.last %}
-    WHEN {{ pay }} >= {{ item.min_compensation }} THEN {{ item.level }}
+    WHEN {{ pay }} >= {{ item.min_compensation | float }} THEN {{ item.level | int }}
     {%- else %}
-    ELSE {{ item.level }}
+    ELSE {{ item.level | int }}
     {%- endif %}
     {%- endfor %}
   END

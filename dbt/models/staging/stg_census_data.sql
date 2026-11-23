@@ -20,7 +20,7 @@ WITH schema_scaffold AS (
 -- Combine actual parquet data with schema scaffold using UNION ALL BY NAME
 -- This ensures missing columns get NULL values instead of binding errors
 parquet_with_schema AS (
-  SELECT * FROM read_parquet('{{ var("census_parquet_path") }}')
+  SELECT * FROM read_parquet('{{ (var("census_parquet_path") | string) | replace("'", "''") }}')
   UNION ALL BY NAME
   SELECT * FROM schema_scaffold
 ),
@@ -101,7 +101,7 @@ census_rows AS (
   SELECT r.* EXCLUDE (inactive_without_date) REPLACE (
       COALESCE(r.employee_termination_date, CASE WHEN r.inactive_without_date
         THEN GREATEST(
-          {%- if census_as_of_date %} CAST('{{ census_as_of_date }}' AS DATE)
+          {%- if census_as_of_date %} CAST('{{ (census_as_of_date | string) | replace("'", "''") }}' AS DATE)
           {%- else %} pc.plan_end{% endif %}, r.employee_hire_date) END) AS employee_termination_date
     ),
     r.inactive_without_date AS termination_date_imputed

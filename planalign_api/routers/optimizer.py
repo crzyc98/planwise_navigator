@@ -16,6 +16,7 @@ instead of calibration's per-DB ``threading.Lock`` queue.
 from __future__ import annotations
 
 import logging
+import re
 import tempfile
 import threading
 from datetime import datetime, timezone
@@ -72,6 +73,7 @@ router = APIRouter()
 _OUTPUT_DIR_ERROR = (
     "optimizer output directories must be inside the optimizer runs directory"
 )
+_SAFE_OUTPUT_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _BASELINE_CONFIG_ERROR = "baseline configuration not found or not allowed"
 _COMPARE_BASELINE_ERROR = "comparison baseline not found or not allowed"
 _ENSEMBLE_DATABASE_ERROR = "ensemble database not found or not allowed"
@@ -340,6 +342,20 @@ def _contained(raw: str | Path, roots: List[Path], error: str) -> Path:
         raise ValueError(error) from exc
 
 
+def _validate_output_components(raw: str, resolved: Path, root: Path) -> None:
+    """Require every client-supplied directory component to match the safe pattern."""
+    raw_path = Path(raw)
+    if ".." in raw_path.parts:
+        raise ValueError(_OUTPUT_DIR_ERROR)
+    components = (
+        resolved.relative_to(root).parts if raw_path.is_absolute() else raw_path.parts
+    )
+    if not components or any(
+        not _SAFE_OUTPUT_COMPONENT.fullmatch(part) for part in components
+    ):
+        raise ValueError(_OUTPUT_DIR_ERROR)
+
+
 def _api_output_paths(
     database_dir: Optional[str], output_dir: Optional[str], settings: APISettings
 ) -> tuple[Path, Path]:
@@ -347,9 +363,13 @@ def _api_output_paths(
     root = settings.optimizer_runs_root.resolve()
     requested: list[Optional[Path]] = []
     for raw in (database_dir, output_dir):
-        path = _contained(raw, [root], _OUTPUT_DIR_ERROR) if raw else None
-        if path == root:
-            raise ValueError(_OUTPUT_DIR_ERROR)
+        if raw:
+            path = _contained(raw, [root], _OUTPUT_DIR_ERROR)
+            if path == root:
+                raise ValueError(_OUTPUT_DIR_ERROR)
+            _validate_output_components(raw, path, root)
+        else:
+            path = None
         requested.append(path)
     database, output = requested
     if database is None and output is None:

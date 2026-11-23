@@ -26,16 +26,16 @@ plan_calendar AS (
   {%- set end_date = var('plan_year_end_date', none) %}
   SELECT
     {% if start_date -%}
-    CAST('{{ start_date }}' AS DATE)
+    CAST('{{ (start_date | string) | replace("'", "''") }}' AS DATE)
     {%- elif end_date -%}
-    CAST(CAST('{{ end_date }}' AS DATE) - INTERVAL 1 YEAR + INTERVAL 1 DAY AS DATE)
+    CAST(CAST('{{ (end_date | string) | replace("'", "''") }}' AS DATE) - INTERVAL 1 YEAR + INTERVAL 1 DAY AS DATE)
     {%- else -%}
     COALESCE(year_start, DATE '2024-01-01')
     {%- endif %} AS plan_start,
     {% if end_date -%}
-    CAST('{{ end_date }}' AS DATE)
+    CAST('{{ (end_date | string) | replace("'", "''") }}' AS DATE)
     {%- elif start_date -%}
-    CAST(CAST('{{ start_date }}' AS DATE) + INTERVAL 1 YEAR - INTERVAL 1 DAY AS DATE)
+    CAST(CAST('{{ (start_date | string) | replace("'", "''") }}' AS DATE) + INTERVAL 1 YEAR - INTERVAL 1 DAY AS DATE)
     {%- else -%}
     COALESCE(CAST(year_end - INTERVAL 1 DAY AS DATE), DATE '2024-12-31')
     {%- endif %} AS plan_end

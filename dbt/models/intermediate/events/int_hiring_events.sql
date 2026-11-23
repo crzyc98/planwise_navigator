@@ -69,7 +69,7 @@ age_distribution AS (
   FROM (
     VALUES
     {% for item in age_dist_var %}
-      ({{ item.age }}, CAST({{ item.weight }} AS DOUBLE)){% if not loop.last %},{% endif %}
+      ({{ item.age | int }}, CAST({{ item.weight | float }} AS DOUBLE)){% if not loop.last %},{% endif %}
     {% endfor %}
   ) AS ad(hire_age, age_weight)
   {% else %}

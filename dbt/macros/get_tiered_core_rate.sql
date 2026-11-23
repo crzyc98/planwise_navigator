@@ -37,7 +37,7 @@
 {%- endfor -%}
 CASE
   {%- for min_yr in sorted_min_years %}
-  WHEN {{ years_of_service_col }} >= {{ min_yr }} THEN {{ rate_lookup[min_yr] / 100.0 }}
+  WHEN {{ years_of_service_col }} >= {{ min_yr }} THEN {{ (rate_lookup[min_yr] | float) / 100.0 }}
   {%- endfor %}
   ELSE {{ flat_rate }}
 END

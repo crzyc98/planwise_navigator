@@ -239,6 +239,11 @@ def test_optimizer_rejects_outside_traversal_and_symlink_output_dirs(
         str(escaping_link),
         str(escaping_link / "child"),
         f"link_{field}/child",
+        ".hidden_dir",
+        "-leading_dash",
+        "dir with spaces",
+        "bad{brace}",
+        "bad%pct",
     ]
     # An absolute, valid baseline so nothing but the directory can fail.
     config = str(sandbox["config_dir"] / "simulation_config.yaml")
