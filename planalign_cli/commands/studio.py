@@ -6,6 +6,7 @@ Starts both the FastAPI backend and the React/Vite frontend.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -293,6 +294,21 @@ def _validate_configured_api_token() -> None:
         raise SystemExit(1)
 
 
+def _print_token_sign_in_notice(*, api_only: bool = False) -> None:
+    """Inform the user that Studio prompts for the configured token on first load."""
+    if api_only or not (os.environ.get("PLANALIGN_API_TOKEN") or "").strip():
+        return
+    console.print(
+        "[dim]Authentication is enabled — Studio will prompt for the API token on first load.[/dim]"
+    )
+
+
+def _studio_cors_origins(display_host: str, frontend_port: int) -> str:
+    """Return the addresses Studio is served from, as the API's allowed origins."""
+    hosts = dict.fromkeys(["localhost", "127.0.0.1", display_host])
+    return json.dumps([f"http://{host}:{frontend_port}" for host in hosts])
+
+
 def _warn_for_unsafe_bind(bind_host: str) -> None:
     """Display a prominent warning for unauthenticated network exposure."""
     if (
@@ -393,6 +409,12 @@ def launch_studio(
             api_env = os.environ.copy()
             api_env["PLANALIGN_API_HOST"] = bind_host
             api_env["PLANALIGN_API_PORT"] = str(api_port)
+            # Studio's sign-in and telemetry are only accepted from allowed origins,
+            # so allow the address this command serves Studio from.
+            api_env.setdefault(
+                "PLANALIGN_API_CORS_ORIGINS",
+                _studio_cors_origins(display_host, frontend_port),
+            )
 
             # On Windows, use planalign_api.run which sets ProactorEventLoop
             # before uvicorn creates its event loop (required for subprocess support)
@@ -504,9 +526,6 @@ def launch_studio(
                 "PLANALIGN_STUDIO_ALLOWED_HOSTS",
                 f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
             )
-            api_token = os.environ.get("PLANALIGN_API_TOKEN")
-            if api_token:
-                frontend_env.setdefault("VITE_PLANALIGN_API_TOKEN", api_token)
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
@@ -553,6 +572,7 @@ def launch_studio(
             table.add_row(service, url)
 
         console.print(table)
+        _print_token_sign_in_notice(api_only=api_only)
         console.print()
 
         # Open browser

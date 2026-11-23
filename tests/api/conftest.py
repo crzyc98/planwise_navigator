@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 import planalign_api.config as api_config
 from planalign_api.main import create_app
+from planalign_api.sessions import get_session_store
 
 
 @pytest.fixture()
@@ -16,6 +17,7 @@ def client_factory(tmp_path, monkeypatch):
     def _create(
         api_token: str | None, *, raise_server_exceptions: bool = True
     ) -> TestClient:
+        get_session_store().clear()
         monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
         if api_token is not None:
             monkeypatch.setenv("PLANALIGN_API_TOKEN", api_token)
