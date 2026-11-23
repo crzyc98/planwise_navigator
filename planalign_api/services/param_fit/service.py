@@ -28,6 +28,7 @@ from ...models.param_fit import (
 from ...models.scenario import Scenario, ScenarioCreate
 from ...storage.workspace_storage import WorkspaceStorage
 from ..provenance.capture import config_fingerprint
+from ..seed_config_validator import validate_seed_configs
 from ..simulation.run_execution import scenario_pack_seeds, write_seeds
 from ..simulation.run_slots import queue_capacity_exceeded
 from . import apply as pack_apply
@@ -379,6 +380,23 @@ class ParamFitService:
         self, job: ParamFitJob, merged: dict[str, Any], scenario: Scenario
     ) -> JobPaths:
         """Snapshot the base scenario's effective config and seeds for the CLI."""
+        seed_errors = validate_seed_configs(merged)
+        if seed_errors:
+            details = "; ".join(
+                f"{err.section}.{err.field}: {err.message}" for err in seed_errors
+            )
+            raise ParamFitError(
+                422,
+                f"Invalid seed configuration: {details}",
+                errors=[
+                    {
+                        "section": err.section,
+                        "field": err.field,
+                        "message": err.message,
+                    }
+                    for err in seed_errors
+                ],
+            )
         inputs = self.jobs.inputs_dir(job.workspace_id, job.job_id)
         inputs.mkdir(parents=True, exist_ok=True)
         base_config = inputs / "base_config.yaml"

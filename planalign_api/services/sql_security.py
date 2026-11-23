@@ -130,9 +130,9 @@ def validate_file_path_for_sql(
             f"Invalid {context} path: '{file_path}' is outside allowed directories"
         )
 
-    # Check for SQL injection characters in the path string
+    # Check for disallowed characters in the path string
     path_str = str(resolved)
-    dangerous_patterns = ["'", '"', ";", "--", "/*", "*/", "\\x00"]
+    dangerous_patterns = ["'", '"', ";", "--", "/*", "*/", "\\x00", "{", "}", "%"]
     for pattern in dangerous_patterns:
         if pattern in path_str:
             raise SQLSecurityError(

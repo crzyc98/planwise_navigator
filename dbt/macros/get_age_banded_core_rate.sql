@@ -6,7 +6,7 @@ CASE
   {%- for tier in sorted_schedule %}
   WHEN {{ age_col }} >= {{ tier['min_age'] | int }}
     AND ({{ 'TRUE' if tier['max_age'] is none else age_col ~ ' < ' ~ (tier['max_age'] | int) }})
-    THEN {{ tier['rate'] / 100.0 }}
+    THEN {{ (tier['rate'] | float) / 100.0 }}
   {%- endfor %}
   ELSE {{ flat_rate }}
 END

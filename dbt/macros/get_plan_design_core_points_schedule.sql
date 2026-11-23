@@ -24,10 +24,10 @@ WHERE FALSE
 {%- for row in rows %}
 SELECT
   '{{ row['plan_design_id'] | replace("'", "''") }}'::VARCHAR AS plan_design_id,
-  {{ row['band_ordinal'] }}::INTEGER AS band_ordinal,
-  {{ row['min_points'] }}::INTEGER AS min_points,
-  {{ row['max_points'] if row['max_points'] is not none else 'NULL' }}::INTEGER AS max_points,
-  {{ row['rate'] }}::DECIMAL(10,6) AS rate
+  {{ row['band_ordinal'] | int }}::INTEGER AS band_ordinal,
+  {{ row['min_points'] | int }}::INTEGER AS min_points,
+  {{ (row['max_points'] | int) if row['max_points'] is not none else 'NULL' }}::INTEGER AS max_points,
+  {{ row['rate'] | float }}::DECIMAL(10,6) AS rate
 {% if not loop.last %}UNION ALL{% endif %}
 {%- endfor -%}
 {%- endif -%}

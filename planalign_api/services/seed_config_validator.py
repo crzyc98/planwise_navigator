@@ -17,6 +17,12 @@ Usage:
 from dataclasses import dataclass
 from typing import List
 
+MAX_BAND_LABEL_LENGTH = 50
+
+
+def _has_control_chars(value: str) -> bool:
+    return any(ord(ch) < 0x20 or 0x7F <= ord(ch) <= 0x9F for ch in value)
+
 
 @dataclass
 class SeedConfigValidationError:
@@ -306,6 +312,24 @@ def validate_bands(bands: list, band_type: str) -> List[SeedConfigValidationErro
                     section=section,
                     field=f"band[{idx}].band_label",
                     message="band_label must be text without single quotes",
+                )
+            )
+        elif _has_control_chars(label):
+            errors.append(
+                SeedConfigValidationError(
+                    section=section,
+                    field=f"band[{idx}].band_label",
+                    message="band_label must not contain control characters",
+                )
+            )
+        elif len(label) > MAX_BAND_LABEL_LENGTH:
+            errors.append(
+                SeedConfigValidationError(
+                    section=section,
+                    field=f"band[{idx}].band_label",
+                    message=(
+                        f"band_label must be at most {MAX_BAND_LABEL_LENGTH} characters"
+                    ),
                 )
             )
 

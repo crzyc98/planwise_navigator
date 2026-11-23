@@ -96,7 +96,7 @@ acquisition_participation_settings AS (
   FROM (
     VALUES
     {% for item in acquisitions_with_starting_participation() %}
-      ('{{ item.id }}', {{ item.starting_participation_rate }}::DOUBLE, {{ item.starting_deferral_rate }}::DOUBLE){% if not loop.last %},{% endif %}
+      ('{{ (item.id | string) | replace("'", "''") }}', {{ item.starting_participation_rate | float }}::DOUBLE, {{ item.starting_deferral_rate | float }}::DOUBLE){% if not loop.last %},{% endif %}
     {% endfor %}
   ) AS s(acquisition_id, participation_rate, deferral_rate)
 ),

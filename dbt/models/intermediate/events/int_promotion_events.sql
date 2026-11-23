@@ -131,7 +131,7 @@ promoted_employees AS (
                         1 + COALESCE(
                             -- Level-specific override if configured
                             {% for level, rate in level_overrides.items() %}
-                            CASE WHEN level_id = {{ level }} THEN {{ rate }} END,
+                            CASE WHEN level_id = {{ level | int }} THEN {{ rate | float }} END,
                             {% endfor %}
                             -- Default base rate with configurable distribution
                             {{ base_increase }} +

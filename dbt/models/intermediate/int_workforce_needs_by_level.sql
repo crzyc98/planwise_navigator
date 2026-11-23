@@ -300,7 +300,7 @@ job_level_comp_overrides AS (
   FROM (
     VALUES
     {% for item in job_level_comp_var %}
-      ({{ item.level }}, {{ item.min_compensation }}, {{ item.max_compensation }}){% if not loop.last %},{% endif %}
+      ({{ item.level | int }}, {{ item.min_compensation | float }}, {{ item.max_compensation | float }}){% if not loop.last %},{% endif %}
     {% endfor %}
   ) AS jlc(level, min, max)
   {% else %}

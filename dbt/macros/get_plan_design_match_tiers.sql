@@ -58,13 +58,13 @@ WHERE FALSE
 SELECT
   '{{ row['plan_design_id'] | replace("'", "''") }}'::VARCHAR AS plan_design_id,
   '{{ row['family'] }}'::VARCHAR AS formula_family,
-  {{ row['band_min'] if row['band_min'] is not none else 'NULL' }}::INTEGER AS band_min_value,
-  {{ row['band_max'] if row['band_max'] is not none else 'NULL' }}::INTEGER AS band_max_value,
-  {{ row['tier_ordinal'] }}::INTEGER AS tier_ordinal,
-  {{ row['employee_min'] }}::DECIMAL(10,6) AS employee_min,
-  {{ row['employee_max'] }}::DECIMAL(10,6) AS employee_max,
-  {{ row['match_rate'] }}::DECIMAL(10,6) AS match_rate,
-  {{ row['max_deferral_pct'] }}::DECIMAL(10,6) AS max_deferral_pct
+  {{ (row['band_min'] | int) if row['band_min'] is not none else 'NULL' }}::INTEGER AS band_min_value,
+  {{ (row['band_max'] | int) if row['band_max'] is not none else 'NULL' }}::INTEGER AS band_max_value,
+  {{ row['tier_ordinal'] | int }}::INTEGER AS tier_ordinal,
+  {{ row['employee_min'] | float }}::DECIMAL(10,6) AS employee_min,
+  {{ row['employee_max'] | float }}::DECIMAL(10,6) AS employee_max,
+  {{ row['match_rate'] | float }}::DECIMAL(10,6) AS match_rate,
+  {{ row['max_deferral_pct'] | float }}::DECIMAL(10,6) AS max_deferral_pct
 {% if not loop.last %}UNION ALL{% endif %}
 {%- endfor -%}
 {%- endif -%}

@@ -11,7 +11,7 @@
     {%- if ((item['effective_date'] | string)[:4] | int) == (simulation_year | int) -%}
       {%- do steps.append({
         'hourly_rate': item['hourly_rate'] | float,
-        'effective_date': (item['effective_date'] | string)[:10]
+        'effective_date': ((item['effective_date'] | string)[:10]) | replace("'", "''")
       }) -%}
     {%- endif -%}
   {%- endfor -%}

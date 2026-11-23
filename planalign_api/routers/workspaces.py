@@ -177,6 +177,24 @@ def list_recent_workspaces(
     return items
 
 
+def _validate_base_config_seeds(base_config: Optional[Dict[str, Any]]) -> None:
+    """Validate seed config sections in base_config atomically."""
+    if not base_config:
+        return
+    errors = validate_seed_configs(base_config)
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "Validation failed",
+                "errors": [
+                    {"section": e.section, "field": e.field, "message": e.message}
+                    for e in errors
+                ],
+            },
+        )
+
+
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
 def create_workspace(
     data: WorkspaceCreate,
@@ -188,6 +206,7 @@ def create_workspace(
 
     If no base_config is provided, uses the system default configuration.
     """
+    _validate_base_config_seeds(data.base_config)
     return storage.create_workspace(data, default_config)
 
 
@@ -223,20 +242,7 @@ def update_workspace(
     Validates seed config sections (promotion_hazard, age_bands, tenure_bands)
     atomically — if any section is invalid, the entire update is rejected.
     """
-    # Validate seed config sections in base_config if present
-    if data.base_config:
-        errors = validate_seed_configs(data.base_config)
-        if errors:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={
-                    "message": "Validation failed",
-                    "errors": [
-                        {"section": e.section, "field": e.field, "message": e.message}
-                        for e in errors
-                    ],
-                },
-            )
+    _validate_base_config_seeds(data.base_config)
 
     workspace = storage.update_workspace(
         workspace_id,

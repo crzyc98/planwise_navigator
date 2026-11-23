@@ -33,6 +33,7 @@ from planalign_orchestrator.dbt_runner import (
     retry_with_backoff,
 )
 from planalign_orchestrator.dbt_executable import find_dbt_executable
+from planalign_orchestrator.exceptions import ConfigurationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1249,3 +1250,38 @@ class TestDbtResult:
         assert r.execution_time == 1.5
         assert r.return_code == 0
         assert r.command == ["dbt", "run"]
+
+
+class TestDbtRunnerVarValidation:
+    @pytest.mark.fast
+    @pytest.mark.parametrize(
+        ("bad_vars", "expected_fragment"),
+        [
+            ({"plan_year_start_date": "not-a-date"}, "plan_year_start_date"),
+            (
+                {
+                    "job_level_compensation": [
+                        {
+                            "level": 1,
+                            "min_compensation": "50000",
+                            "max_compensation": 80000,
+                        }
+                    ]
+                },
+                "job_level_compensation",
+            ),
+            ({"note": {"deep": "{{ invalid }}"}}, "note.deep"),
+        ],
+    )
+    def test_execute_command_refuses_invalid_vars_without_running_subprocess(
+        self, bad_vars, expected_fragment
+    ):
+        runner = DbtRunner(executable="custom-dbt")
+        with (
+            patch("planalign_orchestrator.dbt_runner.subprocess.Popen") as mock_popen,
+            patch("planalign_orchestrator.dbt_runner.subprocess.run") as mock_run,
+        ):
+            with pytest.raises(ConfigurationError, match=expected_fragment):
+                runner.execute_command(["run"], dbt_vars=bad_vars)
+            mock_popen.assert_not_called()
+            mock_run.assert_not_called()

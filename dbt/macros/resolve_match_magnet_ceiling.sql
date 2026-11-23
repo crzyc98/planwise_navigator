@@ -44,7 +44,7 @@ END
 {%- set tenure_tiers = var('tenure_match_tiers', []) -%}
 {%- set tenure_graded_bands = var('tenure_graded_bands', []) -%}
 {%- if status == 'deferral_based' -%}
-CAST({{ deferral_scalar }} AS DECIMAL(5,4))
+CAST({{ deferral_scalar | float }} AS DECIMAL(5,4))
 {%- elif status == 'graded_by_service' -%}
 CAST(({{ get_tiered_match_max_deferral(years_of_service_col, graded_schedule, 0.06) }}) AS DECIMAL(5,4))
 {%- elif status == 'points_based' -%}
@@ -53,9 +53,9 @@ CAST(({{ get_points_based_max_deferral(points_col, points_tiers, 0.06) }}) AS DE
   {%- if tenure_tiers | length > 0 -%}
 CASE
   {%- for tier in tenure_tiers %}
-  WHEN {{ years_of_service_col }} >= {{ tier.min_years }}
-       {%- if tier.max_years is not none %} AND {{ years_of_service_col }} < {{ tier.max_years }}{% endif %}
-  THEN CAST({{ (tier.max_deferral_pct | float / 100.0) if (tier.max_deferral_pct | float) > 1 else tier.max_deferral_pct }} AS DECIMAL(5,4))
+  WHEN {{ years_of_service_col }} >= {{ tier.min_years | int }}
+       {%- if tier.max_years is not none %} AND {{ years_of_service_col }} < {{ tier.max_years | int }}{% endif %}
+  THEN CAST({{ (tier.max_deferral_pct | float / 100.0) if (tier.max_deferral_pct | float) > 1 else (tier.max_deferral_pct | float) }} AS DECIMAL(5,4))
   {%- endfor %}
   ELSE CAST(0.06 AS DECIMAL(5,4))
 END
@@ -68,13 +68,13 @@ CASE
   {%- for band in tenure_graded_bands -%}
   {%- set bns = namespace(bmax=0.0) -%}
   {%- for tier in band['tiers'] -%}
-    {%- if tier['employee_max'] is not none and tier['employee_max'] > bns.bmax -%}
-      {%- set bns.bmax = tier['employee_max'] -%}
+    {%- if tier['employee_max'] is not none and (tier['employee_max'] | float) > bns.bmax -%}
+      {%- set bns.bmax = tier['employee_max'] | float -%}
     {%- endif -%}
   {%- endfor %}
-  WHEN {{ years_of_service_col }} >= {{ band['min_years'] }}
-       {%- if band['max_years'] is not none %} AND {{ years_of_service_col }} < {{ band['max_years'] }}{% endif %}
-  THEN CAST({{ bns.bmax }} AS DECIMAL(5,4))
+  WHEN {{ years_of_service_col }} >= {{ band['min_years'] | int }}
+       {%- if band['max_years'] is not none %} AND {{ years_of_service_col }} < {{ band['max_years'] | int }}{% endif %}
+  THEN CAST({{ bns.bmax | float }} AS DECIMAL(5,4))
   {%- endfor %}
   ELSE CAST(0 AS DECIMAL(5,4))
 END
@@ -90,43 +90,43 @@ CAST(0 AS DECIMAL(5,4))
 {% macro plan_design_match_magnet_ceiling(match_parameters, years_of_service_col, points_col, deferral_scalar) %}
 {%- set family = match_parameters.get('family', 'deferral_based') -%}
 {%- if family == 'deferral_based' -%}
-  {%- set ns = namespace(ceiling=deferral_scalar) -%}
+  {%- set ns = namespace(ceiling=deferral_scalar | float) -%}
   {%- for tier in match_parameters.get('tiers', []) -%}
-    {%- if tier['employee_max'] is not none and tier['employee_max'] > ns.ceiling -%}
-      {%- set ns.ceiling = tier['employee_max'] -%}
+    {%- if tier['employee_max'] is not none and (tier['employee_max'] | float) > ns.ceiling -%}
+      {%- set ns.ceiling = tier['employee_max'] | float -%}
     {%- endif -%}
   {%- endfor -%}
-CAST({{ ns.ceiling }} AS DECIMAL(5,4))
+CAST({{ ns.ceiling | float }} AS DECIMAL(5,4))
 {%- elif family == 'graded_by_service' -%}
 CASE
   {%- for band in match_parameters.get('graded_schedule', []) %}
-  WHEN {{ years_of_service_col }} >= {{ band['min_value'] }}
-    {%- if band['max_value'] is not none %} AND {{ years_of_service_col }} < {{ band['max_value'] }}{% endif %}
-    THEN CAST({{ band['max_deferral_pct'] }} AS DECIMAL(5,4))
+  WHEN {{ years_of_service_col }} >= {{ band['min_value'] | int }}
+    {%- if band['max_value'] is not none %} AND {{ years_of_service_col }} < {{ band['max_value'] | int }}{% endif %}
+    THEN CAST({{ band['max_deferral_pct'] | float }} AS DECIMAL(5,4))
   {%- endfor %}
   ELSE CAST(0 AS DECIMAL(5,4))
 END
 {%- elif family == 'points_based' -%}
 CASE
   {%- for band in match_parameters.get('points_tiers', []) %}
-  WHEN {{ points_col }} >= {{ band['min_value'] }}
-    {%- if band['max_value'] is not none %} AND {{ points_col }} < {{ band['max_value'] }}{% endif %}
-    THEN CAST({{ band['max_deferral_pct'] }} AS DECIMAL(5,4))
+  WHEN {{ points_col }} >= {{ band['min_value'] | int }}
+    {%- if band['max_value'] is not none %} AND {{ points_col }} < {{ band['max_value'] | int }}{% endif %}
+    THEN CAST({{ band['max_deferral_pct'] | float }} AS DECIMAL(5,4))
   {%- endfor %}
   ELSE CAST(0 AS DECIMAL(5,4))
 END
 {%- elif family == 'tenure_graded' -%}
 CASE
   {%- for band in match_parameters.get('tenure_graded_bands', []) %}
-    {%- set ns = namespace(ceiling=0) -%}
+    {%- set ns = namespace(ceiling=0.0) -%}
     {%- for tier in band['tiers'] -%}
-      {%- if tier['employee_max'] is not none and tier['employee_max'] > ns.ceiling -%}
-        {%- set ns.ceiling = tier['employee_max'] -%}
+      {%- if tier['employee_max'] is not none and (tier['employee_max'] | float) > ns.ceiling -%}
+        {%- set ns.ceiling = tier['employee_max'] | float -%}
       {%- endif -%}
     {%- endfor %}
-  WHEN {{ years_of_service_col }} >= {{ band['min_years'] }}
-    {%- if band['max_years'] is not none %} AND {{ years_of_service_col }} < {{ band['max_years'] }}{% endif %}
-    THEN CAST({{ ns.ceiling }} AS DECIMAL(5,4))
+  WHEN {{ years_of_service_col }} >= {{ band['min_years'] | int }}
+    {%- if band['max_years'] is not none %} AND {{ years_of_service_col }} < {{ band['max_years'] | int }}{% endif %}
+    THEN CAST({{ ns.ceiling | float }} AS DECIMAL(5,4))
   {%- endfor %}
   ELSE CAST(0 AS DECIMAL(5,4))
 END

@@ -62,13 +62,13 @@ new_assignments AS (
 {% if rules %}
       CASE
 {% for rule in rules %}
-        WHEN candidate.employee_hire_date >= CAST('{{ rule['cutoff'] }}' AS DATE)
-          THEN '{{ rule['plan_design_id'] }}'
+        WHEN candidate.employee_hire_date >= CAST('{{ (rule['cutoff'] | string) | replace("'", "''") }}' AS DATE)
+          THEN '{{ (rule['plan_design_id'] | string) | replace("'", "''") }}'
 {% endfor %}
-        ELSE '{{ default_design_id }}'
+        ELSE '{{ (default_design_id | string) | replace("'", "''") }}'
       END
 {% else %}
-      '{{ default_design_id }}'
+      '{{ (default_design_id | string) | replace("'", "''") }}'
 {% endif %}
         AS plan_design_id,
       {{ simulation_year }} AS first_assignment_year,

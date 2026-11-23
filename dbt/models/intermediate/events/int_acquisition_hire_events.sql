@@ -71,8 +71,8 @@ acquisitions AS (
   FROM (
     VALUES
     {% for item in joining %}
-      ('{{ item.id }}', {{ item.headcount }}, DATE '{{ item.effective_date }}', {{ item.ordinal }}, '{{ item.service_credit }}'
-        {%- for key in override_keys %}, {{ item.get(key) if item.get(key) is number else 'NULL' }}::DOUBLE{% endfor %}){% if not loop.last %},{% endif %}
+      ('{{ (item.id | string) | replace("'", "''") }}', {{ item.headcount | int }}, DATE '{{ (item.effective_date | string) | replace("'", "''") }}', {{ item.ordinal | int }}, '{{ (item.service_credit | string) | replace("'", "''") }}'
+        {%- for key in override_keys %}, {{ (item.get(key) | float) if item.get(key) is number else 'NULL' }}::DOUBLE{% endfor %}){% if not loop.last %},{% endif %}
     {% endfor %}
   ) AS a(acquisition_id, headcount, effective_date, ordinal, service_credit,
     average_pay, relative_pay, average_age, average_service)
