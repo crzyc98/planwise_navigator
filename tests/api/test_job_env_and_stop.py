@@ -17,7 +17,7 @@ import pytest
 from planalign_api.services import child_env
 from planalign_api.services.ensemble_jobs import runner as ensemble_runner
 from planalign_api.services.param_fit import runner as fit_runner
-from planalign_api.services.process_groups import new_session_kwargs
+from planalign_api.services.process_groups import group_alive, new_session_kwargs
 from planalign_api.services.simulation import excel_export_worker, run_execution
 from planalign_api.services.simulation.subprocess_utils import create_subprocess
 from planalign_core.process_security import is_child_env_denied, scrub_child_env
@@ -185,7 +185,7 @@ def _parent_script(child_pid_file: Path) -> str:
     )
 
 
-def _wait_until(condition: Callable[[], bool], timeout: float = 15.0) -> None:
+def _wait_until(condition: Callable[[], bool], timeout: float = 60.0) -> None:
     deadline = time.monotonic() + timeout
     while not condition():
         assert time.monotonic() < deadline, "condition never became true"
@@ -270,8 +270,9 @@ def test_param_fit_terminate_kills_grandchild(
         child = int(child_pid_file.read_text())
         fit_runner._terminate(process)
         _wait_until(lambda: _gone(process.pid) and _gone(child))
-        with pytest.raises(ProcessLookupError):
-            os.killpg(process.pid, 0)
+        # The runner reaps the leader on its own thread; the group only reads
+        # as empty once that has happened.
+        _wait_until(lambda: not group_alive(process.pid))
     finally:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGKILL)

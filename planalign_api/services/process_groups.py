@@ -58,14 +58,22 @@ def signal_group(pgid: int, sig: int) -> None:
 def wait_for_group_exit(pgid: int, grace: float = CANCEL_GRACE_SECONDS) -> None:
     """Block until every process in the group is gone (POSIX; no-op elsewhere).
 
-    Members still running after ``grace`` seconds are sent SIGKILL.
+    Members still running after ``grace`` seconds are sent SIGKILL. A group
+    that still has members a further ``grace`` seconds after that (an exited
+    process nobody has reaped, which SIGKILL cannot remove) is logged and left,
+    so a caller is never blocked forever.
     """
     if not IS_POSIX:
         return
-    deadline = time.monotonic() + grace
+    kill_at = time.monotonic() + grace
+    give_up_at = kill_at + max(grace, 1.0)
     try:
         while group_alive(pgid):
-            if time.monotonic() >= deadline:
+            now = time.monotonic()
+            if now >= give_up_at:
+                logger.warning("Process group %s did not exit after SIGKILL", pgid)
+                return
+            if now >= kill_at:
                 os.killpg(pgid, signal.SIGKILL)
             time.sleep(_POLL_SECONDS)
     except ProcessLookupError:

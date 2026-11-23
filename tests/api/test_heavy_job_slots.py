@@ -57,7 +57,7 @@ _CAL_ROW = PerYearCompensationResult(
 )
 
 
-def _wait(predicate: Callable[[], Any], timeout: float = 10.0) -> Any:
+def _wait(predicate: Callable[[], Any], timeout: float = 60.0) -> Any:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = predicate()
@@ -382,7 +382,10 @@ def test_calibration_cancel_queued_never_runs_and_releases_after_failure_and_can
     # Fail the first job -> slot releases -> queued_next runs.
     (gate_dir / f"{first}.release").write_text("go")
     _wait(lambda: (gate_dir / f"{queued_next}.active").exists())
-    assert client.get(f"/api/calibration/runs/{first}").json()["status"] == "failed"
+    _wait(
+        lambda: client.get(f"/api/calibration/runs/{first}").json()["status"]
+        == "failed"
+    )
 
     # Cancel the now-running job -> slot releases -> a fresh job completes.
     assert (

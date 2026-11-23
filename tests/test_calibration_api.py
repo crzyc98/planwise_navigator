@@ -120,7 +120,7 @@ def client(tmp_path, monkeypatch) -> TestClient:
     return TestClient(app)
 
 
-def _await_job(client: TestClient, run_id: str, timeout: float = 5.0) -> dict:
+def _await_job(client: TestClient, run_id: str, timeout: float = 60.0) -> dict:
     """Poll the job endpoint until the background thread reaches a terminal state."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

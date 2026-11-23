@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The server no longer risks waiting forever for a finished background job whose leftover process cannot be cleaned up; it logs a warning and moves on.
 - Scenario and workspace settings are now checked more strictly before a run; values of the wrong type are rejected with a clear message.
 - Data import now rejects oversized or malformed uploads and calculated fields with a clear message, and import error messages point to row numbers instead of repeating cell contents.
 - Cancelling a run now stops all of its background work, background jobs no longer receive the API token, and a few analytics and fitting requests have sensible size limits.
