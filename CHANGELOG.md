@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- When `PLANALIGN_API_TOKEN` is set, Studio now prompts for the token on first load and signs in with an `HttpOnly` session cookie for API and WebSocket requests.
+- When `PLANALIGN_API_TOKEN` is set, Studio now shows a sign-in screen and asks for the token once, instead of having the token built into the page. Sessions last 12 hours (`PLANALIGN_API_SESSION_TTL_HOURS`). `VITE_PLANALIGN_API_TOKEN` is no longer used, and live run progress no longer accepts the token as a `?token=` URL parameter; scripts should send an `Authorization: Bearer` header.
 - The age band, tenure band, turnover, opt-out, deferral segment, and census analysis tools now give the same "Invalid census file path" answer for any location outside the workspaces folder, whether or not a file exists there.
 - The interactive API documentation pages (`/api/docs`, `/api/redoc`) and schema (`/api/openapi.json`) now require the API token when `PLANALIGN_API_TOKEN` is set, and `/api/health` now returns fixed status messages instead of server file paths or raw error details (#1188).
 - The API server now refuses to start if `PLANALIGN_API_TOKEN` is set to an empty, blank, or shorter-than-16-character value, and empty tokens can never pass authentication (#1187). Leaving the variable unset still works as before for local use.

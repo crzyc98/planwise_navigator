@@ -15,6 +15,13 @@ from ..sessions import SESSION_COOKIE_NAME, get_session_store, token_digest
 
 router = APIRouter()
 
+
+def _is_https(request: Request) -> bool:
+    """Return whether the browser reached Studio over HTTPS, directly or via a proxy."""
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    return request.url.scheme == "https" or forwarded.lower() == "https"
+
+
 _INVALID_TOKEN_DETAIL = "Invalid PlanAlign API token."
 
 
@@ -74,7 +81,7 @@ def create_session(
         path="/",
         httponly=True,
         samesite="strict",
-        secure=request.url.scheme == "https",
+        secure=_is_https(request),
     )
     return response
 
@@ -97,6 +104,6 @@ def delete_session(request: Request) -> Response:
         path="/",
         httponly=True,
         samesite="strict",
-        secure=request.url.scheme == "https",
+        secure=_is_https(request),
     )
     return response

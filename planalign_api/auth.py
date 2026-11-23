@@ -42,7 +42,10 @@ def require_allowed_origin(request: Request) -> None:
     if not _is_origin_allowed(origin, allowed_origins):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Origin is not allowed.",
+            detail=(
+                "This address is not an allowed origin. Add the Studio address to "
+                "PLANALIGN_API_CORS_ORIGINS."
+            ),
         )
 
 

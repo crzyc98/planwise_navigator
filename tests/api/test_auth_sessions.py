@@ -116,6 +116,19 @@ def test_sign_in_marks_cookie_secure_over_https(tmp_path, monkeypatch) -> None:
     assert "Secure" in sign_in.headers["set-cookie"]
 
 
+def test_sign_in_marks_cookie_secure_behind_https_proxy(client_factory) -> None:
+    client = client_factory(_TEST_TOKEN)
+
+    sign_in = client.post(
+        "/api/auth/session",
+        json={"token": _TEST_TOKEN},
+        headers={"Origin": _ALLOWED_ORIGIN, "X-Forwarded-Proto": "https"},
+    )
+
+    assert sign_in.status_code == 204
+    assert "Secure" in sign_in.headers["set-cookie"]
+
+
 def test_cookie_authenticated_post_requires_allowed_origin(client_factory) -> None:
     client = client_factory(_TEST_TOKEN)
     sign_in = client.post(

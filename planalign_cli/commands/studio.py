@@ -6,6 +6,7 @@ Starts both the FastAPI backend and the React/Vite frontend.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -302,6 +303,12 @@ def _print_token_sign_in_notice(*, api_only: bool = False) -> None:
     )
 
 
+def _studio_cors_origins(display_host: str, frontend_port: int) -> str:
+    """Return the addresses Studio is served from, as the API's allowed origins."""
+    hosts = dict.fromkeys(["localhost", "127.0.0.1", display_host])
+    return json.dumps([f"http://{host}:{frontend_port}" for host in hosts])
+
+
 def _warn_for_unsafe_bind(bind_host: str) -> None:
     """Display a prominent warning for unauthenticated network exposure."""
     if (
@@ -402,6 +409,12 @@ def launch_studio(
             api_env = os.environ.copy()
             api_env["PLANALIGN_API_HOST"] = bind_host
             api_env["PLANALIGN_API_PORT"] = str(api_port)
+            # Studio's sign-in and telemetry are only accepted from allowed origins,
+            # so allow the address this command serves Studio from.
+            api_env.setdefault(
+                "PLANALIGN_API_CORS_ORIGINS",
+                _studio_cors_origins(display_host, frontend_port),
+            )
 
             # On Windows, use planalign_api.run which sets ProactorEventLoop
             # before uvicorn creates its event loop (required for subprocess support)

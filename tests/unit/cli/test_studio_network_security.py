@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -127,3 +128,17 @@ def test_token_sign_in_notice_printed_only_when_token_configured(
     out = capsys.readouterr().out
     assert "prompt" in out.lower()
     assert "test-studio-api-token" not in out
+
+
+def test_studio_allows_the_origins_it_serves_from() -> None:
+    origins = json.loads(studio._studio_cors_origins("10.0.0.5", 5180))
+
+    assert origins == [
+        "http://localhost:5180",
+        "http://127.0.0.1:5180",
+        "http://10.0.0.5:5180",
+    ]
+    assert json.loads(studio._studio_cors_origins("127.0.0.1", 5173)) == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
