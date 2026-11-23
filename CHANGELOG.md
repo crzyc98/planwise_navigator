@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Calibration requests from Studio must name a workspace; file paths are no longer accepted by the API.
 - Any imported file in a workspace can now be deleted from Studio's imported files list. Deleting used to depend on a creator label that Studio never set, so it only worked for files recorded under the default label.
 - Files PlanAlign writes are now private to the account running it, and workspace exports and calibration scratch files are removed when they are no longer needed.
 - Calibration, backtest and optimizer jobs now wait in the same server-wide queue as simulations so only one heavy job runs at a time by default, and starting too many queued jobs at once is refused with a clear message instead of overloading the machine. Parameter fits run no simulation, so they still start straight away.

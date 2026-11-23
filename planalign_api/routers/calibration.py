@@ -3,9 +3,9 @@
 Backs the Studio calibration panel. Calibration builds take minutes (optimize =
 3-6 builds), so POST endpoints enqueue a background job and return a ``run_id``
 immediately (202); clients poll ``GET /calibration/runs/{run_id}`` for status
-and results (issue #380). Workspace requests copy a completed provenance-matched
-run to a disposable isolated database. The shared development database is
-neither read nor written.
+and results (issue #380). Every calibration request targets a workspace and
+copies a completed provenance-matched run to a disposable isolated database.
+The shared development database is neither read nor written.
 """
 
 from __future__ import annotations
@@ -72,14 +72,13 @@ class CalibrationRunRequest(APIModel):
 
     start_year: Optional[int] = Field(default=None, ge=2000)
     end_year: Optional[int] = Field(default=None, ge=2000)
-    config_path: Optional[str] = None
-    database_path: Optional[str] = None
-    workspace_id: Optional[str] = Field(
-        default=None,
+    workspace_id: str = Field(
+        ...,
+        min_length=1,
         description=(
-            "When set (and no explicit config_path), calibrate against this "
-            "workspace's base config (census, termination rates) so the "
-            "calibrated levers transfer to a full simulation of it."
+            "Target workspace whose base or scenario config (census, "
+            "termination rates) is calibrated so the calibrated levers "
+            "transfer to a full simulation of it."
         ),
     )
     scenario_id: Optional[str] = None
@@ -103,9 +102,7 @@ class AutoCalibrationRequest(APIModel):
 
     start_year: Optional[int] = Field(default=None, ge=2000)
     end_year: Optional[int] = Field(default=None, ge=2000)
-    config_path: Optional[str] = None
-    database_path: Optional[str] = None
-    workspace_id: Optional[str] = None
+    workspace_id: str = Field(..., min_length=1)
     scenario_id: Optional[str] = None
     settings: AutoCalibrationSettings
     # Non-searched levers (age distribution, comp ranges) applied to every run.
@@ -205,7 +202,11 @@ def _canonical_census(
 
 
 def _effective_horizon(
-    config: Dict[str, Any], start_year: Optional[int], end_year: Optional[int]
+    config: Dict[str, Any],
+    start_year: Optional[int],
+    end_year: Optional[int],
+    *,
+    require_multi_year: bool = False,
 ) -> tuple[int, int]:
     simulation = config.setdefault("simulation", {})
     start = start_year if start_year is not None else simulation.get("start_year")
@@ -217,6 +218,12 @@ def _effective_horizon(
         )
     if int(end) < int(start):
         raise HTTPException(status_code=422, detail="end_year must be >= start_year")
+    if require_multi_year and int(end) <= int(start):
+        raise HTTPException(
+            status_code=422,
+            detail="Auto-calibration needs at least a two-year range to "
+            "measure year-over-year growth",
+        )
     simulation["start_year"] = int(start)
     simulation["end_year"] = int(end)
     return int(start), int(end)
@@ -301,22 +308,18 @@ def _matching_source(
 def _materialize_target(
     request: CalibrationRunRequest | AutoCalibrationRequest,
     storage: WorkspaceStorage,
+    *,
+    require_multi_year: bool = False,
 ) -> _ResolvedTarget:
-    assert request.workspace_id is not None
-    if request.config_path or request.database_path:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "workspace calibration resolves its config and isolated database "
-                "from the workspace target; config_path/database_path are not allowed"
-            ),
-        )
     config = _effective_workspace_config(
         request.workspace_id, request.scenario_id, storage
     )
     census = _canonical_census(config, request.workspace_id, storage)
     start_year, end_year = _effective_horizon(
-        config, request.start_year, request.end_year
+        config,
+        request.start_year,
+        request.end_year,
+        require_multi_year=require_multi_year,
     )
     seed = int((config.get("simulation") or {}).get("random_seed", 42))
     config_hash = config_fingerprint(config)
@@ -389,15 +392,6 @@ def _remove_temp_database(path: Optional[Path]) -> None:
         remove_calibration_scratch(path)
     except OSError as e:
         logger.warning("Could not remove temporary calibration database: %s", e)
-
-
-def _resolve_config_path(
-    config_path: Optional[str],
-) -> "tuple[Optional[Path], Optional[Path]]":
-    """Return an explicit legacy config and no router-owned temp file."""
-    if config_path:
-        return Path(config_path), None
-    return None, None
 
 
 def _has_raise_budget(compensation: Dict[str, Any]) -> bool:
@@ -504,9 +498,7 @@ def _require_queue_capacity() -> None:
 
 def _enqueue(
     worker_request: WorkerRequest,
-    target: Optional[_ResolvedTarget],
-    database_path: Optional[str],
-    workspace_config: Optional[Path],
+    target: _ResolvedTarget,
 ) -> CalibrationJob:
     """Persist the job and hand it to the runner; temp files never leak.
 
@@ -516,24 +508,39 @@ def _enqueue(
     store = get_job_store()
     try:
         job = store.create(worker_request.kind)
-        if target:
-            store.update(job.run_id, context=target.context)
+        store.update(job.run_id, context=target.context)
     except Exception:
-        _remove_temp_config(workspace_config)
-        if target:
-            _remove_temp_database(target.database_path)
+        _remove_temp_config(target.config_path)
+        _remove_temp_database(target.database_path)
         raise
     try:
         get_job_runner().start(
             job,
             worker_request,
-            database_path,
-            workspace_config,
-            target.database_path if target else None,
+            str(target.database_path),
+            target.config_path,
+            target.database_path,
         )
     except CalibrationQueueFullError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     return job
+
+
+def _build_calibration_run(
+    target: _ResolvedTarget, params: CalibrationParameterSet
+) -> CalibrationRun:
+    try:
+        return CalibrationRun(
+            start_year=target.context.start_year,
+            end_year=target.context.end_year,
+            config_path=target.config_path,
+            database_path=target.database_path,
+            params=params,
+        )
+    except ValueError as e:  # range ordering / param validation
+        _remove_temp_config(target.config_path)
+        _remove_temp_database(target.database_path)
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.post(
@@ -549,43 +556,15 @@ def run_calibration(
     range/params); build-time failures surface on the job record instead
     (409 prerequisite guard, 500 unexpected).
     """
-    target = _materialize_target(request, storage) if request.workspace_id else None
-    config_path, workspace_config = (
-        (target.config_path, target.config_path)
-        if target
-        else _resolve_config_path(request.config_path)
-    )
-    start_year = target.context.start_year if target else request.start_year
-    end_year = target.context.end_year if target else request.end_year
-    if start_year is None or end_year is None:
-        _remove_temp_config(workspace_config)
-        raise HTTPException(
-            status_code=422,
-            detail="start_year and end_year are required without a workspace target",
-        )
-
-    try:
-        run = CalibrationRun(
-            start_year=start_year,
-            end_year=end_year,
-            config_path=config_path,
-            database_path=(
-                target.database_path
-                if target
-                else (Path(request.database_path) if request.database_path else None)
-            ),
-            params=request.params,
-        )
-    except ValueError as e:  # range ordering / param validation
-        _remove_temp_config(workspace_config)
-        if target:
-            _remove_temp_database(target.database_path)
-        raise HTTPException(status_code=422, detail=str(e))
-
-    database_path = str(target.database_path) if target else request.database_path
-    job = _enqueue(
-        WorkerRequest(kind="run", run=run), target, database_path, workspace_config
-    )
+    if (
+        request.start_year is not None
+        and request.end_year is not None
+        and request.end_year < request.start_year
+    ):
+        raise HTTPException(status_code=422, detail="end_year must be >= start_year")
+    target = _materialize_target(request, storage)
+    run = _build_calibration_run(target, request.params)
+    job = _enqueue(WorkerRequest(kind="run", run=run), target)
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
 
@@ -597,7 +576,7 @@ def _require_shared_pay_scale(
     Checked before the matching-run lookup, so an analyst isn't sent to re-run a
     scenario that would still fail. The worker keeps the same check as a backstop.
     """
-    if request.settings.search_mode != "horizon" or not request.workspace_id:
+    if request.settings.search_mode != "horizon":
         return
     config = _effective_workspace_config(
         request.workspace_id, request.scenario_id, storage
@@ -618,58 +597,22 @@ def optimize_calibration(
     The search runs several fast comp-only builds (typically 3-6); expect a
     few minutes for a multi-year range.
     """
-    _require_shared_pay_scale(request, storage)
-    target = _materialize_target(request, storage) if request.workspace_id else None
-    start_year = target.context.start_year if target else request.start_year
-    end_year = target.context.end_year if target else request.end_year
-    if start_year is None or end_year is None:
-        if target:
-            _remove_temp_config(target.config_path)
-            _remove_temp_database(target.database_path)
-        raise HTTPException(
-            status_code=422,
-            detail="start_year and end_year are required without a workspace target",
-        )
-    if end_year <= start_year:
-        if target:
-            _remove_temp_config(target.config_path)
-            _remove_temp_database(target.database_path)
+    if (
+        request.start_year is not None
+        and request.end_year is not None
+        and request.end_year <= request.start_year
+    ):
         raise HTTPException(
             status_code=422,
             detail="Auto-calibration needs at least a two-year range to "
             "measure year-over-year growth",
         )
-
-    config_path, workspace_config = (
-        (target.config_path, target.config_path)
-        if target
-        else _resolve_config_path(request.config_path)
-    )
-
-    try:
-        run = CalibrationRun(
-            start_year=start_year,
-            end_year=end_year,
-            config_path=config_path,
-            database_path=(
-                target.database_path
-                if target
-                else (Path(request.database_path) if request.database_path else None)
-            ),
-            params=request.params,
-        )
-    except ValueError as e:
-        _remove_temp_config(workspace_config)
-        if target:
-            _remove_temp_database(target.database_path)
-        raise HTTPException(status_code=422, detail=str(e))
-
-    database_path = str(target.database_path) if target else request.database_path
+    _require_shared_pay_scale(request, storage)
+    target = _materialize_target(request, storage, require_multi_year=True)
+    run = _build_calibration_run(target, request.params)
     job = _enqueue(
         WorkerRequest(kind="optimize", run=run, settings=request.settings),
         target,
-        database_path,
-        workspace_config,
     )
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
