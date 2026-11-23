@@ -2514,7 +2514,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a Parquet file (workspace creator only) */
+        /** Delete a Parquet file */
         delete: operations["delete_parquet_file_api_workspaces__workspace_id__parquet_files__file_id__delete"];
         options?: never;
         head?: never;

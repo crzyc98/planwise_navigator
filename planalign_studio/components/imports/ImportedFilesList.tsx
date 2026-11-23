@@ -10,7 +10,6 @@ import { setCensusPath } from '../../services/api';
 
 interface Props {
   workspaceId: string;
-  currentUserId?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -19,7 +18,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function ImportedFilesList({ workspaceId, currentUserId = 'system' }: Props) {
+export default function ImportedFilesList({ workspaceId }: Props) {
   const [files, setFiles] = useState<ParquetFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,32 +159,30 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                         <Download size={16} />
                       )}
                     </button>
-                    {f.created_by === currentUserId && (
-                      confirmDelete === f.file_id ? (
-                        <span className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleDelete(f.file_id)}
-                            disabled={!!deletingId}
-                            className="text-xs text-danger-ink hover:underline"
-                          >
-                            {deletingId === f.file_id ? <Loader2 size={12} className="animate-spin inline" /> : 'Confirm'}
-                          </button>
-                          <button
-                            onClick={() => setConfirmDelete(null)}
-                            className="text-xs text-ink-subtle hover:underline"
-                          >
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
+                    {confirmDelete === f.file_id ? (
+                      <span className="flex items-center gap-1">
                         <button
-                          onClick={() => setConfirmDelete(f.file_id)}
-                          className="text-ink-subtle hover:text-danger-ink"
-                          title="Delete"
+                          onClick={() => handleDelete(f.file_id)}
+                          disabled={!!deletingId}
+                          className="text-xs text-danger-ink hover:underline"
                         >
-                          <Trash2 size={16} />
+                          {deletingId === f.file_id ? <Loader2 size={12} className="animate-spin inline" /> : 'Confirm'}
                         </button>
-                      )
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="text-xs text-ink-subtle hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(f.file_id)}
+                        className="text-ink-subtle hover:text-danger-ink"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     )}
                   </div>
                 </td>

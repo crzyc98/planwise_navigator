@@ -433,7 +433,7 @@ class TestFileManagement:
         assert resp.status_code == 200
         assert "attachment" in resp.headers.get("content-disposition", "")
 
-    def test_delete_by_creator_returns_204(self, client, workspace_id):
+    def test_delete_returns_204(self, client, workspace_id):
         self._full_flow(client, workspace_id)
         files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()[
             "parquet_files"
@@ -447,7 +447,7 @@ class TestFileManagement:
         remaining = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()
         assert remaining["total_count"] == 0
 
-    def test_delete_by_non_creator_returns_403(self, client, workspace_id):
+    def test_delete_ignores_user_id_header(self, client, workspace_id):
         self._full_flow(client, workspace_id)
         files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()[
             "parquet_files"
@@ -455,9 +455,9 @@ class TestFileManagement:
         file_id = files[0]["file_id"]
         resp = client.delete(
             f"/api/workspaces/{workspace_id}/parquet-files/{file_id}",
-            headers={"X-User-Id": "unauthorized_user"},
+            headers={"X-User-Id": "someone_else"},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 204
 
 
 # ===========================================================================

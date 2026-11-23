@@ -821,7 +821,7 @@ def set_parquet_census_as_of_date(
 @router.delete(
     "/{workspace_id}/parquet-files/{file_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a Parquet file (workspace creator only)",
+    summary="Delete a Parquet file",
 )
 def delete_parquet_file(
     workspace_id: str,
@@ -832,10 +832,6 @@ def delete_parquet_file(
     pf = service.get_parquet_file(workspace_id, file_id)
     if pf is None:
         raise HTTPException(status_code=404, detail="Parquet file not found")
-    if pf.created_by != x_user_id:
-        raise HTTPException(
-            status_code=403, detail="Only the file creator can delete it"
-        )
     service.delete_parquet_file(workspace_id, file_id, user=x_user_id)
 
 

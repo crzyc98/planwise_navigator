@@ -30147,7 +30147,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Delete a Parquet file (workspace creator only)",
+        "summary": "Delete a Parquet file",
         "tags": [
           "Data Import"
         ]
