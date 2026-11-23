@@ -47,6 +47,7 @@ class APISettings(BaseSettings):
     api_token: str | None = Field(
         default=None, validation_alias="PLANALIGN_API_TOKEN", repr=False
     )
+    session_ttl_hours: float = Field(default=12.0, gt=0)
 
     # Storage
     workspaces_root: Path = Field(

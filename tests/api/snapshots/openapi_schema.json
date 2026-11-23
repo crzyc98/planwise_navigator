@@ -17494,6 +17494,42 @@
         "title": "SeedFingerprint",
         "type": "object"
       },
+      "SessionSignInRequest": {
+        "description": "Credentials submitted to establish a Studio session cookie.",
+        "properties": {
+          "token": {
+            "description": "Shared API token",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SessionSignInRequest",
+        "type": "object"
+      },
+      "SessionStatusResponse": {
+        "description": "Current authentication requirement and caller session status.",
+        "properties": {
+          "auth_required": {
+            "description": "Whether the API requires authentication",
+            "title": "Auth Required",
+            "type": "boolean"
+          },
+          "authenticated": {
+            "description": "Whether the caller is currently authenticated",
+            "title": "Authenticated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auth_required",
+          "authenticated"
+        ],
+        "title": "SessionStatusResponse",
+        "type": "object"
+      },
       "SetCensusPathRequest": {
         "description": "Request to set an existing file as the workspace census data source.",
         "properties": {
@@ -22127,6 +22163,74 @@
         "summary": "Redeem Artifact Ticket",
         "tags": [
           "Simulations"
+        ]
+      }
+    },
+    "/api/auth/session": {
+      "delete": {
+        "description": "Revoke the current session and clear the session cookie.",
+        "operationId": "delete_session_api_auth_session_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Session",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "get": {
+        "description": "Return whether authentication is required and whether the caller has a session.",
+        "operationId": "get_session_status_api_auth_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Session Status",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "description": "Verify the shared token and set an HttpOnly session cookie.",
+        "operationId": "create_session_api_auth_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionSignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "Auth"
         ]
       }
     },

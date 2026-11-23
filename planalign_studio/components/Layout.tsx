@@ -5,7 +5,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target, ClipboardCheck, Shuffle, History, FileText
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target, ClipboardCheck, Shuffle, History, FileText, LogOut
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -22,6 +22,7 @@ import {
   WorkspaceSummary as ApiWorkspaceSummary,
 } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from './AuthGate';
 
 export interface LayoutContextType {
   activeWorkspace: Workspace;
@@ -198,6 +199,7 @@ export default function Layout() {
   const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>();
   const workspaceBase = routeWorkspaceId ? `/w/${routeWorkspaceId}` : '';
   const { preference, setPreference } = useTheme();
+  const { authRequired, signOut } = useAuth();
 
   // Global Workspace State
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -1185,6 +1187,22 @@ export default function Layout() {
                           Help & Support
                        </button>
                     </div>
+
+                    {authRequired && (
+                      <div className="border-t border-border p-2">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setIsSettingsOpen(false);
+                             void signOut();
+                           }}
+                           className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle hover:text-danger-ink rounded-lg flex items-center"
+                         >
+                            <LogOut size={16} className="mr-3 text-ink-subtle" />
+                            Sign out
+                         </button>
+                      </div>
+                    )}
 
                     <div className="bg-surface-subtle px-4 py-3 border-t border-border text-center">
                        <p className="text-xs font-medium text-ink-muted">{APP_NAME}</p>

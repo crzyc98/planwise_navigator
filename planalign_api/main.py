@@ -42,6 +42,7 @@ from .auth import (
 )
 from .routers.artifact_downloads import router as artifact_downloads_router
 from .routers import (
+    auth_router,
     system_router,
     workspaces_router,
     scenarios_router,
@@ -417,8 +418,10 @@ def create_app() -> FastAPI:
             headers={REQUEST_ID_HEADER: request_id or new_request_id()},
         )
 
-    # Include routers. The system router keeps /health public; its non-health
-    # endpoints declare require_api_token directly because they expose system data.
+    # Include routers. The auth router handles Studio session sign-in/sign-out,
+    # and the system router keeps /health public; its non-health endpoints
+    # declare require_api_token directly because they expose system data.
+    app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
     app.include_router(system_router, prefix="/api", tags=["System"])
     app.include_router(artifact_downloads_router, prefix="/api", tags=["Simulations"])
     protected_dependencies = [

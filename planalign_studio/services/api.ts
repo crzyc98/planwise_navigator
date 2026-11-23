@@ -7,12 +7,8 @@
 import type { components } from './api.generated';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-const API_TOKEN = import.meta.env.VITE_PLANALIGN_API_TOKEN as string | undefined;
 
-function authHeaders(): Record<string, string> {
-  return API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {};
-}
-
+export const AUTH_REQUIRED_EVENT = 'planalign:auth-required';
 export const RUN_CONSISTENCY_EVENT = 'planalign:run-consistency';
 
 export interface RunConsistencyDetail {
@@ -21,22 +17,32 @@ export interface RunConsistencyDetail {
   resultRunIds: string | null;
 }
 
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+function isAuthSessionRequest(input: RequestInfo | URL): boolean {
+  return requestUrl(input).includes('/api/auth/session');
+}
+
 function isScenarioRead(input: RequestInfo | URL, init?: RequestInit): boolean {
   const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
   if (method !== 'GET') return false;
-  const url = String(input);
+  const url = requestUrl(input);
   return url.includes('/scenarios') || /[?&](scenario_id|scenarios|scenario_a|scenario_b|baseline)=/.test(url);
 }
 
 export async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const response = await fetch(input, {
     ...init,
-    headers: {
-      ...init?.headers,
-      ...authHeaders(),
-    },
+    credentials: 'include',
   });
-  if (isScenarioRead(input, init)) {
+  if (response.status === 401 && !isAuthSessionRequest(input) && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+  }
+  if (isScenarioRead(input, init) && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent<RunConsistencyDetail>(RUN_CONSISTENCY_EVENT, {
       detail: {
         warning: response.headers.get('X-PlanAlign-Run-Warning') as 'run_in_progress' | null,
@@ -162,6 +168,8 @@ export type HealthResponse = Schemas['HealthResponse'];
 
 export type SystemStatus = Schemas['SystemStatus'];
 
+export type SessionStatus = Schemas['SessionStatusResponse'];
+
 export type WorkforceMetrics = Schemas['WorkforceMetrics'];
 
 export type EventComparisonMetric = Schemas['EventComparisonMetric'];
@@ -222,6 +230,42 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new ApiError(response.status, response.statusText, detail);
   }
   return response.json();
+}
+
+// ============================================================================
+// Auth Session Endpoints
+// ============================================================================
+
+export async function getAuthSession(): Promise<SessionStatus> {
+  const response = await fetchWithAuth(`${API_BASE}/api/auth/session`);
+  return handleResponse<SessionStatus>(response);
+}
+
+export async function signInWithToken(token: string): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE}/api/auth/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const error = (await response.json()) as { detail?: unknown };
+      detail = typeof error.detail === 'string' ? error.detail : undefined;
+    } catch {
+      // Response wasn't JSON
+    }
+    throw new ApiError(response.status, response.statusText, detail);
+  }
+}
+
+export async function signOutSession(): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE}/api/auth/session`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText);
+  }
 }
 
 // ============================================================================

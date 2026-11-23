@@ -27,12 +27,9 @@ function getWebSocketBase(): string {
 }
 
 const WS_BASE = getWebSocketBase();
-const API_TOKEN = import.meta.env.VITE_PLANALIGN_API_TOKEN as string | undefined;
 
 function websocketUrl(path: string): string {
-  const url = new URL(`${WS_BASE}${path}`);
-  if (API_TOKEN) url.searchParams.set('token', API_TOKEN);
-  return url.toString();
+  return new URL(`${WS_BASE}${path}`).toString();
 }
 
 // ============================================================================
