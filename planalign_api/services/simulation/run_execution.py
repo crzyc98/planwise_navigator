@@ -142,12 +142,14 @@ def resolve_census_path(
     candidate = Path(census_path)
     if not candidate.is_absolute():
         candidate = storage._workspace_path(workspace_id) / census_path
-    if not candidate.exists():
-        return None
-    safe_path = validate_file_path_for_sql(
-        candidate, _allowed_census_roots(storage, workspace_id), context="census"
+    safe_path = Path(
+        validate_file_path_for_sql(
+            candidate, _allowed_census_roots(storage, workspace_id), context="census"
+        )
     )
-    return Path(safe_path)
+    if not safe_path.exists():
+        return None
+    return safe_path
 
 
 def workspace_census_fallback(

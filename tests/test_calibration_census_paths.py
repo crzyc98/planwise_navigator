@@ -145,34 +145,27 @@ def test_valid_override_keeps_its_own_census(
     assert calibration._canonical_census(config, wid, storage) == own_census
 
 
-def test_existing_outside_override_cannot_be_masked_by_workspace_fallback(
+@pytest.mark.parametrize("missing", [False, True])
+def test_outside_override_cannot_be_masked_by_workspace_fallback(
     storage: WorkspaceStorage,
     stale_target: tuple[str, str, Path],
     tmp_path: Path,
+    missing: bool,
 ) -> None:
+    from planalign_orchestrator.exceptions import ConfigurationError
+
     wid, sid, _ = stale_target
     config = storage.get_merged_config(wid, sid)
-    outside = tmp_path / "outside.parquet"
-    outside.write_bytes(b"outside-workspace")
+    outside = tmp_path / ("missing-outside.parquet" if missing else "outside.parquet")
+    if not missing:
+        outside.write_bytes(b"outside-workspace")
     config["setup"]["census_parquet_path"] = str(outside)
-    with pytest.raises(HTTPException, match="not an uploaded artifact"):
-        calibration._canonical_census(config, wid, storage)
-
-
-def test_stale_absolute_outside_override_uses_simulation_fallback(
-    storage: WorkspaceStorage,
-    stale_target: tuple[str, str, Path],
-    tmp_path: Path,
-) -> None:
-    wid, sid, census = stale_target
-    config = storage.get_merged_config(wid, sid)
-    config["setup"]["census_parquet_path"] = str(tmp_path / "old-workspace.parquet")
     simulation_config = deepcopy(config)
 
-    validate_census(storage, simulation_config, sid, wid)
-
-    assert calibration._canonical_census(config, wid, storage) == census
-    assert config == simulation_config
+    with pytest.raises(ConfigurationError, match="outside allowed directories"):
+        validate_census(storage, simulation_config, sid, wid)
+    with pytest.raises(HTTPException, match="not an uploaded artifact"):
+        calibration._canonical_census(config, wid, storage)
 
 
 @pytest.mark.parametrize("legacy_kind", ["file", "symlink"])

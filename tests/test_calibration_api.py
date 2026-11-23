@@ -7,29 +7,104 @@ CalibrationRunner mocked, so no dbt build runs.
 
 from __future__ import annotations
 
-import time
-from types import SimpleNamespace
+import json
 import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from planalign_api.routers import calibration as calibration_router
-from planalign_orchestrator.calibration_runner import PerYearCompensationResult
-from planalign_orchestrator import calibration_worker
-from planalign_api.services.calibration_jobs import JobStore, JobRunner
+from planalign_api.services.calibration_jobs import JobRunner, JobStore
 from planalign_api.services.calibration_process import ProcessRegistry
+from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
+from planalign_orchestrator import calibration_worker
+from planalign_orchestrator.calibration_runner import PerYearCompensationResult
 from planalign_orchestrator.exceptions import ConfigurationError
 
 pytestmark = [pytest.mark.fast]
+
+
+def _make_workspace_storage(
+    root: Path,
+    *,
+    workspace_id: str = "ws1",
+    start_year: int = 2025,
+    end_year: int = 2026,
+) -> object:
+    ws_dir = root / workspace_id
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    census = ws_dir / "census.parquet"
+    census.write_bytes(b"pii-safe-test-census")
+    run_id = str(uuid4())
+    source_db = ws_dir / "source.duckdb"
+    source_db.write_bytes(b"source-db")
+    base_config = {
+        "setup": {"census_parquet_path": "census.parquet"},
+        "simulation": {
+            "start_year": start_year,
+            "end_year": end_year,
+            "random_seed": 42,
+            "target_growth_rate": 0.03,
+        },
+        "compensation": {"cola_rate": 0.02},
+    }
+    effective = {**base_config, "setup": {"census_parquet_path": str(census.resolve())}}
+    (ws_dir / "provenance.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "capture_state": "completed",
+                "run_identity": {
+                    "workspace_id": workspace_id,
+                    "intended_start_year": start_year,
+                    "intended_end_year": end_year,
+                },
+                "configuration": {"fingerprint": config_fingerprint(effective)},
+                "random_seed": 42,
+                "census_input": {"sha256": sha256_file(census)[0]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Storage:
+        workspaces_root = root
+
+        def get_workspace(self, wid: str):
+            return (
+                SimpleNamespace(base_config=base_config)
+                if wid == workspace_id
+                else None
+            )
+
+        def _workspace_path(self, wid: str) -> Path:
+            return root / wid
+
+        def get_merged_config(self, wid: str, sid: str):
+            return dict(base_config) if wid == workspace_id else None
+
+        def get_scenario(self, wid: str, sid: str):
+            return SimpleNamespace(id=sid) if wid == workspace_id else None
+
+        def list_scenarios(self, wid: str):
+            return [SimpleNamespace(id="scenario-1")] if wid == workspace_id else []
+
+        def get_scenario_read_context(self, wid: str, sid: str):
+            return SimpleNamespace(database_path=source_db, result_run_id=run_id)
+
+    return _Storage()
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch) -> TestClient:
     from fastapi import FastAPI
 
-    store = JobStore(tmp_path)
+    store = JobStore(tmp_path / "jobs")
+    storage = _make_workspace_storage(tmp_path / "workspaces")
 
     def command(directory: Path) -> list[str]:
         # Existing engine mocks exercise JSON transport without invoking dbt.
@@ -41,6 +116,7 @@ def client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setattr(calibration_router, "get_job_runner", lambda: runner)
     app = FastAPI()
     app.include_router(calibration_router.router, prefix="/api")
+    app.dependency_overrides[calibration_router.get_storage] = lambda: storage
     return TestClient(app)
 
 
@@ -97,7 +173,12 @@ def test_run_returns_per_year_results(client, monkeypatch) -> None:
 
     resp = client.post(
         "/api/calibration/run",
-        json={"start_year": 2025, "end_year": 2026, "params": {"cola_rate": 0.03}},
+        json={
+            "workspace_id": "ws1",
+            "start_year": 2025,
+            "end_year": 2026,
+            "params": {"cola_rate": 0.03},
+        },
     )
     assert resp.status_code == 202
     body = resp.json()
@@ -125,7 +206,8 @@ def test_missing_prerequisites_fails_job_with_409(client, monkeypatch) -> None:
     monkeypatch.setattr(calibration_worker.CalibrationRunner, "run_calibration", _boom)
 
     resp = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert resp.status_code == 202
 
@@ -148,7 +230,8 @@ def test_unexpected_failure_fails_job_with_500(client, monkeypatch) -> None:
     monkeypatch.setattr(calibration_worker.CalibrationRunner, "run_calibration", _boom)
 
     resp = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert resp.status_code == 202
 
@@ -167,7 +250,8 @@ def test_unknown_run_id_returns_404(client) -> None:
 
 def test_bad_year_range_returns_422(client) -> None:
     resp = client.post(
-        "/api/calibration/run", json={"start_year": 2029, "end_year": 2025}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2029, "end_year": 2025},
     )
     assert resp.status_code == 422
 
@@ -175,7 +259,12 @@ def test_bad_year_range_returns_422(client) -> None:
 def test_negative_cola_returns_422(client) -> None:
     resp = client.post(
         "/api/calibration/run",
-        json={"start_year": 2025, "end_year": 2026, "params": {"cola_rate": -0.1}},
+        json={
+            "workspace_id": "ws1",
+            "start_year": 2025,
+            "end_year": 2026,
+            "params": {"cola_rate": -0.1},
+        },
     )
     assert resp.status_code == 422
 
@@ -191,6 +280,7 @@ def test_new_levers_accepted(client, monkeypatch) -> None:
     resp = client.post(
         "/api/calibration/run",
         json={
+            "workspace_id": "ws1",
             "start_year": 2025,
             "end_year": 2026,
             "params": {
@@ -210,6 +300,7 @@ def test_bad_age_distribution_returns_422(client) -> None:
     resp = client.post(
         "/api/calibration/run",
         json={
+            "workspace_id": "ws1",
             "start_year": 2025,
             "end_year": 2026,
             "params": {"new_hire_age_distribution": [{"age": 25, "weight": -1.0}]},
@@ -424,11 +515,10 @@ def test_scenario_target_uses_merged_config() -> None:
     assert config == {"scenario_marker": "scenario-override"}
 
 
-def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> None:
-    """Issue #380: two jobs on the same explicit DB queue instead of colliding."""
+def test_concurrent_workspace_runs_serialize(client, monkeypatch) -> None:
+    """Concurrent calibration runs queue cleanly without overlapping."""
     import threading
 
-    db_path = tmp_path / "target.duckdb"
     active = {"count": 0, "max": 0}
     gate = threading.Lock()
 
@@ -449,7 +539,7 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
         calibration_worker.CalibrationRunner, "run_calibration", _slow_build
     )
 
-    body = {"start_year": 2025, "end_year": 2026, "database_path": str(db_path)}
+    body = {"workspace_id": "ws1", "start_year": 2025, "end_year": 2026}
     r1 = client.post("/api/calibration/run", json=body)
     r2 = client.post("/api/calibration/run", json=body)
     assert r1.status_code == 202 and r2.status_code == 202
@@ -457,8 +547,120 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
     j1 = _await_job(client, r1.json()["run_id"])
     j2 = _await_job(client, r2.json()["run_id"])
     assert j1["status"] == j2["status"] == "completed"
-    # The per-DB lock must have prevented overlapping builds.
     assert active["max"] == 1
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["/api/calibration/run", "/api/calibration/optimize"]
+)
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"workspace_id": None},
+        {"workspace_id": ""},
+        {"config_path": "/tmp/custom.yaml", "database_path": "/tmp/custom.duckdb"},
+    ],
+)
+def test_calibration_requires_workspace_id(client, endpoint: str, extra: dict) -> None:
+    payload: dict = {"start_year": 2025, "end_year": 2026, **extra}
+    if endpoint.endswith("/optimize"):
+        payload["settings"] = {
+            "target_workforce_growth": 0.03,
+            "target_comp_growth": 0.04,
+        }
+    resp = client.post(endpoint, json=payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("kind", ["run", "optimize"])
+def test_client_supplied_paths_are_not_touched(
+    client, monkeypatch, tmp_path, kind: str
+) -> None:
+    from planalign_orchestrator.calibration_optimizer import (
+        AutoCalibrationResult,
+        AutoCalibrationSettings,
+    )
+    from planalign_orchestrator.calibration_runner import CalibrationParameterSet
+
+    sentinel_cfg = tmp_path / "external_config.yaml"
+    sentinel_cfg.write_text("sentinel: true\n", encoding="utf-8")
+    sentinel_db = tmp_path / "external.duckdb"
+    sentinel_db.write_bytes(b"sentinel-db")
+    captured: dict = {}
+
+    if kind == "run":
+
+        def _fake_run_init(self, run, **kw):
+            captured["config_path"] = run.config_path
+            captured["database_path"] = run.database_path
+
+        monkeypatch.setattr(
+            calibration_worker.CalibrationRunner, "__init__", _fake_run_init
+        )
+        monkeypatch.setattr(
+            calibration_worker.CalibrationRunner,
+            "run_calibration",
+            lambda self: _SAMPLE,
+        )
+        endpoint = "/api/calibration/run"
+        payload: dict = {
+            "workspace_id": "ws1",
+            "start_year": 2025,
+            "end_year": 2026,
+            "config_path": str(sentinel_cfg),
+            "database_path": str(sentinel_db),
+        }
+    else:
+        outcome = AutoCalibrationResult(
+            settings=AutoCalibrationSettings(
+                target_workforce_growth=0.03, target_comp_growth=0.04
+            ),
+            starting_params=CalibrationParameterSet(),
+            converged=True,
+            status="converged",
+            reason="done",
+            message="done",
+            best_params=CalibrationParameterSet(),
+            achieved_comp_growth_pct=4.0,
+            target_comp_growth_pct=4.0,
+            max_abs_error_pct=0.0,
+            start_year=2025,
+            end_year=2026,
+            iterations=[],
+            results=_SAMPLE,
+        )
+
+        def _fake_opt_init(self, run, settings, **kw):
+            captured["config_path"] = run.config_path
+            captured["database_path"] = run.database_path
+
+        monkeypatch.setattr(
+            calibration_worker.AutoCalibrator, "__init__", _fake_opt_init
+        )
+        monkeypatch.setattr(
+            calibration_worker.AutoCalibrator, "optimize", lambda self: outcome
+        )
+        endpoint = "/api/calibration/optimize"
+        payload = {
+            "workspace_id": "ws1",
+            "start_year": 2025,
+            "end_year": 2026,
+            "config_path": str(sentinel_cfg),
+            "database_path": str(sentinel_db),
+            "settings": {
+                "target_workforce_growth": 0.03,
+                "target_comp_growth": 0.04,
+            },
+        }
+
+    resp = client.post(endpoint, json=payload)
+    assert resp.status_code == 202
+    assert _await_job(client, resp.json()["run_id"])["status"] == "completed"
+    assert captured["config_path"] != sentinel_cfg
+    assert captured["database_path"] != sentinel_db
+    assert sentinel_cfg.read_text(encoding="utf-8") == "sentinel: true\n"
+    assert sentinel_db.read_bytes() == b"sentinel-db"
 
 
 @pytest.mark.parametrize("status", ["converged", "not_converged", "infeasible"])
@@ -509,6 +711,7 @@ def test_optimize_returns_outcome(client, monkeypatch, status: str) -> None:
     resp = client.post(
         "/api/calibration/optimize",
         json={
+            "workspace_id": "ws1",
             "start_year": 2025,
             "end_year": 2026,
             "settings": {
@@ -533,6 +736,7 @@ def test_optimize_single_year_returns_422(client) -> None:
     resp = client.post(
         "/api/calibration/optimize",
         json={
+            "workspace_id": "ws1",
             "start_year": 2025,
             "end_year": 2025,
             "settings": {
@@ -628,6 +832,7 @@ def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> No
     resp = client.post(
         "/api/calibration/run",
         json={
+            "workspace_id": "ws1",
             "start_year": 2025,
             "end_year": 2026,
             "params": {
