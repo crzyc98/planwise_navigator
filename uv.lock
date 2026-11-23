@@ -2794,6 +2794,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "types-pyyaml" },
+    { name = "tzdata" },
 ]
 
 [package.metadata]
@@ -2849,6 +2850,7 @@ requires-dist = [
     { name = "tableauhyperapi", marker = "platform_machine != 'aarch64' and sys_platform != 'darwin'", specifier = "==0.0.26784" },
     { name = "typer", specifier = ">=0.9.0" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20261113" },
+    { name = "tzdata", marker = "extra == 'dev'", specifier = "==2026.2" },
     { name = "urllib3", specifier = ">=1.26.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
     { name = "weasyprint", specifier = ">=62.0" },

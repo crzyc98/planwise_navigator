@@ -70,6 +70,8 @@ dev = [
     "pytest-xdist==3.8.0",
     # Starlette's TestClient needs httpx (was only installed via jupyter)
     "httpx==0.28.1",
+    # Tests use named time zones; pandas no longer installs tzdata on Linux
+    "tzdata==2026.2",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.3",
     "Faker==40.54.0",
