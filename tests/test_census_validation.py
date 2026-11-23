@@ -130,8 +130,9 @@ def test_validate_census_error_context(tmp_path):
 
 @pytest.mark.fast
 def test_validate_census_file_not_found(tmp_path):
-    """Non-existent file path raises ConfigurationError."""
-    config = {"setup": {"census_parquet_path": "/nonexistent/path/census.parquet"}}
+    """Non-existent file path inside the workspace root raises ConfigurationError."""
+    bad_path = str(tmp_path / "nonexistent" / "census.parquet")
+    config = {"setup": {"census_parquet_path": bad_path}}
 
     with pytest.raises(ConfigurationError, match="Census file not found at"):
         make_service(tmp_path)._validate_census(
@@ -142,7 +143,7 @@ def test_validate_census_file_not_found(tmp_path):
 @pytest.mark.fast
 def test_validate_census_file_not_found_includes_path(tmp_path):
     """Error message includes the actual configured path for debugging."""
-    bad_path = "/nonexistent/path/census.parquet"
+    bad_path = str(tmp_path / "nonexistent" / "census.parquet")
     config = {"setup": {"census_parquet_path": bad_path}}
 
     with pytest.raises(ConfigurationError, match=bad_path):
@@ -154,7 +155,7 @@ def test_validate_census_file_not_found_includes_path(tmp_path):
 @pytest.mark.fast
 def test_validate_census_file_not_found_context(tmp_path):
     """ConfigurationError for missing file includes expected_path in context."""
-    bad_path = "/nonexistent/path/census.parquet"
+    bad_path = str(tmp_path / "nonexistent" / "census.parquet")
     config = {"setup": {"census_parquet_path": bad_path}}
 
     with pytest.raises(ConfigurationError) as exc_info:
@@ -337,3 +338,24 @@ def test_resolve_census_path_rejects_symlink_escaping_root(tmp_path):
 
     with pytest.raises(SQLSecurityError, match="outside allowed directories"):
         resolve_census_path(storage, "data/escape.parquet", "ws1")
+
+
+@pytest.mark.fast
+def test_resolve_census_path_outside_root_identical_whether_missing_or_existing(
+    tmp_path,
+):
+    existing = tmp_path / "existing.parquet"
+    existing.write_bytes(b"PAR1dummy")
+    missing = tmp_path / "missing.parquet"
+    root = tmp_path / "workspaces"
+    (root / "ws1").mkdir(parents=True)
+    storage = WorkspaceStorage(root)
+
+    for candidate in (
+        str(existing),
+        str(missing),
+        "../../existing.parquet",
+        "../../missing.parquet",
+    ):
+        with pytest.raises(SQLSecurityError, match="outside allowed directories"):
+            resolve_census_path(storage, candidate, "ws1")

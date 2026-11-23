@@ -3663,10 +3663,6 @@ export interface components {
          *     result is within tolerance of the compensation target.
          */
         AutoCalibrationRequest: {
-            /** Config Path */
-            config_path?: string | null;
-            /** Database Path */
-            database_path?: string | null;
             /** End Year */
             end_year?: number | null;
             params?: components["schemas"]["CalibrationParameterSet"];
@@ -3676,7 +3672,7 @@ export interface components {
             /** Start Year */
             start_year?: number | null;
             /** Workspace Id */
-            workspace_id?: string | null;
+            workspace_id: string;
         };
         /**
          * AutoCalibrationResult
@@ -4473,10 +4469,6 @@ export interface components {
          * @description Request body for POST /api/calibration/run (contracts/api-calibration.md).
          */
         CalibrationRunRequest: {
-            /** Config Path */
-            config_path?: string | null;
-            /** Database Path */
-            database_path?: string | null;
             /** End Year */
             end_year?: number | null;
             params?: components["schemas"]["CalibrationParameterSet"];
@@ -4486,9 +4478,9 @@ export interface components {
             start_year?: number | null;
             /**
              * Workspace Id
-             * @description When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.
+             * @description Target workspace whose base or scenario config (census, termination rates) is calibrated so the calibrated levers transfer to a full simulation of it.
              */
-            workspace_id?: string | null;
+            workspace_id: string;
         };
         /**
          * CalibrationStartResponse
