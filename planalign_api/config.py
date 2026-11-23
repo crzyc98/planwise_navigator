@@ -76,6 +76,8 @@ class APISettings(BaseSettings):
     # Background tasks
     # Studio runs simulations one at a time unless a server raises this.
     max_concurrent_simulations: int = Field(default=1, ge=1)
+    # Maximum jobs waiting for a simulation slot per job type (429 beyond this).
+    max_queued_jobs_per_type: int = Field(default=10, ge=0)
     # In-memory operation-history retention. Active operations are always kept.
     batch_operation_ttl_seconds: float = Field(default=3600.0, gt=0)
     batch_operation_max_entries: int = Field(default=100, gt=0)

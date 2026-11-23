@@ -50,6 +50,10 @@ def start_census_roll_forward(
         job = jobs.start_job(storage, workspace_id)
     except jobs.RollForwardUnavailable as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except jobs.RollForwardQueueFull as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)
+        )
     background_tasks.add_task(jobs.run_job, storage, job.id)
     return job
 

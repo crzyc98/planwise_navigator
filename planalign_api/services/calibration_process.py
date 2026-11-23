@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import psutil
 
@@ -24,6 +24,7 @@ class ProcessRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._owned: set[str] = set()
+        self._started: set[str] = set()
         self._processes: dict[str, subprocess.Popen[str]] = {}
         self._cancelled: set[str] = set()
         self._finalizing: set[str] = set()
@@ -33,6 +34,28 @@ class ProcessRegistry:
         with self._lock:
             self._owned.add(job_id)
             self._done[job_id] = threading.Event()
+
+    def try_claim(self, job_id: str, can_queue: Callable[[int], bool]) -> bool:
+        """Claim ``job_id`` if ``can_queue`` allows another waiting job."""
+        with self._lock:
+            queued = len(self._owned - self._started - self._cancelled)
+            if not can_queue(queued):
+                return False
+            self._owned.add(job_id)
+            self._done[job_id] = threading.Event()
+            return True
+
+    def queued_count(self) -> int:
+        with self._lock:
+            return len(self._owned - self._started - self._cancelled)
+
+    def begin(self, job_id: str) -> bool:
+        """Mark the job running once it holds a slot; False if cancelled first."""
+        with self._lock:
+            if job_id in self._cancelled:
+                return False
+            self._started.add(job_id)
+            return True
 
     def owns(self, job_id: str) -> bool:
         with self._lock:
@@ -80,6 +103,7 @@ class ProcessRegistry:
     def release(self, job_id: str) -> None:
         with self._lock:
             self._owned.discard(job_id)
+            self._started.discard(job_id)
             self._processes.pop(job_id, None)
             self._cancelled.discard(job_id)
             self._finalizing.discard(job_id)

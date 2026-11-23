@@ -44,6 +44,7 @@ from ..simulation.run_execution import (
     write_config,
     write_seeds,
 )
+from ..simulation.run_slots import queue_capacity_exceeded
 from .runner import (
     CommandFactory,
     EnsembleJobRunner,
@@ -120,7 +121,14 @@ class EnsembleJobService:
         job = self._new_job(
             scenario, self._estimate(scenario, config, request.seed_count)
         )
-        self.registry.claim(job.job_id)
+        if not self.registry.try_claim(
+            job.job_id, lambda queued: not queue_capacity_exceeded(queued)
+        ):
+            raise EnsembleJobError(
+                429,
+                "Too many ensemble jobs are already queued. Wait for one to "
+                "finish or cancel a queued job before starting another.",
+            )
         try:
             paths = self._prepare_inputs(job, scenario, config)
             self.store.save(job)

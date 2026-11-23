@@ -80,6 +80,16 @@ class EnsembleRegistry:
             self._owned.add(job_id)
             self._done[job_id] = threading.Event()
 
+    def try_claim(self, job_id: str, can_queue: Callable[[int], bool]) -> bool:
+        """Claim ``job_id`` if ``can_queue`` permits another waiting job."""
+        with self._lock:
+            queued = len(self._owned - self._started - self._cancelled)
+            if not can_queue(queued):
+                return False
+            self._owned.add(job_id)
+            self._done[job_id] = threading.Event()
+            return True
+
     def owns(self, job_id: str) -> bool:
         with self._lock:
             return job_id in self._owned
