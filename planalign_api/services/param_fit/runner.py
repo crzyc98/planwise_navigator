@@ -30,6 +30,8 @@ from planalign_fit.progress import ENV_FLAG, parse_progress_line
 
 from ...errors import sanitize_job_error
 from ...models.param_fit import JobError, JobProgress, ParamFitJob
+from ..child_env import build_child_env
+from ..process_groups import new_session_kwargs, terminate_group, wait_for_group_exit
 from ..simulation.run_slots import simulation_slot_sync
 from .jobs import LOG_FILENAME, JobStore
 
@@ -76,6 +78,7 @@ class ProcessRegistry:
         self._cancelled: set[str] = set()
         self._finalizing: set[str] = set()
         self._done: dict[str, threading.Event] = {}
+        self._capped: set[str] = set()
 
     def claim(self, job_id: str) -> None:
         with self._lock:
@@ -89,6 +92,21 @@ class ProcessRegistry:
             if not can_queue(queued):
                 return False
             self._owned.add(job_id)
+            self._done[job_id] = threading.Event()
+            return True
+
+    def try_start_capped(self, job_id: str, limit: int) -> bool:
+        """Claim ``job_id`` as running unless ``limit`` capped jobs still are.
+
+        For jobs that never wait for a simulation slot: they start at once or
+        are refused. A cancelled job counts until its process has stopped.
+        """
+        with self._lock:
+            if len(self._capped) >= limit:
+                return False
+            self._owned.add(job_id)
+            self._started.add(job_id)
+            self._capped.add(job_id)
             self._done[job_id] = threading.Event()
             return True
 
@@ -149,6 +167,7 @@ class ProcessRegistry:
             self._processes.pop(job_id, None)
             self._cancelled.discard(job_id)
             self._finalizing.discard(job_id)
+            self._capped.discard(job_id)
             done = self._done.pop(job_id, None)
         if done is not None:
             done.set()
@@ -209,11 +228,8 @@ def _threshold_args(family: str, pair) -> list[str]:
 
 
 def build_env(work_dir: Path) -> dict[str, str]:
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key != "PLANALIGN_STRUCTURED_TELEMETRY"
-    }
+    env = build_child_env()
+    env.pop("PLANALIGN_STRUCTURED_TELEMETRY", None)
     # The backtest invokes dbt; find it beside this interpreter even when the
     # API was started without an activated virtualenv.
     interpreter_bin = str(Path(sys.executable).parent)
@@ -318,7 +334,7 @@ class JobRunner:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
-            start_new_session=IS_POSIX,
+            **new_session_kwargs(),
         )
         self.registry.attach(job.job_id, process)
         self.store.record_process(job.workspace_id, job.job_id, process.pid)
@@ -330,7 +346,10 @@ class JobRunner:
                     tail.append(line.rstrip())
                 continue
             self._apply_record(job, record, failure)
-        return process.wait()
+        code = process.wait()
+        # Descendants can outlive the CLI; _finalize deletes the work dir.
+        wait_for_group_exit(process.pid, CANCEL_GRACE_SECONDS)
+        return code
 
     def _apply_record(
         self, job: ParamFitJob, record: dict, failure: dict[str, object]
@@ -470,18 +489,20 @@ def _redact(message: str, paths: JobPaths) -> str:
 
 
 def _terminate(process: subprocess.Popen[str]) -> None:
-    """SIGTERM the job's process group, then SIGKILL after a grace period."""
+    """Stop the job's process group in the background.
+
+    SIGTERM first; anything in the group still alive after the grace period is
+    sent SIGKILL. The worker thread's own wait for the group keeps
+    ``_finalize`` from removing the work dir until every member has exited.
+    """
     if process.poll() is not None:
         return
-    _signal(process, signal.SIGTERM)
-
-    def _escalate() -> None:
-        try:
-            process.wait(timeout=CANCEL_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            _signal(process, signal.SIGKILL if IS_POSIX else signal.SIGTERM)
-
-    threading.Thread(target=_escalate, daemon=True).start()
+    threading.Thread(
+        target=terminate_group,
+        args=(process, CANCEL_GRACE_SECONDS),
+        name=f"param-fit-stop-{process.pid}",
+        daemon=True,
+    ).start()
 
 
 def terminate_orphan(pid: int, job_id: str) -> None:
@@ -500,18 +521,6 @@ def terminate_orphan(pid: int, job_id: str) -> None:
             process.kill()
     except (psutil.Error, ProcessLookupError, PermissionError) as exc:
         logger.debug("Orphaned job %s (pid %s) not stopped: %s", job_id, pid, exc)
-
-
-def _signal(process: subprocess.Popen[str], sig: int) -> None:
-    try:
-        if IS_POSIX:
-            os.killpg(process.pid, sig)
-        elif sig == signal.SIGTERM:
-            process.terminate()
-        else:
-            process.kill()
-    except (ProcessLookupError, PermissionError) as exc:
-        logger.debug("Signal %s to job process %s failed: %s", sig, process.pid, exc)
 
 
 def _as_int(value: object) -> Optional[int]:

@@ -10,6 +10,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Optional
 
+from planalign_core.process_security import remove_denied_env_vars
+
 from .run_archiver import export_run_excel
 
 _executor: Optional[ProcessPoolExecutor] = None
@@ -24,6 +26,9 @@ def _get_executor() -> ProcessPoolExecutor:
             _executor = ProcessPoolExecutor(
                 max_workers=1,
                 mp_context=multiprocessing.get_context("spawn"),
+                # A spawned worker inherits the API's environment; drop the
+                # API credentials before it does any work.
+                initializer=remove_denied_env_vars,
             )
         return _executor
 

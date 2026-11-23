@@ -31,6 +31,8 @@ from typing import (
     Tuple,
 )
 
+from planalign_core.process_security import scrub_child_env
+
 from .dbt_executable import find_dbt_executable
 
 if TYPE_CHECKING:
@@ -563,7 +565,7 @@ class DbtRunner:
             result = invoke_dbt(
                 cmd,
                 self.working_dir,
-                self._build_subprocess_env() or dict(os.environ),
+                self._build_subprocess_env(),
                 start_ts=start,
             )
             # In-process output is buffered: callbacks receive lines after invoke.
@@ -651,7 +653,8 @@ class DbtRunner:
             env = os.environ.copy()
         env["DO_NOT_TRACK"] = "1"
 
-        return env
+        # dbt never needs the Studio API's credentials.
+        return scrub_child_env(env)
 
     def _run_subprocess(self, cmd: List[str], *, start_ts: float) -> DbtResult:
         """Execute a dbt command as a subprocess (non-streaming mode)."""

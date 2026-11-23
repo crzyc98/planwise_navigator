@@ -19,6 +19,8 @@ from planalign_core.constants import DATABASE_FILENAME
 
 from ...models.studio_config import validate_studio_config_values
 from ...storage.workspace_storage import WorkspaceStorage
+from ..child_env import build_child_env
+from ..process_groups import IS_POSIX, stop_group_async, wait_group_async
 from ..provenance.capture import ProvenanceRecorder
 from ..sql_security import SQLSecurityError, validate_file_path_for_sql
 from ..telemetry_service import get_telemetry_service
@@ -57,7 +59,7 @@ class ActiveProcessRegistry:
     async def cancel(self, run_id: str) -> bool:
         with self._lock:
             process = self.processes.get(run_id)
-        if process is None or not await _stop_process(process, run_id):
+        if process is None or not await stop_process_tree(process, run_id):
             return False
         with self._lock:
             self.cancelled_runs.add(run_id)
@@ -66,7 +68,53 @@ class ActiveProcessRegistry:
         return True
 
 
-async def _stop_process(process: Any, run_id: str) -> bool:
+def _process_group(process: Any) -> Optional[int]:
+    """The process group a simulation leads (POSIX), or None to signal the leader.
+
+    Simulations start in their own session, so the leader's PID is the group ID.
+    """
+    pid = getattr(process, "pid", None)
+    return pid if IS_POSIX and isinstance(pid, int) else None
+
+
+async def stop_process_tree(process: Any, run_id: str) -> bool:
+    """Stop a job process and, on POSIX, everything in its process group."""
+    pgid = _process_group(process)
+    if pgid is not None:
+        return await _stop_group(process, pgid, run_id)
+    return await _stop_leader(process, run_id)
+
+
+async def _stop_group(process: Any, pgid: int, run_id: str) -> bool:
+    """Stop every process in the run's group, then reap the leader."""
+    try:
+        stopped = await stop_group_async(pgid, CANCEL_GRACE_SECONDS)
+    except OSError as exc:
+        logger.warning("Could not terminate simulation %s: %s", run_id, exc)
+        return False
+    if not stopped:
+        logger.warning("Could not confirm simulation %s exited", run_id)
+        return False
+    try:
+        await asyncio.wait_for(wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS)
+    except (asyncio.TimeoutError, OSError, ProcessLookupError) as exc:
+        logger.warning("Could not reap simulation %s: %s", run_id, exc)
+        return False
+    return True
+
+
+async def wait_for_process_tree(process: Any, run_id: str) -> None:
+    """After the leader exits, wait for (or stop) anything it left running."""
+    pgid = _process_group(process)
+    if pgid is None:
+        return
+    if await wait_group_async(pgid, CANCEL_GRACE_SECONDS):
+        return
+    if not await _stop_group(process, pgid, run_id):
+        raise RuntimeError(f"Simulation {run_id} left processes running")
+
+
+async def _stop_leader(process: Any, run_id: str) -> bool:
     try:
         process.terminate()
     except ProcessLookupError:
@@ -84,16 +132,16 @@ async def _stop_process(process: Any, run_id: str) -> bool:
         return False
 
 
-async def _cleanup_failed_process(process: Any, run_id: str) -> None:
+async def cleanup_failed_process(process: Any, run_id: str) -> None:
     """Terminate and reap a child after a failed run without masking the error."""
     returncode = getattr(process, "returncode", None)
     try:
-        if returncode is not None:
+        if returncode is not None and _process_group(process) is None:
             await asyncio.wait_for(
                 wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS
             )
             return
-        stopped = await _stop_process(process, run_id)
+        stopped = await stop_process_tree(process, run_id)
         if not stopped:
             logger.warning("Cleanup after failed simulation %s was incomplete", run_id)
     except BaseException as exc:
@@ -368,7 +416,6 @@ def build_env(
     database_path: Optional[Path] = None,
 ) -> Dict[str, str]:
     env = {
-        **os.environ,
         "PYTHONPATH": str(project_root),
         "PYTHONIOENCODING": "utf-8",
         "PLANALIGN_STRUCTURED_TELEMETRY": "1",
@@ -382,7 +429,7 @@ def build_env(
         env["PLANALIGN_RUN_ID"] = run_id
     if database_path is not None:
         env["DATABASE_PATH"] = str(database_path)
-    return env
+    return build_child_env(env)
 
 
 async def wait_for_ws_listener(telemetry_service: Any, run_id: str) -> None:
@@ -413,7 +460,10 @@ async def execute_run(
         run_dir / "config.yaml", database, start_year, end_year, project
     )
     process, lines = await create_subprocess(
-        cmd=command, cwd=str(root), env=build_env(root, run_id, database)
+        cmd=command,
+        cwd=str(root),
+        env=build_env(root, run_id, database),
+        new_session=True,
     )
     process_registry.register(run_id, process)
     try:
@@ -442,6 +492,7 @@ async def execute_run(
             provenance_recorder=provenance_recorder,
         )
         return_code = await wait_subprocess(process)
+        await wait_for_process_tree(process, run_id)
         elapsed = (datetime.now() - started).total_seconds()
         if process_registry.is_cancelled(run_id):
             raise RuntimeError("Simulation cancelled by user")
@@ -450,7 +501,7 @@ async def execute_run(
         return parser, started, elapsed
     except BaseException:
         try:
-            await _cleanup_failed_process(process, run_id)
+            await cleanup_failed_process(process, run_id)
         except BaseException as cleanup_error:
             logger.warning(
                 "Cleanup after failed simulation %s raised: %s",

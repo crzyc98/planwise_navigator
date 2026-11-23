@@ -7,11 +7,13 @@ import os
 import signal
 import subprocess
 import threading
-import time
 from pathlib import Path
 from typing import Callable, Optional
 
 import psutil
+
+from .process_groups import group_alive, terminate_group
+from .process_groups import wait_for_group_exit as _wait_for_group_exit
 
 logger = logging.getLogger(__name__)
 CANCEL_GRACE_SECONDS = 5.0
@@ -114,46 +116,10 @@ class ProcessRegistry:
 
 def _terminate(process: subprocess.Popen[str]) -> None:
     """Terminate the entire session, including children surviving the leader."""
-    try:
-        if not IS_POSIX:
-            process.terminate()
-            try:
-                process.wait(timeout=CANCEL_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                process.kill()
-            process.wait()
-            return
-        os.killpg(process.pid, signal.SIGTERM)
-        deadline = time.monotonic() + CANCEL_GRACE_SECONDS
-        while time.monotonic() < deadline:
-            process.poll()  # Reap the leader before checking its process group.
-            if not _group_alive(process.pid):
-                break
-            time.sleep(0.05)
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-    except ProcessLookupError:
-        process.wait()
-    except PermissionError:
-        logger.exception("Could not terminate calibration process %s", process.pid)
-        raise
+    terminate_group(process, CANCEL_GRACE_SECONDS)
 
 
-def _group_alive(pgid: int) -> bool:
-    """Whether any process is left in the group.
-
-    macOS answers EPERM rather than ESRCH while a member is still exiting if
-    another process is reading the process table at that moment, so EPERM
-    means "not gone yet": poll again.
-    """
-    try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+_group_alive = group_alive
 
 
 WORKER_MODULE = "planalign_orchestrator.calibration_worker"
@@ -165,16 +131,7 @@ def wait_for_group_exit(pgid: int) -> None:
     The leader can exit while a descendant (e.g. a dbt subprocess) still holds
     the database; cleanup and lock release must wait for the whole group.
     """
-    if not IS_POSIX:
-        return
-    deadline = time.monotonic() + CANCEL_GRACE_SECONDS
-    try:
-        while _group_alive(pgid):
-            if time.monotonic() >= deadline:
-                os.killpg(pgid, signal.SIGKILL)
-            time.sleep(0.05)
-    except ProcessLookupError:
-        return
+    _wait_for_group_exit(pgid, CANCEL_GRACE_SECONDS)
 
 
 def _worker_command_matches(command: list[str], directory: Path) -> bool:
