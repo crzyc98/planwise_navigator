@@ -15,7 +15,7 @@ dependencies = [
     "duckdb==2.0.0",
     "dbt-core==1.12.7",
     "dbt-duckdb==1.11.1",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "pandas>=2.0.0",
