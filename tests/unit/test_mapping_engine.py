@@ -164,7 +164,8 @@ def test_date_output_rejects_unparseable_source_values():
     with pytest.raises(ValueError, match="cannot be parsed as a date") as exc_info:
         engine.apply(df, mappings)
 
-    assert "'not-a-date'" in str(exc_info.value)
+    assert "row 2" in str(exc_info.value)
+    assert "not-a-date" not in str(exc_info.value)
 
 
 def test_date_output_is_saved_as_date_values():
@@ -224,7 +225,8 @@ def test_decimal_output_rejects_unparseable_values():
     with pytest.raises(ValueError, match="cannot be parsed as a number") as exc_info:
         engine.apply(df, mappings)
 
-    assert "'competitive'" in str(exc_info.value)
+    assert "row 2" in str(exc_info.value)
+    assert "competitive" not in str(exc_info.value)
 
 
 @pytest.mark.parametrize("raw", ["1.234,56", "12,5", "12,345,67"])
@@ -337,8 +339,9 @@ def test_boolean_output_rejects_unsupported_values():
     with pytest.raises(ValueError, match="2 unsupported boolean value") as exc_info:
         engine.apply(df, mappings)
 
-    assert "'sometimes'" in str(exc_info.value)
-    assert "'unknown'" in str(exc_info.value)
+    assert "rows 2, 3" in str(exc_info.value)
+    assert "sometimes" not in str(exc_info.value)
+    assert "unknown" not in str(exc_info.value)
 
 
 def test_boolean_preview_warns_for_unsupported_values():
@@ -351,7 +354,8 @@ def test_boolean_preview_warns_for_unsupported_values():
     assert len(warnings) == 1
     assert warnings[0].input_column == "ACTIVE"
     assert warnings[0].rows_affected == 1
-    assert "'sometimes'" in warnings[0].message
+    assert "row 2" in warnings[0].message
+    assert "sometimes" not in warnings[0].message
 
 
 # ---------------------------------------------------------------------------

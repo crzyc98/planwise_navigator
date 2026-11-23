@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Data import now rejects oversized or malformed uploads and calculated fields with a clear message, and import error messages point to row numbers instead of repeating cell contents.
 - Cancelling a run now stops all of its background work, background jobs no longer receive the API token, and a few analytics and fitting requests have sensible size limits.
 - Excel and CSV downloads now always write text values as text, so a census value that starts with `=` shows as typed instead of being treated as a formula.
 - Workspace sync no longer stores or shares the remote's access token in the sync settings file, and checks the remote address before every push and pull.

@@ -94,6 +94,9 @@ class APISettings(BaseSettings):
     import_max_unpacked_bytes: int = Field(default=10 * 1024 * 1024 * 1024, gt=0)
     import_max_member_bytes: int = Field(default=4 * 1024 * 1024 * 1024, gt=0)
     import_max_member_count: int = Field(default=10_000, gt=0)
+    # Census .xlsx uploads: total uncompressed size of the workbook archive
+    # (PLANALIGN_API_IMPORT_XLSX_MAX_UNPACKED_BYTES)
+    import_xlsx_max_unpacked_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
 
     # Default config path
     default_config_path: Path = Field(
