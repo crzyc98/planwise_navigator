@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
+from uuid import uuid4
 
 import psutil
 import pytest
@@ -18,6 +21,7 @@ from fastapi.testclient import TestClient
 from planalign_api.routers import calibration
 from planalign_api.services.calibration_jobs import JobRunner, JobStore
 from planalign_api.services.calibration_process import ProcessRegistry
+from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
 from planalign_orchestrator import calibration_worker as worker
 from planalign_orchestrator.calibration_optimizer import (
     AutoCalibrationResult,
@@ -144,17 +148,114 @@ def test_worker_optimize(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
 
+def test_worker_sanitizes_configuration_error_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret_dir = "/private/var/secret_client/ws-1"
+    cases = [
+        (
+            f"Calibration target database not found: {secret_dir}/cal.duckdb",
+            "Calibration target database not found",
+        ),
+        (
+            f"Could not read config {secret_dir}/calibration_config.yaml: invalid value",
+            "Could not read config calibration_config.yaml: invalid value",
+        ),
+    ]
+    for raw_message, expected in cases:
+        job_dir = tmp_path / f"job_{uuid4().hex[:8]}"
+        job_dir.mkdir()
+
+        class Engine:
+            def __init__(self, run: CalibrationRun, threads: int) -> None:
+                pass
+
+            def run_calibration(self) -> list[PerYearCompensationResult]:
+                raise ConfigurationError(raw_message)
+
+        monkeypatch.setattr(worker, "CalibrationRunner", Engine)
+        worker.atomic_write_json(
+            job_dir / "request.json", request().model_dump(mode="json")
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="planalign_orchestrator.calibration_worker"
+        ):
+            assert worker.main(job_dir) == 1
+        error = json.loads((job_dir / "error.json").read_text())
+        assert error["error_status"] == 409
+        assert error["error"] == expected
+        assert secret_dir not in error["error"]
+        assert raw_message in caplog.text
+
+
+def _make_workspace_storage(root: Path, workspace_id: str = "ws1") -> object:
+    ws_dir = root / workspace_id
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    census = ws_dir / "census.parquet"
+    census.write_bytes(b"pii-safe-test-census")
+    run_id = str(uuid4())
+    source_db = ws_dir / "source.duckdb"
+    source_db.write_bytes(b"source-db")
+    base_config = {
+        "setup": {"census_parquet_path": "census.parquet"},
+        "simulation": {"start_year": 2025, "end_year": 2026, "random_seed": 42},
+    }
+    effective = {**base_config, "setup": {"census_parquet_path": str(census.resolve())}}
+    (ws_dir / "provenance.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "capture_state": "completed",
+                "run_identity": {
+                    "workspace_id": workspace_id,
+                    "intended_start_year": 2025,
+                    "intended_end_year": 2026,
+                },
+                "configuration": {"fingerprint": config_fingerprint(effective)},
+                "random_seed": 42,
+                "census_input": {"sha256": sha256_file(census)[0]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Storage:
+        workspaces_root = root
+
+        def get_workspace(self, wid: str):
+            return (
+                SimpleNamespace(base_config=base_config)
+                if wid == workspace_id
+                else None
+            )
+
+        def _workspace_path(self, wid: str) -> Path:
+            return root / wid
+
+        def list_scenarios(self, wid: str):
+            return [SimpleNamespace(id="scenario-1")] if wid == workspace_id else []
+
+        def get_scenario_read_context(self, wid: str, sid: str):
+            return SimpleNamespace(database_path=source_db, result_run_id=run_id)
+
+    return _Storage()
+
+
 def make_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     command: Callable[[Path], list[str]],
 ) -> tuple[TestClient, JobRunner]:
     store = JobStore(tmp_path)
+    storage = _make_workspace_storage(tmp_path / "workspaces")
     runner = JobRunner(store, ProcessRegistry(), command)
     monkeypatch.setattr(calibration, "get_job_store", lambda: store)
     monkeypatch.setattr(calibration, "get_job_runner", lambda: runner)
     app = FastAPI()
     app.include_router(calibration.router)
+    app.dependency_overrides[calibration.get_storage] = lambda: storage
     return TestClient(app), runner
 
 
@@ -185,7 +286,8 @@ def test_router_process(
 
     client, runner = make_client(tmp_path, monkeypatch, command)
     response = client.post(
-        "/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert response.status_code == 202
     run_id = response.json()["run_id"]
@@ -395,7 +497,8 @@ def test_missing_worker_output_is_safe_failure(
         tmp_path, monkeypatch, lambda _: [sys.executable, "-c", script]
     )
     response = client.post(
-        "/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     run_id = response.json()["run_id"]
     wait_for(lambda: not runner.registry.owns(run_id))
@@ -474,9 +577,10 @@ def test_enqueue_failure_removes_temp_files(
 
     monkeypatch.setattr(calibration, "get_job_store", lambda: FailingStore())
     target = calibration._ResolvedTarget.__new__(calibration._ResolvedTarget)
+    object.__setattr__(target, "config_path", config_file)
     object.__setattr__(target, "database_path", database)
     with pytest.raises(OSError):
-        calibration._enqueue(request(), target, str(database), config_file)
+        calibration._enqueue(request(), target)
     assert not config_file.exists()
     assert not database.exists()
 

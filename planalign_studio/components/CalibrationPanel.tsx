@@ -636,7 +636,6 @@ export default function CalibrationPanel() {
       const response = resumeRunId ? await retrieveCalibrationResult(resumeRunId) : await optimizeCalibration({
         start_year: startYear,
         end_year: endYear,
-        database_path: null,
         workspace_id: activeWorkspace.id,
         scenario_id: selectedScenarioId,
         settings: { ...searchSettings(scaleBases) },

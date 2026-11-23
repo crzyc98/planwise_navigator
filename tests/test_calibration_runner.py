@@ -509,3 +509,19 @@ def test_rebuild_clears_rows_a_later_evaluation_would_not_replace(tmp_path) -> N
             assert conn.execute(f"SELECT employee_id FROM {table}").fetchall() == [
                 ("census",)
             ]
+
+
+def test_build_year_rejects_invalid_dbt_vars(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    runner._config.scenario_id = "bad;id"
+    called = False
+
+    def _fail_if_called(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("dbt must not run when dbt_vars validation fails")
+
+    runner._runner.execute_command = _fail_if_called  # type: ignore[assignment]
+    with pytest.raises(ConfigurationError, match="Invalid exported dbt variables"):
+        runner._build_year(2025)
+    assert not called

@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 from uuid import uuid4
 
@@ -48,6 +49,24 @@ def execute(request: WorkerRequest) -> object:
     return outcome.model_dump(mode="json")
 
 
+_POSIX_ABS_PATH_RE = re.compile(
+    r"(?<![:\w.-])/(?:[^\s'\"()\[\],;:]+/)+[^\s'\"()\[\],;:]+"
+)
+_WINDOWS_ABS_PATH_RE = re.compile(r"(?<![\w.-])[A-Za-z]:[\\/][^\s'\"()\[\],;:]+")
+
+
+def _sanitize_configuration_error(message: str) -> str:
+    """Keep the human-readable reason while removing absolute filesystem paths."""
+    if message.startswith("Calibration target database not found:"):
+        return "Calibration target database not found"
+    cleaned = _POSIX_ABS_PATH_RE.sub(
+        lambda match: PurePosixPath(match.group(0)).name, message
+    )
+    return _WINDOWS_ABS_PATH_RE.sub(
+        lambda match: PureWindowsPath(match.group(0)).name, cleaned
+    )
+
+
 def main(job_dir: Path) -> int:
     """Run the unchanged engine and publish either a result or a safe error."""
     try:
@@ -57,7 +76,11 @@ def main(job_dir: Path) -> int:
         atomic_write_json(job_dir / "result.json", execute(request))
         return 0
     except ConfigurationError as exc:
-        error = {"error": str(exc), "error_status": 409}
+        logger.warning("Calibration configuration error: %s", exc)
+        error = {
+            "error": _sanitize_configuration_error(str(exc)),
+            "error_status": 409,
+        }
     except Exception:
         error_id = uuid4().hex
         logger.exception("Calibration job failed [error_id=%s]", error_id)

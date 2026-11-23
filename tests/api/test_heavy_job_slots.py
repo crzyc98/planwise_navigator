@@ -219,17 +219,80 @@ def _gated_calibration_command(
     return _factory
 
 
+def _make_calibration_workspace(root: Path, workspace_id: str = "ws1") -> object:
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from planalign_api.services.provenance.capture import (
+        config_fingerprint,
+        sha256_file,
+    )
+
+    ws_dir = root / workspace_id
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    census = ws_dir / "census.parquet"
+    census.write_bytes(b"pii-safe-test-census")
+    run_id = str(uuid4())
+    source_db = ws_dir / "source.duckdb"
+    source_db.write_bytes(b"source-db")
+    base_config = {
+        "setup": {"census_parquet_path": "census.parquet"},
+        "simulation": {"start_year": 2025, "end_year": 2026, "random_seed": 42},
+    }
+    effective = {**base_config, "setup": {"census_parquet_path": str(census.resolve())}}
+    (ws_dir / "provenance.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "capture_state": "completed",
+                "run_identity": {
+                    "workspace_id": workspace_id,
+                    "intended_start_year": 2025,
+                    "intended_end_year": 2026,
+                },
+                "configuration": {"fingerprint": config_fingerprint(effective)},
+                "random_seed": 42,
+                "census_input": {"sha256": sha256_file(census)[0]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Storage:
+        workspaces_root = root
+
+        def get_workspace(self, wid: str) -> Any:
+            return (
+                SimpleNamespace(base_config=base_config)
+                if wid == workspace_id
+                else None
+            )
+
+        def _workspace_path(self, wid: str) -> Path:
+            return root / wid
+
+        def list_scenarios(self, wid: str) -> list[Any]:
+            return [SimpleNamespace(id="scenario-1")] if wid == workspace_id else []
+
+        def get_scenario_read_context(self, wid: str, sid: str) -> Any:
+            return SimpleNamespace(database_path=source_db, result_run_id=run_id)
+
+    return _Storage()
+
+
 def _make_calibration_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     command: Callable[[Path], list[str]],
 ) -> tuple[TestClient, CalibrationRunner]:
     store = CalibrationStore(tmp_path / "workspaces")
+    storage = _make_calibration_workspace(tmp_path / "workspaces")
     runner = CalibrationRunner(store, CalibrationRegistry(), command)
     monkeypatch.setattr(calibration_router, "get_job_store", lambda: store)
     monkeypatch.setattr(calibration_router, "get_job_runner", lambda: runner)
     app = FastAPI()
     app.include_router(calibration_router.router, prefix="/api")
+    app.dependency_overrides[calibration_router.get_storage] = lambda: storage
     return TestClient(app), runner
 
 
@@ -249,7 +312,8 @@ def test_calibration_respects_concurrency_limit_and_queues_excess(
     run_ids: list[str] = []
     for _ in range(total):
         resp = client.post(
-            "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+            "/api/calibration/run",
+            json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
         )
         assert resp.status_code == 202
         run_ids.append(resp.json()["run_id"])
@@ -292,15 +356,18 @@ def test_calibration_cancel_queued_never_runs_and_releases_after_failure_and_can
     client, runner = _make_calibration_client(tmp_path, monkeypatch, _command)
 
     first = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     ).json()["run_id"]
     _wait(lambda: (gate_dir / f"{first}.active").exists())
 
     queued_cancelled = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     ).json()["run_id"]
     queued_next = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     ).json()["run_id"]
     assert (
         client.get(f"/api/calibration/runs/{queued_cancelled}").json()["status"]
@@ -323,7 +390,8 @@ def test_calibration_cancel_queued_never_runs_and_releases_after_failure_and_can
         == "cancelled"
     )
     after = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     ).json()["run_id"]
     (gate_dir / "release_all").write_text("go")
     _wait(lambda: not runner.registry.owns(after))
@@ -342,7 +410,8 @@ def test_calibration_inner_iterations_complete_with_single_slot(
         tmp_path, monkeypatch, _gated_calibration_command(gate_dir, iterations=4)
     )
     run_id = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     ).json()["run_id"]
     _wait(lambda: not runner.registry.owns(run_id))
     assert client.get(f"/api/calibration/runs/{run_id}").json()["status"] == "completed"
@@ -360,18 +429,21 @@ def test_calibration_queue_cap_returns_429_and_cleans_up(
     )
 
     first = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert first.status_code == 202
     _wait(lambda: (gate_dir / f"{first.json()['run_id']}.active").exists())
 
     second = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert second.status_code == 202
 
     rejected = client.post(
-        "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+        "/api/calibration/run",
+        json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
     )
     assert rejected.status_code == 429
     assert len(runner.store.list_jobs()) == 2
@@ -944,7 +1016,8 @@ def test_simulation_slot_blocks_calibration_and_optimizer_until_released(
     with run_slots.simulation_slot_sync() as held:
         assert held
         cal_id = cal_client.post(
-            "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
+            "/api/calibration/run",
+            json={"workspace_id": "ws1", "start_year": 2025, "end_year": 2026},
         ).json()["run_id"]
         opt_id = optimizer_client.post(
             "/api/optimizer/run",
