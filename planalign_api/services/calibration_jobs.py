@@ -19,6 +19,7 @@ from planalign_orchestrator.calibration_worker import WorkerRequest, atomic_writ
 from ..config import get_settings
 from ..errors import sanitize_job_error
 from ..models.calibration import CalibrationJob
+from .calibration_temp import remove_calibration_scratch
 from .calibration_process import (
     ProcessRegistry,
     _terminate,
@@ -163,9 +164,7 @@ def _remove_temporary(config: str | Path | None, database: str | Path | None) ->
         if value is None:
             continue
         try:
-            Path(value).unlink(missing_ok=True)
-            if key == "database":
-                Path(f"{value}.wal").unlink(missing_ok=True)
+            remove_calibration_scratch(value)
         except OSError:
             logger.warning("Could not remove calibration %s", key, exc_info=True)
 

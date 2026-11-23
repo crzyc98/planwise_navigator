@@ -51,6 +51,12 @@ WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`
 - **Credential handling and redaction** — all userinfo is removed from `scheme://` URLs in API responses (including `GET /api/sync/config` and `GET /api/sync/status`), sync log entries, server logs, and error messages (plain scp-style `git@host:path` without secrets remains readable). `.planalign-sync.yaml` stores only the credential-free URL, is excluded via `.gitignore`, and is never committed; existing sync config files containing credentials are automatically rewritten without them on load, and a `.planalign-sync.yaml` tracked by an earlier version is removed from the sync repo on the next push. A token already pushed in earlier commits stays in that remote's history: rotate it. Any authenticated remote URL resides only in `.git/config`, and `.planalign-sync.yaml`, `.planalign-sync-log.json`, and `.git/config` are written with mode `0600` on POSIX systems.
 - Rejected URLs return HTTP 400 from the API and exit non-zero from the CLI, without creating the repository or contacting any host.
 
+### File permissions and temporary files
+
+- **Private files by default** — both the API server and CLI apply a restrictive POSIX umask (`0077`) at startup so newly created databases, census copies, exports, logs, and configs are readable only by the account running PlanAlign (child processes inherit it; no-op on Windows). Operators who intentionally share files with a dedicated service group can override the mask with `PLANALIGN_UMASK` (an octal string such as `027`); invalid values log a warning and fall back to `077`.
+- **Upgrading existing installs** — the umask applies only to newly created files and directories. On existing deployments, run a one-time `chmod -R go-rwx <workspaces_dir>` to tighten permissions on previously written workspaces and databases.
+- **Private scratch directories** — workspace exports no longer write into a shared `<tmp>/planalign_exports` directory. Single and bulk exports, as well as calibration scratch copies, use private per-operation temporary directories that are removed once no longer needed.
+
 ### Hardening checklist for non-local deployments
 
 1. Set a strong `PLANALIGN_API_TOKEN` in the backend environment only (never in `VITE_*` frontend variables, which are public in the built bundle); Studio users sign in through the session form.
@@ -58,7 +64,7 @@ WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`
 3. Terminate TLS in front of the API (reverse proxy such as nginx/Caddy) so traffic is encrypted and the `planalign_session` cookie is issued with `Secure`; the API itself serves plain HTTP.
 4. Restrict the API and frontend ports with a host firewall to known client addresses.
 5. Leave `PLANALIGN_API_ALLOW_PROJECT_DB_FALLBACK` unset in production.
-6. Run the service under a dedicated low-privilege account (systemd/supervisor).
+6. Run the service under a dedicated low-privilege account (systemd/supervisor) and, on existing installs, run a one-time `chmod -R go-rwx` on the workspaces directory (new files are already private by default; set `PLANALIGN_UMASK` only if group access is intentionally required).
 7. If workspace sync is exposed, restrict destinations with `PLANALIGN_API_GIT_REMOTE_ALLOWED_HOSTS` and keep `PLANALIGN_API_GIT_REMOTE_ALLOW_PRIVATE_NETWORKS` disabled unless the network is trusted.
 
 ### Calculated-field expression evaluator (data import)

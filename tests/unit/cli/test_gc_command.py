@@ -177,19 +177,35 @@ def test_calibration_temp_discovery_keeps_live_jobs_and_unrelated_files(
     tmp_path: Path,
 ) -> None:
     live = _touch(tmp_path / f"{calibration_database_prefix()}live.duckdb")
+    live_dir = tmp_path / f"{calibration_database_prefix()}live_dir"
+    live_dir.mkdir()
+    _touch(live_dir / "calibration.duckdb", mtime=time.time())
     orphan = _touch(tmp_path / "planalign_calibration_999999_0_orphan.duckdb")
+    orphan_dir = tmp_path / "planalign_calibration_999999_0_orphan_dir"
+    orphan_dir.mkdir()
+    _touch(orphan_dir / "calibration.duckdb")
     legacy = _touch(tmp_path / "planalign_calibration_legacy.duckdb")
+    legacy_wal = _touch(tmp_path / "planalign_calibration_legacy.duckdb.wal")
+    legacy_evidence = _touch(
+        tmp_path / "planalign_calibration_legacy.wage_evidence.parquet"
+    )
     recent_legacy = _touch(
         tmp_path / "planalign_calibration_recent.duckdb", mtime=time.time()
     )
-    unrelated = _touch(tmp_path / "planalign_calibration_legacy.duckdb.wal")
+    unrelated = _touch(tmp_path / "planalign_calibration_notes.txt")
     nested = _touch(tmp_path / "nested/planalign_calibration_nested.duckdb")
     link = tmp_path / "planalign_calibration_link.duckdb"
     link.symlink_to(unrelated)
 
-    assert set(find_orphaned_calibration_databases(tmp_path)) == {legacy, orphan}
-    assert live.exists() and recent_legacy.exists()
-    assert nested.exists() and link.is_symlink()
+    assert set(find_orphaned_calibration_databases(tmp_path)) == {
+        legacy,
+        legacy_wal,
+        legacy_evidence,
+        orphan,
+        orphan_dir,
+    }
+    assert live.exists() and live_dir.exists() and recent_legacy.exists()
+    assert unrelated.exists() and nested.exists() and link.is_symlink()
 
 
 def test_gc_dry_run_and_delete_orphaned_calibration_copy(

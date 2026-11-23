@@ -22,9 +22,12 @@ if platform.system() == "Windows":
 
 import uvicorn
 
+from planalign_core.process_security import restrict_file_permissions
+
 
 def main():
     """Run the API server."""
+    restrict_file_permissions()
     parser = argparse.ArgumentParser(description="Run PlanAlign API server")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")

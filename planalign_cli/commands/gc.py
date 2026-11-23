@@ -206,7 +206,7 @@ def run_gc(
         f"days ({_gb(sum(item.size_bytes for item in scratch))})"
     )
     calibration_databases = [
-        Reclaimable(path, path.stat().st_size)
+        Reclaimable(path, _path_bytes(path))
         for path in find_orphaned_calibration_databases()
     ]
     if yes:
