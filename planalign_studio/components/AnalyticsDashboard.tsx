@@ -18,6 +18,7 @@ import {
   Scenario,
   SimulationResults
 } from '../services/api';
+import { tsvCell } from '../services/spreadsheetSafety';
 import { useChartTheme } from '../hooks/useChartTheme';
 import ReportExportButtons, { type ReportExportFormat } from './ReportExportButtons';
 import { reportRequest } from './reportExport';
@@ -157,11 +158,17 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
   </div>
 );
 
+const formatTsvValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'string') return tsvCell(value);
+  return tsvCell(String(value));
+};
+
 /**
  * Copies a chart's underlying rows as tab-separated values so an analyst can
  * paste straight into Excel/Sheets with headers and columns intact.
  */
-const CopyTableButton = ({ rows }: Readonly<{ rows: Array<Record<string, any>> }>) => {
+const CopyTableButton = ({ rows }: Readonly<{ rows: ReadonlyArray<object> }>) => {
   const [copied, setCopied] = useState(false);
   const hasRows = rows.length > 0;
 
@@ -169,8 +176,11 @@ const CopyTableButton = ({ rows }: Readonly<{ rows: Array<Record<string, any>> }
     if (!hasRows) return;
     const headers = Object.keys(rows[0]);
     const lines = [
-      headers.join('\t'),
-      ...rows.map(row => headers.map(h => row[h] ?? '').join('\t')),
+      headers.map(h => tsvCell(h)).join('\t'),
+      ...rows.map(row => {
+        const record = row as Record<string, unknown>;
+        return headers.map(h => formatTsvValue(record[h])).join('\t');
+      }),
     ];
     try {
       await navigator.clipboard.writeText(lines.join('\n'));

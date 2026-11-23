@@ -9824,6 +9824,7 @@
             "items": {
               "$ref": "#/components/schemas/Transformation"
             },
+            "maxItems": 16,
             "title": "Transformations",
             "type": "array"
           }
@@ -12096,6 +12097,7 @@
             "items": {
               "$ref": "#/components/schemas/FieldMapping"
             },
+            "maxItems": 500,
             "title": "Field Mappings",
             "type": "array"
           }

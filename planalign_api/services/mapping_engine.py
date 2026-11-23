@@ -5,16 +5,23 @@ and evaluated by a whitelisted interpreter. Only arithmetic (+, -, *, /),
 unary +/-, string/int/float literals, and exact DataFrame column references are
 allowed. Calls, attribute access, subscripts, comprehensions, lambdas, and all
 other nodes are rejected. Python eval/exec, globals, and builtins are never used.
+Expressions are also bounded in length, size and nesting, and their results in
+magnitude (numbers) and length (text).
+
+Errors the engine raises on purpose are ``MappingError``s. Their messages name
+columns and row numbers, never cell values, so they are safe to show and store.
 """
 
 from __future__ import annotations
 
 import ast
 import logging
+import math
 import operator
 from collections.abc import Collection
 from typing import Callable, List, Tuple, cast
 
+import numpy as np
 import pandas as pd
 
 from ..models.imports import FieldMapping, TransformationWarning
@@ -29,8 +36,19 @@ from .census_schema import (
 
 logger = logging.getLogger(__name__)
 
+MAX_EXPRESSION_LENGTH = 512
+MAX_EXPRESSION_NODES = 64
+MAX_EXPRESSION_DEPTH = 16
+MAX_TEXT_RESULT_LENGTH = 4096
+MAX_NUMBER_MAGNITUDE = 1e15
+MAX_EXAMPLE_ROWS = 5
 
-class FieldCoercionError(ValueError):
+
+class MappingError(ValueError):
+    """A mapping problem the engine found; its message is safe to show and store."""
+
+
+class FieldCoercionError(MappingError):
     """A mapped census column contains values that cannot be safely coerced."""
 
     def __init__(self, message: str, rows_affected: int) -> None:
@@ -48,10 +66,12 @@ _ALLOWED_UNARY_OPS: dict[type[ast.unaryop], Callable[[object], object]] = {
     ast.UAdd: cast(Callable[[object], object], operator.pos),
     ast.USub: cast(Callable[[object], object], operator.neg),
 }
+_NUMBERS_ONLY = "'-', '*', '/' and a leading '+' or '-' work only on numbers."
+_NUMERIC_OBJECT_KINDS = frozenset({"integer", "floating", "mixed-integer-float"})
 
 
-def _reject(expr: str) -> ValueError:
-    return ValueError(
+def _reject(expr: str) -> MappingError:
+    return MappingError(
         f"Expression contains forbidden/unsafe operation: {expr!r}. "
         "Only arithmetic (+, -, *, /), string concatenation, and column references are allowed."
     )
@@ -64,52 +84,150 @@ def _eval_expression(expr: str, df: pd.DataFrame) -> pd.Series:
     string/numeric literals, and exact column names only) and then interpreted
     directly — no Python eval/exec, globals, or builtins are involved.
     """
-    tree = _validate_expression(expr, frozenset(df.columns))
+    tree = validate_expression(expr, frozenset(df.columns))
     namespace = {col: df[col] for col in df.columns}
     try:
         result = _eval_node(tree, namespace)
+    except MappingError:
+        raise
+    except ZeroDivisionError as exc:
+        raise MappingError("Expression divides by zero.") from exc
     except Exception as exc:
-        raise ValueError(f"Expression evaluation failed: {exc}") from exc
+        logger.warning("Calculated field evaluation failed", exc_info=True)
+        raise MappingError("Expression could not be evaluated.") from exc
     if isinstance(result, pd.Series):
         return result
     return pd.Series([result] * len(df), index=df.index)
 
 
-def _validate_expression(expr: str, df_columns: Collection[str]) -> ast.expr:
-    """Parse and whitelist-validate an expression; return its root AST node."""
+def validate_expression(expr: object, df_columns: Collection[str]) -> ast.expr:
+    """Parse and whitelist-validate an expression; return its root AST node.
+
+    Raises MappingError when the expression is unsafe, too large, or names a
+    column that isn't in ``df_columns``.
+    """
     if not isinstance(expr, str):
         raise _reject(str(expr))
+    if len(expr) > MAX_EXPRESSION_LENGTH:
+        raise MappingError(
+            f"Expression is longer than {MAX_EXPRESSION_LENGTH} characters."
+        )
     try:
         tree = ast.parse(expr, mode="eval")
-    except SyntaxError as exc:
+    except (SyntaxError, ValueError, RecursionError) as exc:
         raise _reject(expr) from exc
-    _validate_node(tree.body, expr, df_columns)
+    _validate_tree(tree.body, expr, df_columns)
     return tree.body
 
 
-def _validate_node(node: ast.expr, expr: str, df_columns: Collection[str]) -> None:
-    if isinstance(node, ast.BinOp):
-        if type(node.op) not in _ALLOWED_BIN_OPS:
+def _validate_tree(root: ast.expr, expr: str, df_columns: Collection[str]) -> None:
+    """Check every node without recursion, enforcing the size and depth limits."""
+    stack: list[tuple[ast.expr, int]] = [(root, 1)]
+    seen = 0
+    while stack:
+        node, depth = stack.pop()
+        seen += 1
+        if seen > MAX_EXPRESSION_NODES or depth > MAX_EXPRESSION_DEPTH:
+            raise MappingError(
+                f"Expression is too complex: at most {MAX_EXPRESSION_NODES} "
+                f"terms and operators, nested at most {MAX_EXPRESSION_DEPTH} deep."
+            )
+        children = _validated_children(node, expr, df_columns)
+        stack.extend((child, depth + 1) for child in children)
+
+
+def _validated_children(
+    node: ast.expr, expr: str, df_columns: Collection[str]
+) -> tuple[ast.expr, ...]:
+    """Validate one node and return its operand nodes."""
+    if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_BIN_OPS:
+        if not isinstance(node.op, ast.Add):
+            _require_no_text_literal(node.left, node.right)
+        return (node.left, node.right)
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _ALLOWED_UNARY_OPS:
+        _require_no_text_literal(node.operand)
+        return (node.operand,)
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if isinstance(value, bool) or not isinstance(value, (str, int, float)):
             raise _reject(expr)
-        _validate_node(node.left, expr, df_columns)
-        _validate_node(node.right, expr, df_columns)
-    elif isinstance(node, ast.UnaryOp):
-        if type(node.op) not in _ALLOWED_UNARY_OPS:
-            raise _reject(expr)
-        _validate_node(node.operand, expr, df_columns)
-    elif isinstance(node, ast.Constant):
-        if isinstance(node.value, bool) or not isinstance(
-            node.value, (str, int, float)
-        ):
-            raise _reject(expr)
-    elif isinstance(node, ast.Name):
+        if not isinstance(value, str):
+            _checked_number(value)
+        return ()
+    if isinstance(node, ast.Name):
         if node.id not in df_columns:
-            raise ValueError(
+            raise MappingError(
                 f"Unknown column reference {node.id!r} in expression: {expr!r}. "
                 "Only existing DataFrame columns may be referenced."
             )
+        return ()
+    raise _reject(expr)
+
+
+def _require_no_text_literal(*operands: ast.expr) -> None:
+    """Catch text used with a numbers-only operator before any data is read."""
+    if any(isinstance(o, ast.Constant) and isinstance(o.value, str) for o in operands):
+        raise MappingError(_NUMBERS_ONLY)
+
+
+def _is_numeric(value: object) -> bool:
+    """True for numbers and numeric columns; booleans and text are not numeric."""
+    if isinstance(value, pd.Series):
+        if pd.api.types.is_bool_dtype(value.dtype):
+            return False
+        if pd.api.types.is_numeric_dtype(value.dtype):
+            return True
+        return (
+            value.dtype == object
+            and pd.api.types.infer_dtype(value, skipna=True) in _NUMERIC_OBJECT_KINDS
+        )
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_text(value: object) -> bool:
+    if isinstance(value, pd.Series):
+        return value.dtype == object or isinstance(value.dtype, pd.StringDtype)
+    return isinstance(value, str)
+
+
+def _checked_number(value: object) -> object:
+    """Reject non-finite or out-of-range scalar numbers; columns pass through."""
+    if isinstance(value, pd.Series):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if isinstance(value, float) and not math.isfinite(value):
+            raise MappingError("Expression produced a number that isn't finite.")
+        if abs(value) > MAX_NUMBER_MAGNITUDE:
+            raise MappingError(
+                f"Expression uses a number larger than {MAX_NUMBER_MAGNITUDE:.0e}."
+            )
+    return value
+
+
+def _checked_text(value: object) -> object:
+    """Reject text results longer than the per-cell limit."""
+    if isinstance(value, pd.Series):
+        longest = value.str.len().max()
+        too_long = bool(pd.notna(longest) and longest > MAX_TEXT_RESULT_LENGTH)
     else:
-        raise _reject(expr)
+        too_long = isinstance(value, str) and len(value) > MAX_TEXT_RESULT_LENGTH
+    if too_long:
+        raise MappingError(
+            f"Expression builds text longer than {MAX_TEXT_RESULT_LENGTH} characters."
+        )
+    return value
+
+
+def _apply_bin_op(op: type[ast.operator], left: object, right: object) -> object:
+    if _is_numeric(left) and _is_numeric(right):
+        return _checked_number(_ALLOWED_BIN_OPS[op](left, right))
+    if op is ast.Add and _is_text(left) and _is_text(right):
+        return _checked_text(operator.add(left, right))
+    if op is ast.Add:
+        raise MappingError(
+            "'+' adds two numbers or joins two pieces of text, not a mix of both."
+        )
+    raise MappingError(_NUMBERS_ONLY)
 
 
 def _eval_node(node: ast.expr, namespace: dict[str, pd.Series]) -> object:
@@ -117,15 +235,17 @@ def _eval_node(node: ast.expr, namespace: dict[str, pd.Series]) -> object:
     if isinstance(node, ast.BinOp):
         left = _eval_node(node.left, namespace)
         right = _eval_node(node.right, namespace)
-        return _ALLOWED_BIN_OPS[type(node.op)](left, right)
+        return _apply_bin_op(type(node.op), left, right)
     if isinstance(node, ast.UnaryOp):
         operand = _eval_node(node.operand, namespace)
-        return _ALLOWED_UNARY_OPS[type(node.op)](operand)
+        if not _is_numeric(operand):
+            raise MappingError(_NUMBERS_ONLY)
+        return _checked_number(_ALLOWED_UNARY_OPS[type(node.op)](operand))
     if isinstance(node, ast.Constant):
         return node.value
     if isinstance(node, ast.Name):
         return namespace[node.id]
-    raise ValueError(f"Unsupported expression node: {type(node).__name__}")
+    raise MappingError(f"Unsupported expression node: {type(node).__name__}")
 
 
 def _apply_transform(series: pd.Series, transform_type: str, params: dict) -> pd.Series:
@@ -161,16 +281,22 @@ def _strip_currency(series: pd.Series) -> pd.Series:
     return series.apply(_clean)
 
 
+def _row_numbers(positions: list[int], total: int) -> str:
+    """Describe failing rows as 1-based data row numbers, never cell values."""
+    shown = ", ".join(str(pos + 1) for pos in positions[:MAX_EXAMPLE_ROWS])
+    more = ", ..." if total > MAX_EXAMPLE_ROWS else ""
+    label = "row" if total == 1 else "rows"
+    return f"{label} {shown}{more}"
+
+
 def _coercion_error(
-    *, input_column: str, field_type: str, invalid_values: pd.Series
+    *, input_column: str, field_type: str, invalid_mask: pd.Series
 ) -> FieldCoercionError:
-    examples = ", ".join(
-        repr(str(value).strip()) for value in invalid_values.drop_duplicates().head(5)
-    )
+    positions = np.flatnonzero(invalid_mask.to_numpy(dtype=bool)).tolist()
     return FieldCoercionError(
-        f"Column {input_column!r} contains {len(invalid_values)} value(s) that "
-        f"cannot be parsed as {field_type}, including {examples}.",
-        rows_affected=len(invalid_values),
+        f"Column {input_column!r} contains {len(positions)} value(s) that "
+        f"cannot be parsed as {field_type} ({_row_numbers(positions, len(positions))}).",
+        rows_affected=len(positions),
     )
 
 
@@ -178,35 +304,32 @@ def _nonempty_mask(series: pd.Series) -> pd.Series:
     return series.notna() & series.astype("string").str.strip().ne("")
 
 
+def _boolean_token(value: object) -> object:
+    """True/False for a supported alias, NA for blank, or None when unsupported."""
+    if pd.isna(value):
+        return pd.NA
+    token = str(value).strip().lower()
+    if not token:
+        return pd.NA
+    if token in BOOLEAN_TRUE_ALIASES:
+        return True
+    if token in BOOLEAN_FALSE_ALIASES:
+        return False
+    return None
+
+
 def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
     """Normalize supported census boolean aliases or reject the mapped column."""
-    normalized: list[object] = []
-    invalid: list[str] = []
-    for value in series.tolist():
-        if pd.isna(value):
-            normalized.append(pd.NA)
-            continue
-        token = str(value).strip().lower()
-        if not token:
-            normalized.append(pd.NA)
-            continue
-        if token in BOOLEAN_TRUE_ALIASES:
-            normalized.append(True)
-        elif token in BOOLEAN_FALSE_ALIASES:
-            normalized.append(False)
-        else:
-            normalized.append(pd.NA)
-            invalid.append(token)
-
+    tokens = [_boolean_token(value) for value in series.tolist()]
+    invalid = [pos for pos, token in enumerate(tokens) if token is None]
     if invalid:
-        examples = ", ".join(repr(value) for value in sorted(set(invalid))[:5])
         raise FieldCoercionError(
             f"Column {input_column!r} contains {len(invalid)} unsupported boolean "
-            f"value(s), including {examples}. Use true/false, t/f, 1/0, yes/no, "
-            "y/n, or active/inactive.",
+            f"value(s) ({_row_numbers(invalid, len(invalid))}). Use true/false, "
+            "t/f, 1/0, yes/no, y/n, or active/inactive.",
             rows_affected=len(invalid),
         )
-    return pd.Series(normalized, index=series.index, dtype="boolean")
+    return pd.Series(tokens, index=series.index, dtype="boolean")
 
 
 def _coerce_decimal(series: pd.Series, *, input_column: str) -> pd.Series:
@@ -218,7 +341,7 @@ def _coerce_decimal(series: pd.Series, *, input_column: str) -> pd.Series:
         raise _coercion_error(
             input_column=input_column,
             field_type="a number",
-            invalid_values=series[invalid_mask],
+            invalid_mask=invalid_mask,
         )
     return converted.astype("Float64")
 
@@ -248,7 +371,7 @@ def _coerce_date(
         raise _coercion_error(
             input_column=input_column,
             field_type="a date",
-            invalid_values=original[invalid_mask],
+            invalid_mask=invalid_mask,
         )
     return converted.dt.date
 

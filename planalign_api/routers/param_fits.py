@@ -38,6 +38,7 @@ def get_param_fit_service(
     return ParamFitService(
         WorkspaceStorage(settings.workspaces_root),
         max_jobs_per_workspace=settings.param_fit_max_jobs_per_workspace,
+        max_concurrent_fits=settings.max_concurrent_fits,
     )
 
 
@@ -63,8 +64,12 @@ async def upload_fit_history(
     service: ParamFitService = Depends(get_param_fit_service),
 ) -> HistorySet | JSONResponse:
     """Upload and validate a census history set (validated by the fitter)."""
-    uploads = [await _read_upload(upload) for upload in files]
     try:
+        # Count, type and workspace checks come before any upload is read.
+        service.check_history_upload(
+            workspace_id, [upload.filename or "" for upload in files]
+        )
+        uploads = [await _read_upload(upload) for upload in files]
         return service.create_history(workspace_id, uploads)
     except ParamFitError as exc:
         return _error(exc)

@@ -44,7 +44,7 @@ def write_pair(
             path,
             engine=engine,
             engine_kwargs=(
-                {"options": {"strings_to_urls": False}}
+                {"options": {"strings_to_urls": False, "strings_to_formulas": False}}
                 if engine == "xlsxwriter"
                 else {}
             ),

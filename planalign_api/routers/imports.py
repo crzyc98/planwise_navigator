@@ -6,8 +6,8 @@ import io
 import logging
 import re
 import shutil
+import zipfile
 from pathlib import Path
-from typing import List
 from urllib.parse import quote
 
 import duckdb
@@ -27,7 +27,6 @@ from ..models.imports import (
     MappingSaveRequest,
     MappingSaveResponse,
     MappingTemplatesResponse,
-    MappingValidationError,
     ParquetFile,
     ParquetFilesResponse,
     PreviewResponse,
@@ -42,8 +41,10 @@ from ..services.census_activation import (
     prefill_as_of,
     set_active_census_as_of,
 )
-from ..services.census_schema import CANONICAL_NAMES, FIELDS, get_field, is_canonical
+from ..services.census_schema import FIELDS, get_field
 from ..services.import_service import ImportService
+from ..services.mapping_engine import MappingError
+from ..services.mapping_validation import MappingValidationFailed, validate_mappings
 from ..services.suggestion_engine import SuggestionEngine
 from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
@@ -52,6 +53,15 @@ logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 IMPORT_FILE_TYPES = ("csv", "xlsx")
+# Shape limits for a parsed upload; the unpacked .xlsx size is a setting.
+XLSX_MAX_MEMBERS = 2_000
+MAX_IMPORT_COLUMNS = 500
+MAX_HEADER_LENGTH = 256
+MAX_IMPORT_ROWS = 2_000_000
+
+
+class UploadShapeError(ValueError):
+    """An upload is over a size or shape limit; the message is safe to show."""
 
 
 def _df_to_records(df: pd.DataFrame) -> list[dict]:
@@ -109,85 +119,117 @@ def _check_session(
     return session
 
 
-def _validate_mapping(
-    mappings, detected_names: set[str]
-) -> List[MappingValidationError]:
-    errors: List[MappingValidationError] = []
-    seen_output: dict[str, str] = {}
-    valid_names = ", ".join(sorted(CANONICAL_NAMES))
-    for m in mappings:
-        if m.is_excluded:
-            continue
-        if m.input_column not in detected_names:
-            errors.append(
-                MappingValidationError(
-                    field="input_column",
-                    input_column=m.input_column,
-                    message=f"Column {m.input_column!r} not found in detected columns",
-                )
-            )
-        if not is_canonical(m.output_column):
-            errors.append(
-                MappingValidationError(
-                    field="output_column",
-                    input_column=m.input_column,
-                    message=(
-                        f"Output column {m.output_column!r} is not a recognized census field. "
-                        f"Valid fields: {valid_names}"
-                    ),
-                )
-            )
-        if m.output_column in seen_output:
-            errors.append(
-                MappingValidationError(
-                    field="output_column",
-                    input_column=m.input_column,
-                    message=f"Duplicate output column name {m.output_column!r}",
-                )
-            )
-        seen_output[m.output_column] = m.input_column
-    return errors
-
-
 def _pandas_source(source: bytes | Path) -> Path | io.BytesIO:
     """Return a fresh pandas-compatible input for a byte or file source."""
     return source if isinstance(source, Path) else io.BytesIO(source)
 
 
+def _check_xlsx_archive(source: bytes | Path) -> None:
+    """Reject workbooks whose archive is too large or has too many parts."""
+    limit = get_settings().import_xlsx_max_unpacked_bytes
+    try:
+        with zipfile.ZipFile(_pandas_source(source)) as archive:
+            members = archive.infolist()
+    except zipfile.BadZipFile as exc:
+        raise UploadShapeError("The file is not a valid .xlsx workbook.") from exc
+    if len(members) > XLSX_MAX_MEMBERS:
+        raise UploadShapeError(
+            f"The workbook has more than {XLSX_MAX_MEMBERS} internal parts."
+        )
+    if sum(member.file_size for member in members) > limit:
+        raise UploadShapeError(
+            f"The workbook is larger than {limit // (1024 * 1024)} MiB once unpacked."
+        )
+
+
+def _check_frame_shape(df: pd.DataFrame) -> None:
+    """Reject parsed uploads with too many columns or rows, or long headers."""
+    if len(df.columns) > MAX_IMPORT_COLUMNS:
+        raise UploadShapeError(f"The file has more than {MAX_IMPORT_COLUMNS} columns.")
+    if any(len(str(col)) > MAX_HEADER_LENGTH for col in df.columns):
+        raise UploadShapeError(
+            f"A column header is longer than {MAX_HEADER_LENGTH} characters."
+        )
+    if len(df) > MAX_IMPORT_ROWS:
+        raise UploadShapeError(f"The file has more than {MAX_IMPORT_ROWS:,} data rows.")
+
+
+def _parse_excel(
+    source: bytes | Path, sheet_name: str | None
+) -> tuple[pd.DataFrame, list[str]]:
+    """Read one sheet, listing the sheets too when none was chosen."""
+    _check_xlsx_archive(source)
+    with pd.ExcelFile(_pandas_source(source)) as workbook:
+        sheets = (
+            [str(name) for name in workbook.sheet_names] if sheet_name is None else []
+        )
+        df = workbook.parse(
+            sheet_name=sheet_name or 0, dtype=object, nrows=MAX_IMPORT_ROWS + 1
+        )
+    return df, sheets
+
+
+def _parse_csv(source: bytes | Path) -> tuple[pd.DataFrame, str, list[str]]:
+    """Read a CSV as UTF-8, falling back to latin-1."""
+    try:
+        df = pd.read_csv(
+            _pandas_source(source), dtype=object, nrows=MAX_IMPORT_ROWS + 1
+        )
+        return df, "utf-8", []
+    except UnicodeDecodeError:
+        df = pd.read_csv(
+            _pandas_source(source),
+            encoding="latin-1",
+            dtype=object,
+            nrows=MAX_IMPORT_ROWS + 1,
+        )
+    warnings: list[str] = []
+    null_like = (
+        df.select_dtypes(include="object")
+        .apply(lambda s: s.str.contains("Ã", na=False).sum())
+        .sum()
+    )
+    if null_like:
+        warnings.append(
+            f"File decoded as latin-1; {int(null_like)} characters may render incorrectly"
+        )
+    return df, "latin-1", warnings
+
+
 def _parse_dataframe(
     source: bytes | Path, filename: str, sheet_name: str | None = None
-):
-    """Parse an uploaded file into a DataFrame with encoding fallback."""
+) -> tuple[pd.DataFrame, list[str], str, list[str]]:
+    """Parse an uploaded file into a DataFrame and check its shape.
+
+    Returns the frame, the workbook's sheet names (xlsx, no sheet chosen),
+    the encoding used, and encoding warnings. Raises UploadShapeError when the
+    upload is over a limit.
+    """
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    available_sheets: list[str] = []
     encoding_used = "utf-8"
     encoding_warnings: list[str] = []
-
     if suffix == "xlsx":
-        df = pd.read_excel(
-            _pandas_source(source), sheet_name=sheet_name or 0, dtype=object
-        )
-        available_sheets: list[str] = []
-        if sheet_name is None:
-            xf = pd.ExcelFile(_pandas_source(source))
-            available_sheets = xf.sheet_names
-        return df, available_sheets, encoding_used, encoding_warnings
+        df, available_sheets = _parse_excel(source, sheet_name)
+    else:
+        df, encoding_used, encoding_warnings = _parse_csv(source)
+    _check_frame_shape(df)
+    return df, available_sheets, encoding_used, encoding_warnings
 
-    # CSV — try UTF-8, fall back to latin-1
+
+def _parse_upload(
+    source: bytes | Path, filename: str, sheet_name: str | None = None
+) -> tuple[pd.DataFrame, list[str], str, list[str]]:
+    """``_parse_dataframe`` with client-safe 422 errors."""
     try:
-        df = pd.read_csv(_pandas_source(source), dtype=object)
-    except UnicodeDecodeError:
-        df = pd.read_csv(_pandas_source(source), encoding="latin-1", dtype=object)
-        encoding_used = "latin-1"
-        null_like = (
-            df.select_dtypes(include="object")
-            .apply(lambda s: s.str.contains("Ã", na=False).sum())
-            .sum()
-        )
-        if null_like:
-            encoding_warnings.append(
-                f"File decoded as latin-1; {int(null_like)} characters may render incorrectly"
-            )
-    return df, [], encoding_used, encoding_warnings
+        return _parse_dataframe(source, filename, sheet_name=sheet_name)
+    except UploadShapeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=sanitize_error(logger, "Could not parse file"),
+        ) from exc
 
 
 def _build_detected_columns(df: pd.DataFrame) -> list[DetectedColumn]:
@@ -304,15 +346,9 @@ async def upload_file(
         max_file_bytes=MAX_UPLOAD_BYTES,
     )
     try:
-        try:
-            df, available_sheets, encoding_used, enc_warnings = _parse_dataframe(
-                temp_path, file.filename
-            )
-        except Exception as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=sanitize_error(logger, "Could not parse file"),
-            ) from exc
+        df, available_sheets, encoding_used, enc_warnings = _parse_upload(
+            temp_path, file.filename
+        )
 
         if len(df) == 0:
             raise HTTPException(status_code=422, detail="File has 0 data rows")
@@ -387,7 +423,7 @@ def select_sheet(
             status_code=422, detail="Original file not retained; cannot re-parse sheet"
         )
 
-    df, _, encoding_used, enc_warnings = _parse_dataframe(
+    df, _, encoding_used, enc_warnings = _parse_upload(
         orig_path, session.original_filename, sheet_name=body.sheet_name
     )
     df, _ = _dedup_columns(df)
@@ -432,7 +468,7 @@ def save_mapping(
 ) -> MappingSaveResponse:
     session = _check_session(workspace_id, import_id, service)
     detected_names = {c.name for c in session.detected_columns}
-    validation_errors = _validate_mapping(body.field_mappings, detected_names)
+    validation_errors = validate_mappings(body.field_mappings, detected_names)
 
     from datetime import datetime, timezone
 
@@ -602,7 +638,17 @@ def get_mapped_preview(
         )
     # One read of the upload serves both the preview and the whole-file checks.
     source = service.read_source(workspace_id, import_id)
-    df, warnings = service.get_mapped_preview(workspace_id, import_id, source=source)
+    try:
+        df, warnings = service.get_mapped_preview(
+            workspace_id, import_id, source=source
+        )
+    except MappingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=sanitize_error(logger, "The mapping can't convert this file"),
+        ) from exc
     quality = service.get_data_quality(workspace_id, import_id, source=source)
     rows = _df_to_records(df)
     return MappedPreviewResponse(
@@ -711,8 +757,8 @@ def generate_parquet(
             user=x_user_id,
             census_as_of_date=request.census_as_of_date,
         )
-    except ValueError as exc:
-        # Domain-authored validation message (e.g. missing required mappings).
+    except MappingError as exc:
+        # Engine-authored message: names columns and row numbers, no cell values.
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
@@ -902,8 +948,13 @@ def apply_template(
         updated = service.apply_template(
             workspace_id, import_id, body.template_id, user=x_user_id
         )
+    except MappingValidationFailed as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=[error.model_dump() for error in exc.errors],
+        ) from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="Template not found") from exc
     mappings = service.get_mapping(workspace_id, import_id) or []
     output_count = sum(1 for m in mappings if not m.is_excluded)
     from datetime import datetime, timezone

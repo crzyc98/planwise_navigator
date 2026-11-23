@@ -11,6 +11,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncIterator, Dict, List, Tuple
 
+from ..process_groups import new_session_kwargs
+
 # Thread pool for Windows subprocess I/O
 _subprocess_executor = ThreadPoolExecutor(
     max_workers=4, thread_name_prefix="subprocess_io"
@@ -23,6 +25,8 @@ async def create_subprocess(
     cmd: List[str],
     cwd: str,
     env: Dict[str, str],
+    *,
+    new_session: bool = False,
 ) -> Tuple[Any, AsyncIterator[bytes]]:
     """
     Create a subprocess in a cross-platform way.
@@ -34,10 +38,13 @@ async def create_subprocess(
         cmd: Command to execute as a list of strings
         cwd: Working directory for the subprocess
         env: Environment variables for the subprocess
+        new_session: Start the process in its own session/process group so
+            the whole tree can be stopped together
 
     Returns:
         Tuple of (process, async_line_iterator)
     """
+    group = new_session_kwargs() if new_session else {}
     if IS_WINDOWS:
         # On Windows, use Popen + thread-based async reading
         # This is more reliable than asyncio subprocess on Windows
@@ -48,6 +55,7 @@ async def create_subprocess(
             cwd=cwd,
             env=env,
             bufsize=1,  # Line buffered
+            **group,
         )
         win_stdout = win_process.stdout
         assert win_stdout is not None  # PIPE was requested above
@@ -72,6 +80,7 @@ async def create_subprocess(
             stderr=asyncio.subprocess.STDOUT,
             cwd=cwd,
             env=env,
+            **group,
         )
         unix_stdout = unix_process.stdout
         assert unix_stdout is not None  # PIPE was requested above

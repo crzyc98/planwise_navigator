@@ -34,8 +34,10 @@ from .census_activation import activate_census
 from .import_service import ImportService
 from .simulation.run_execution import (
     build_env,
+    cleanup_failed_process,
     prepare_dbt_project,
     resolve_census_with_fallback,
+    wait_for_process_tree,
     workspace_census_fallback,
     write_config,
     write_seeds,
@@ -252,12 +254,23 @@ def _command(work: Path, census: Path, year: int, output: Path) -> List[str]:
 
 
 async def run_cli(command: List[str], env: Dict[str, str]) -> None:
-    """Run the roll-forward CLI; raise with its last output lines on failure."""
-    process, lines = await create_subprocess(command, str(PROJECT_ROOT), env)
+    """Run the roll-forward CLI; raise with its last output lines on failure.
+
+    The CLI runs in its own process group; whatever ends the job (failure,
+    cancellation or a timeout around this call) stops the whole group.
+    """
+    process, lines = await create_subprocess(
+        command, str(PROJECT_ROOT), env, new_session=True
+    )
     tail: Deque[str] = deque(maxlen=20)
-    async for line in lines:
-        tail.append(line.decode("utf-8", errors="replace").rstrip())
-    code = await wait_subprocess(process)
+    try:
+        async for line in lines:
+            tail.append(line.decode("utf-8", errors="replace").rstrip())
+        code = await wait_subprocess(process)
+        await wait_for_process_tree(process, "census roll-forward")
+    except BaseException:
+        await cleanup_failed_process(process, "census roll-forward")
+        raise
     if code != 0:
         raise RuntimeError(f"roll-forward exited {code}:\n" + "\n".join(tail))
 

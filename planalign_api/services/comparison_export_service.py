@@ -399,16 +399,23 @@ def _append_sheet(
     header_cells = []
     for header in headers:
         cell = WriteOnlyCell(worksheet, value=header)
+        cell.data_type = "s"
         cell.font = Font(bold=True)
         header_cells.append(cell)
     worksheet.append(header_cells)
     while batch := cursor.fetchmany(_FETCH_BATCH_ROWS):
         for row in batch:
-            worksheet.append([_excel_value(value) for value in row])
+            worksheet.append(
+                [_excel_cell(worksheet, value, WriteOnlyCell) for value in row]
+            )
 
 
-def _excel_value(value: Any) -> Any:
-    """openpyxl rejects tz-aware datetimes; values are already rendered in UTC."""
+def _excel_cell(worksheet: Any, value: Any, cell_cls: Any) -> Any:
+    """Write text as text (never formulas) and strip tz from UTC datetimes."""
+    if isinstance(value, str):
+        cell = cell_cls(worksheet, value=value)
+        cell.data_type = "s"
+        return cell
     if isinstance(value, datetime) and value.tzinfo is not None:
         return value.replace(tzinfo=None)
     return value
