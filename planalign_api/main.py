@@ -305,6 +305,9 @@ async def lifespan(app: FastAPI):
             shutdown_excel_export_executor,
         )
 
+        from .services.simulation.run_execution import active_process_registry
+
+        await active_process_registry.stop_all()
         shutdown_excel_export_executor()
 
 

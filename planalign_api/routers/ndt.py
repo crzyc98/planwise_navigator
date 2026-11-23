@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..config import APISettings, get_settings
+from ..constants import MAX_SCENARIO_COMPARISON
 from ..services.ndt_service import (
     ACPTestResponse,
     ADPTestResponse,
@@ -42,6 +43,26 @@ def get_compliance_service(
     return ComplianceService(storage)
 
 
+def parse_scenario_ids(scenarios: str) -> list[str]:
+    """Parse the comma-separated ``scenarios`` query for an NDT test.
+
+    Blank entries are dropped; duplicates, or fewer than one or more than
+    ``MAX_SCENARIO_COMPARISON`` IDs, are rejected with 422.
+    """
+    ids = [s.strip() for s in scenarios.split(",") if s.strip()]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Each scenario can be selected only once",
+        )
+    if not 1 <= len(ids) <= MAX_SCENARIO_COMPARISON:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios",
+        )
+    return ids
+
+
 def _validate_compliance_scenario(
     storage: WorkspaceStorage, workspace_id: str, scenario_id: str
 ) -> str:
@@ -67,7 +88,7 @@ def get_compliance_summary(
     service: ComplianceService = Depends(get_compliance_service),
 ) -> ComplianceResponse:
     ids = list(dict.fromkeys(s.strip() for s in scenarios.split(",") if s.strip()))
-    if not ids or len(ids) > 6:
+    if not ids or len(ids) > MAX_SCENARIO_COMPARISON:
         raise HTTPException(400, "Select between one and six scenarios")
     names = {s: _validate_compliance_scenario(storage, workspace_id, s) for s in ids}
     try:
@@ -187,13 +208,7 @@ def run_acp_test(
             detail=f"Workspace {workspace_id} not found",
         )
 
-    # Parse scenario IDs
-    scenario_ids = [s.strip() for s in scenarios.split(",") if s.strip()]
-    if not scenario_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one scenario ID is required",
-        )
+    scenario_ids = parse_scenario_ids(scenarios)
 
     # Validate all scenarios exist and are completed
     scenario_names = {}
@@ -259,12 +274,7 @@ def run_401a4_test(
             detail=f"Workspace {workspace_id} not found",
         )
 
-    scenario_ids = [s.strip() for s in scenarios.split(",") if s.strip()]
-    if not scenario_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one scenario ID is required",
-        )
+    scenario_ids = parse_scenario_ids(scenarios)
 
     scenario_names = {}
     for scenario_id in scenario_ids:
@@ -329,12 +339,7 @@ def run_415_test(
             detail=f"Workspace {workspace_id} not found",
         )
 
-    scenario_ids = [s.strip() for s in scenarios.split(",") if s.strip()]
-    if not scenario_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one scenario ID is required",
-        )
+    scenario_ids = parse_scenario_ids(scenarios)
 
     scenario_names = {}
     for scenario_id in scenario_ids:
@@ -402,12 +407,7 @@ def run_adp_test(
             detail=f"Workspace {workspace_id} not found",
         )
 
-    scenario_ids = [s.strip() for s in scenarios.split(",") if s.strip()]
-    if not scenario_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one scenario ID is required",
-        )
+    scenario_ids = parse_scenario_ids(scenarios)
 
     if testing_method not in ("current", "prior"):
         raise HTTPException(

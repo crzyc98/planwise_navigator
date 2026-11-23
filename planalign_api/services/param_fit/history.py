@@ -25,6 +25,7 @@ from planalign_backtest.errors import BacktestError
 from planalign_backtest.split import plan_split
 from planalign_fit.snapshots import (
     MAX_SNAPSHOTS,
+    MIN_SNAPSHOTS,
     OPTIONAL_COLUMNS,
     SUPPORTED_SUFFIXES,
     SnapshotError,
@@ -193,15 +194,28 @@ def _to_model(
 
 
 def _safe_names(files: Sequence[UploadedFile]) -> list[str]:
-    if not files:
-        raise HistoryError("Upload at least 2 annual census snapshot files.")
-    if len(files) > MAX_SNAPSHOTS:
+    names = safe_upload_names([upload.filename or "" for upload in files])
+    if len(set(names)) != len(names):
+        raise HistoryError("Two uploaded files have the same name.")
+    return names
+
+
+def safe_upload_names(filenames: Sequence[str]) -> list[str]:
+    """Check the count and types of an upload from its file names alone.
+
+    Raises :class:`HistoryError` before any upload body needs to be read.
+    """
+    if len(filenames) < MIN_SNAPSHOTS:
         raise HistoryError(
-            f"Upload at most {MAX_SNAPSHOTS} snapshot files; got {len(files)}."
+            f"Upload at least {MIN_SNAPSHOTS} annual census snapshot files."
+        )
+    if len(filenames) > MAX_SNAPSHOTS:
+        raise HistoryError(
+            f"Upload at most {MAX_SNAPSHOTS} snapshot files; got {len(filenames)}."
         )
     names: list[str] = []
-    for upload in files:
-        base = Path(upload.filename or "").name
+    for filename in filenames:
+        base = Path(filename).name
         suffix = Path(base).suffix.lower()
         if suffix not in SUPPORTED_SUFFIXES:
             raise HistoryError(
@@ -209,8 +223,6 @@ def _safe_names(files: Sequence[UploadedFile]) -> list[str]:
             )
         name = _SAFE_NAME.sub("_", Path(base).stem).strip("._") or "snapshot"
         names.append(f"{name}{suffix}")
-    if len(set(names)) != len(names):
-        raise HistoryError("Two uploaded files have the same name.")
     return names
 
 

@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Sequence
 
 import duckdb
 
@@ -159,6 +159,76 @@ def _average_sql(options: _AverageOptions) -> dict[str, str]:
         ),
         "avg_total_savings": f"AVG({total_rate}) FILTER (WHERE {total_where})",
     }
+
+
+MAX_SEGMENTS_PER_DIMENSION = 200
+
+
+def _scoped_sql(where: str) -> str:
+    """Analyzed rows matching ``where``, with each one's employer contribution rate."""
+    return f"""
+              SELECT *,
+                CASE WHEN _compensation > 0
+                  THEN (_employer_match + _employer_core) / _compensation
+                END AS _employer_contribution_rate
+              FROM analyzed
+              WHERE {where}
+            """
+
+
+def _metrics_select_sql(averages: _AverageOptions) -> str:
+    """The aggregate list ``_metrics_from_row`` reads, in its order."""
+    avg = _average_sql(averages)
+    return f"""
+              COUNT(*) AS employee_count,
+              COUNT(*) FILTER (WHERE _eligible) AS eligible_count,
+              COUNT(*) FILTER (WHERE _eligible AND _deferral_rate > 0) AS enrolled_count,
+              COUNT(*) FILTER (
+                WHERE _eligible AND (_deferral_rate IS NULL OR _deferral_rate = 0)
+              ) AS zero_deferral_count,
+              {avg["avg_deferral"]} AS avg_deferral,
+              {avg["median_deferral"]} AS median_deferral,
+              COALESCE(SUM(_compensation) FILTER (WHERE _eligible), 0) AS total_comp,
+              COALESCE(SUM(_employer_match) FILTER (WHERE _eligible), 0) AS total_match,
+              COALESCE(SUM(_employer_core) FILTER (WHERE _eligible), 0) AS total_core,
+              COUNT(*) FILTER (WHERE _hce_label = 'HCE') AS hce_count,
+              {avg["avg_employer_rate"]} AS avg_employer_rate,
+              {avg["avg_total_savings"]} AS avg_total_savings
+            """
+
+
+def _metrics_from_row(row: Sequence[Any]) -> CensusMetrics:
+    (
+        employee_count,
+        eligible_count,
+        enrolled_count,
+        zero_deferral_count,
+        avg_deferral,
+        median_deferral,
+        total_comp,
+        total_match,
+        total_core,
+        hce_count,
+        avg_employer_rate,
+        avg_total_savings,
+    ) = row
+    participation_rate = enrolled_count / eligible_count if eligible_count else None
+    return CensusMetrics(
+        employee_count=employee_count,
+        eligible_count=eligible_count,
+        enrolled_count=enrolled_count,
+        participation_rate=participation_rate,
+        zero_deferral_count=zero_deferral_count,
+        average_deferral_rate=avg_deferral,
+        median_deferral_rate=median_deferral,
+        total_eligible_compensation=float(total_comp),
+        total_employer_match=float(total_match),
+        total_employer_core=float(total_core),
+        total_employer_cost=float(total_match) + float(total_core),
+        hce_count=hce_count,
+        average_employer_contribution_rate=avg_employer_rate,
+        average_total_savings_rate=avg_total_savings,
+    )
 
 
 class CensusAnalysisService:
@@ -482,68 +552,13 @@ class CensusAnalysisService:
     def _metrics_for_filter(
         self, conn: duckdb.DuckDBPyConnection, where: str, averages: _AverageOptions
     ) -> CensusMetrics:
-        avg = _average_sql(averages)
         row = conn.execute(f"""
-            WITH scoped AS (
-              SELECT *,
-                CASE WHEN _compensation > 0
-                  THEN (_employer_match + _employer_core) / _compensation
-                END AS _employer_contribution_rate
-              FROM analyzed
-              WHERE {where}
-            )
-            SELECT
-              COUNT(*) AS employee_count,
-              COUNT(*) FILTER (WHERE _eligible) AS eligible_count,
-              COUNT(*) FILTER (WHERE _eligible AND _deferral_rate > 0) AS enrolled_count,
-              COUNT(*) FILTER (
-                WHERE _eligible AND (_deferral_rate IS NULL OR _deferral_rate = 0)
-              ) AS zero_deferral_count,
-              {avg["avg_deferral"]} AS avg_deferral,
-              {avg["median_deferral"]} AS median_deferral,
-              COALESCE(SUM(_compensation) FILTER (WHERE _eligible), 0) AS total_comp,
-              COALESCE(SUM(_employer_match) FILTER (WHERE _eligible), 0) AS total_match,
-              COALESCE(SUM(_employer_core) FILTER (WHERE _eligible), 0) AS total_core,
-              COUNT(*) FILTER (WHERE _hce_label = 'HCE') AS hce_count,
-              {avg["avg_employer_rate"]} AS avg_employer_rate,
-              {avg["avg_total_savings"]} AS avg_total_savings
+            WITH scoped AS ({_scoped_sql(where)})
+            SELECT {_metrics_select_sql(averages)}
             FROM scoped
             """).fetchone()
         assert row is not None
-
-        (
-            employee_count,
-            eligible_count,
-            enrolled_count,
-            zero_deferral_count,
-            avg_deferral,
-            median_deferral,
-            total_comp,
-            total_match,
-            total_core,
-            hce_count,
-            avg_employer_rate,
-            avg_total_savings,
-        ) = row
-
-        participation_rate = enrolled_count / eligible_count if eligible_count else None
-
-        return CensusMetrics(
-            employee_count=employee_count,
-            eligible_count=eligible_count,
-            enrolled_count=enrolled_count,
-            participation_rate=participation_rate,
-            zero_deferral_count=zero_deferral_count,
-            average_deferral_rate=avg_deferral,
-            median_deferral_rate=median_deferral,
-            total_eligible_compensation=float(total_comp),
-            total_employer_match=float(total_match),
-            total_employer_core=float(total_core),
-            total_employer_cost=float(total_match) + float(total_core),
-            hce_count=hce_count,
-            average_employer_contribution_rate=avg_employer_rate,
-            average_total_savings_rate=avg_total_savings,
-        )
+        return _metrics_from_row(row)
 
     def _segment_by_column(
         self,
@@ -552,23 +567,30 @@ class CensusAnalysisService:
         column: str,
         averages: _AverageOptions,
     ) -> list[CensusSegmentMetrics]:
-        values = [
-            row[0]
-            for row in conn.execute(
-                f"SELECT DISTINCT {column} FROM analyzed WHERE {column} IS NOT NULL ORDER BY 1"
-            ).fetchall()
+        """One grouped scan for every value of ``column``, ordered by value.
+
+        At most ``MAX_SEGMENTS_PER_DIMENSION`` values are kept, the largest by
+        headcount; the rest are left out of the breakdown.
+        """
+        rows = conn.execute(f"""
+            WITH scoped AS ({_scoped_sql(f"{column} IS NOT NULL")})
+            SELECT {column} AS _segment_value, {_metrics_select_sql(averages)}
+            FROM scoped
+            GROUP BY 1
+            ORDER BY 1
+            """).fetchall()
+        if len(rows) > MAX_SEGMENTS_PER_DIMENSION:
+            largest = sorted(range(len(rows)), key=lambda i: -rows[i][1])
+            keep = set(largest[:MAX_SEGMENTS_PER_DIMENSION])
+            rows = [row for i, row in enumerate(rows) if i in keep]
+        return [
+            CensusSegmentMetrics(
+                dimension=dimension,
+                value=str(row[0]),
+                **_metrics_from_row(row[1:]).model_dump(),
+            )
+            for row in rows
         ]
-        result = []
-        for value in values:
-            metrics = self._metrics_for_filter(
-                conn, f"{column} = {self._sql_literal(value)}", averages
-            )
-            result.append(
-                CensusSegmentMetrics(
-                    dimension=dimension, value=str(value), **metrics.model_dump()
-                )
-            )
-        return result
 
     def _segment_by_bands(
         self,
@@ -590,13 +612,6 @@ class CensusAnalysisService:
                 )
             )
         return result
-
-    def _sql_literal(self, value: str) -> str:
-        # Values here are DISTINCT results pulled back from DuckDB (department names,
-        # job level codes, HCE/NHCE labels) -- not user input -- but we still escape
-        # quotes defensively before re-interpolating into a WHERE clause.
-        escaped = str(value).replace("'", "''")
-        return f"'{escaped}'"
 
     def _deferral_distribution(
         self, conn: duckdb.DuckDBPyConnection

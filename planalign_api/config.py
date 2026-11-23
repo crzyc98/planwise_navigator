@@ -86,6 +86,9 @@ class APISettings(BaseSettings):
     # Finished parameter fit/backtest jobs kept per workspace (#588). Running
     # jobs are never pruned.
     param_fit_max_jobs_per_workspace: int = Field(default=20, gt=0)
+    # Parameter fits running at once (PLANALIGN_API_MAX_CONCURRENT_FITS). Fits
+    # run no simulation, so they skip the simulation slot and get 429 past this.
+    max_concurrent_fits: int = Field(default=2, ge=1)
 
     # Workspace import archive extraction limits (PLANALIGN_API_IMPORT_MAX_*)
     import_max_unpacked_bytes: int = Field(default=10 * 1024 * 1024 * 1024, gt=0)
