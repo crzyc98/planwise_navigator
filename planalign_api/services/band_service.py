@@ -31,6 +31,7 @@ from .sql_security import (
 )
 from .census_as_of import resolve_as_of_date
 from .census_schema import active_filter_sql
+from .path_guard import resolve_workspace_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -328,22 +329,18 @@ class BandService:
         Returns:
             BandAnalysisResult with suggested bands and statistics
         """
-        # Resolve file path
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        # Resolve and check containment before touching the filesystem
+        resolved = resolve_workspace_file_path(
+            self.workspaces_root, workspace_id, file_path
+        )
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
         # Validate file path for SQL safety
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as e:
-            raise ValueError(str(e))
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         # Read the file using DuckDB
         suffix = resolved.suffix.lower()
@@ -633,22 +630,18 @@ class BandService:
         Returns:
             BandAnalysisResult with suggested bands and statistics
         """
-        # Resolve file path
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        # Resolve and check containment before touching the filesystem
+        resolved = resolve_workspace_file_path(
+            self.workspaces_root, workspace_id, file_path
+        )
 
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
 
         # Validate file path for SQL safety
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as e:
-            raise ValueError(str(e))
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         # Read the file using DuckDB
         suffix = resolved.suffix.lower()

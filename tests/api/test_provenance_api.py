@@ -94,13 +94,14 @@ def test_api_uses_existing_token_protection(tmp_path: Path, monkeypatch):
         lambda: SimpleNamespace(workspaces_root=tmp_path),
     )
     monkeypatch.setattr(
-        auth, "get_settings", lambda: SimpleNamespace(api_token="audit-token")
+        auth, "get_settings", lambda: SimpleNamespace(api_token="test-audit-api-token")
     )
     client = TestClient(create_app())
     assert client.get(f"/api/runs/{RUN_ID}/provenance").status_code == 401
     assert (
         client.get(
-            f"/api/runs/{RUN_ID}/provenance", headers={"X-API-Token": "audit-token"}
+            f"/api/runs/{RUN_ID}/provenance",
+            headers={"X-API-Token": "test-audit-api-token"},
         ).status_code
         == 200
     )

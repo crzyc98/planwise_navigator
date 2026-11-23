@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Calibration, backtest and optimizer jobs now wait in the same server-wide queue as simulations so only one heavy job runs at a time by default, and starting too many queued jobs at once is refused with a clear message instead of overloading the machine. Parameter fits run no simulation, so they still start straight away.
+- The age band, tenure band, turnover, opt-out, deferral segment, and census analysis tools now give the same "Invalid census file path" answer for any location outside the workspaces folder, whether or not a file exists there.
+- The interactive API documentation pages (`/api/docs`, `/api/redoc`) and schema (`/api/openapi.json`) now require the API token when `PLANALIGN_API_TOKEN` is set, and `/api/health` now returns fixed status messages instead of server file paths or raw error details (#1188).
+- The API server now refuses to start if `PLANALIGN_API_TOKEN` is set to an empty, blank, or shorter-than-16-character value, and empty tokens can never pass authentication (#1187). Leaving the variable unset still works as before for local use.
+- Removed unused internet connectivity checks that pointed at external sites (`httpbin.org`, `google.com`, `github.com`), keeping PlanAlign free of unexpected outbound HTTP calls (#1192).
 - A scenario name or warning that contains text like `{{ body }}` now appears as written in the HTML and PDF scenario report, instead of being replaced with report content.
 - The census path checks in Studio now give the same "Invalid census file path" answer for any location outside the workspaces folder, whether or not a file exists there.
 - Importing a workspace archive is refused when it would unpack to more than 10 GB in total, 4 GB for one file, or 10,000 files, so a small crafted archive can no longer fill the disk. The limits can be changed with `PLANALIGN_API_IMPORT_MAX_UNPACKED_BYTES`, `PLANALIGN_API_IMPORT_MAX_MEMBER_BYTES` and `PLANALIGN_API_IMPORT_MAX_MEMBER_COUNT`.
@@ -34,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switching workspace on the NDT page now clears the scenarios and plan design picked in the previous workspace (#1202), so the page no longer shows a spurious "unable to load years" error.
 - The census import wizard now says when saving the field mapping fails or the mapping suggestions can't load (#1203). Before, the spinner stopped with no message.
 - Census import now reads `f` as no in yes/no columns, matching `t` for yes (#1250). Before, a column coded `t`/`f` was rejected on its `f` rows.
+
+### Security
+
+- Updated locked Python dependencies (`Pillow`, `WeasyPrint`, `GitPython`, `deepdiff`, `anyio`, `starlette`, `urllib3`, `certifi`, `brotli`, `py7zr`, `python-multipart`, `sqlparse`, and dev tooling) to patched versions, clearing open Dependabot advisories and retiring the resolved `sqlparse` and `black` audit exceptions (#1191).
 
 ## [3.6.0] - 2026-11-20
 

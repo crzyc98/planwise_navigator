@@ -7,6 +7,16 @@ from fastapi import HTTPException, Request, WebSocket, status
 from .config import get_settings
 
 
+def _tokens_match(supplied_token: str | None, expected_token: str) -> bool:
+    """Compare tokens in constant time; empty tokens never authenticate."""
+    if not expected_token or not supplied_token:
+        return False
+    return secrets.compare_digest(
+        supplied_token.encode("utf-8"),
+        expected_token.encode("utf-8"),
+    )
+
+
 async def require_api_token(request: Request) -> None:
     """Require the configured shared API token, when one is configured."""
     expected_token = get_settings().api_token
@@ -21,9 +31,7 @@ async def require_api_token(request: Request) -> None:
     )
     supplied_token = bearer_token or request.headers.get("X-API-Token")
 
-    if supplied_token is None or not secrets.compare_digest(
-        supplied_token, expected_token
-    ):
+    if not _tokens_match(supplied_token, expected_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="A valid PlanAlign API token is required.",
@@ -38,12 +46,7 @@ async def require_websocket_api_token(websocket: WebSocket) -> bool:
         return True
 
     supplied_token = websocket.query_params.get("token")
-    if (
-        supplied_token is not None
-        # compare_digest raises TypeError on non-ASCII str inputs
-        and supplied_token.isascii()
-        and secrets.compare_digest(supplied_token, expected_token)
-    ):
+    if _tokens_match(supplied_token, expected_token):
         return True
 
     await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

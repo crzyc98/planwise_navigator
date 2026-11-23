@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, List
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .trusted_hosts import normalize_host
 
@@ -14,10 +14,29 @@ logger = logging.getLogger(__name__)
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 _WILDCARD_BIND_HOSTS = {"0.0.0.0", "::", "[::]", ""}
+MIN_API_TOKEN_LENGTH = 16
+
+
+def validate_api_token_value(value: str | None) -> str | None:
+    """Reject empty, whitespace-only, or short API tokens without echoing them."""
+    if value is None:
+        return None
+    if len(value.strip()) < MIN_API_TOKEN_LENGTH:
+        raise ValueError(
+            f"PLANALIGN_API_TOKEN must be at least {MIN_API_TOKEN_LENGTH} "
+            "non-whitespace characters (unset it to disable token authentication)."
+        )
+    return value
 
 
 class APISettings(BaseSettings):
     """Configuration for the PlanAlign API server."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="PLANALIGN_API_",
+        env_file=".env",
+        hide_input_in_errors=True,
+    )
 
     # Server
     host: str = "127.0.0.1"
@@ -25,7 +44,9 @@ class APISettings(BaseSettings):
     debug: bool = False
     # validation_alias preserves the public PLANALIGN_API_TOKEN environment
     # variable while the class-wide PLANALIGN_API_ prefix serves other fields.
-    api_token: str | None = Field(default=None, validation_alias="PLANALIGN_API_TOKEN")
+    api_token: str | None = Field(
+        default=None, validation_alias="PLANALIGN_API_TOKEN", repr=False
+    )
 
     # Storage
     workspaces_root: Path = Field(
@@ -92,9 +113,11 @@ class APISettings(BaseSettings):
     # internal Git servers). Keep disabled unless the network is trusted.
     git_remote_allow_private_networks: bool = False
 
-    class Config:
-        env_prefix = "PLANALIGN_API_"
-        env_file = ".env"
+    @field_validator("api_token")
+    @classmethod
+    def validate_api_token(cls, value: str | None) -> str | None:
+        """Enforce minimum length and non-blank content when a token is set."""
+        return validate_api_token_value(value)
 
     @field_validator(
         "allowed_hosts",

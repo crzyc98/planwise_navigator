@@ -27,12 +27,22 @@ from ..services.band_service import BandService
 from ..services.census_analysis_service import CensusAnalysisService
 from ..services.deferral_segment_service import DeferralSegmentAnalysisService
 from ..services.opt_out_service import OptOutAnalysisService
+from ..services.sql_security import SQLSecurityError
 from ..services.turnover_service import TurnoverAnalysisService
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _invalid_census_path_http_error(exc: SQLSecurityError) -> HTTPException:
+    """Return a uniform 400 response when a census path fails containment."""
+    logger.warning("Rejected invalid census path: %s", exc)
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid census file path",
+    )
 
 
 def get_band_service() -> BandService:
@@ -188,6 +198,8 @@ def analyze_age_bands(
             as_of_date=request.as_of_date,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -237,6 +249,8 @@ def analyze_tenure_bands(
             as_of_date=request.as_of_date,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -292,6 +306,8 @@ def analyze_turnover(
             as_of_date=request.as_of_date,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -348,6 +364,8 @@ def analyze_opt_out_rate(
             lookback_years=request.lookback_years,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -405,6 +423,8 @@ def analyze_deferral_segments(
             as_of_date=request.as_of_date,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -468,6 +488,8 @@ def analyze_census(
             exclude_zeros=request.exclude_zeros,
         )
         return result
+    except SQLSecurityError as e:
+        raise _invalid_census_path_http_error(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

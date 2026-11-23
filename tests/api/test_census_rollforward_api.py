@@ -13,7 +13,7 @@ from planalign_api.storage.workspace_storage import WorkspaceStorage
 
 pytestmark = pytest.mark.fast
 
-HEADERS = {"Authorization": "Bearer secret"}
+HEADERS = {"Authorization": "Bearer test-api-secret-token"}
 
 
 @pytest.fixture(autouse=True)
@@ -78,7 +78,7 @@ def _base_census(tmp_path: Path, workspace_id: str) -> str:
 
 def test_status_flags_a_census_two_years_behind(client_factory, tmp_path) -> None:
     workspace_id = _workspace(tmp_path, census_year=2024)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     body = client.get(
         f"/api/workspaces/{workspace_id}/census/status", headers=HEADERS
@@ -91,7 +91,7 @@ def test_status_flags_a_census_two_years_behind(client_factory, tmp_path) -> Non
 
 def test_a_current_census_cannot_be_rolled_forward(client_factory, tmp_path) -> None:
     workspace_id = _workspace(tmp_path, census_year=2025)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     status = client.get(
         f"/api/workspaces/{workspace_id}/census/status", headers=HEADERS
@@ -109,7 +109,7 @@ def test_roll_forward_saves_lists_and_activates_the_bridge(
 ) -> None:
     monkeypatch.setattr(jobs, "run_cli", _fake_cli)
     workspace_id = _workspace(tmp_path, census_year=2024)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     started = client.post(
         f"/api/workspaces/{workspace_id}/census/roll-forward", headers=HEADERS
@@ -143,7 +143,7 @@ def test_a_failed_roll_forward_keeps_the_original_census(
     monkeypatch.setattr(jobs, "run_cli", _failing_cli)
     workspace_id = _workspace(tmp_path, census_year=2024)
     original = _base_census(tmp_path, workspace_id)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     started = client.post(
         f"/api/workspaces/{workspace_id}/census/roll-forward", headers=HEADERS
@@ -168,7 +168,7 @@ def test_hand_set_plan_year_dates_follow_the_bridge(
     storage.update_base_config_key(
         workspace_id, "setup.plan_year_start_date", "2024-01-01"
     )
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     client.post(f"/api/workspaces/{workspace_id}/census/roll-forward", headers=HEADERS)
 
@@ -179,7 +179,7 @@ def test_hand_set_plan_year_dates_follow_the_bridge(
 
 def test_unknown_workspace_and_job_are_not_found(client_factory, tmp_path) -> None:
     workspace_id = _workspace(tmp_path, census_year=2024)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     assert (
         client.get("/api/workspaces/nope/census/status", headers=HEADERS).status_code
@@ -204,7 +204,7 @@ def test_census_outside_workspaces_root_is_rejected(client_factory, tmp_path) ->
             "setup": {"census_parquet_path": str(outside)},
         },
     )
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     status = client.get(
         f"/api/workspaces/{workspace.id}/census/status", headers=HEADERS

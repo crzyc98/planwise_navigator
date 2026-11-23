@@ -1,5 +1,6 @@
 """System health and status endpoints."""
 
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +15,14 @@ from ..models.system import HealthResponse, SystemStatus
 from ..services.storage_usage import workspace_totals
 from ..services.workspace_service import new_workspace_defaults
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_HEALTH_WORKSPACES_UNAVAILABLE = "Workspaces storage is unavailable."
+_HEALTH_DEFAULT_CONFIG_MISSING = (
+    "Default configuration file not found; new workspaces will use built-in defaults."
+)
+_HEALTH_STORAGE_HIGH = "Workspace storage usage exceeds 90% of configured limit."
 
 
 def get_active_simulation_count() -> int:
@@ -53,15 +61,20 @@ def health_check(settings: APISettings = Depends(get_settings)) -> HealthRespons
     if not settings.workspaces_root.exists():
         try:
             settings.workspaces_root.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            issues.append(f"Cannot create workspaces directory: {e}")
+        except Exception:
+            logger.exception(
+                "Health check failed to create workspaces directory %s",
+                settings.workspaces_root,
+            )
+            issues.append(_HEALTH_WORKSPACES_UNAVAILABLE)
 
     # Check default config exists
     if not settings.default_config_path.exists():
-        warnings.append(
-            f"Default config not found at {settings.default_config_path}. "
-            "New workspaces will use built-in defaults."
+        logger.warning(
+            "Default config not found at %s; new workspaces will use built-in defaults.",
+            settings.default_config_path,
         )
+        warnings.append(_HEALTH_DEFAULT_CONFIG_MISSING)
 
     # Check storage usage. Health is polled and must stay fast, so this reads
     # cached totals only; when the cache is cold the warning is omitted rather
@@ -70,10 +83,12 @@ def health_check(settings: APISettings = Depends(get_settings)) -> HealthRespons
     totals = workspace_totals(settings.workspaces_root, allow_scan=False)
     storage_limit_mb = settings.storage_limit_gb * 1024
     if totals is not None and totals.total_mb > storage_limit_mb * 0.9:
-        warnings.append(
-            f"Storage usage at {totals.total_mb:.1f}MB of "
-            f"{storage_limit_mb:.0f}MB limit (>90%)"
+        logger.warning(
+            "Workspace storage usage high: %.1fMB of %.0fMB limit (>90%%)",
+            totals.total_mb,
+            storage_limit_mb,
         )
+        warnings.append(_HEALTH_STORAGE_HIGH)
 
     return HealthResponse(
         healthy=len(issues) == 0,

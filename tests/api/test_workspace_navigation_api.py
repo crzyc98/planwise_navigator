@@ -6,8 +6,8 @@ pytestmark = pytest.mark.fast
 
 
 def test_workspace_list_is_searchable_paginated_and_lifecycle_aware(client_factory):
-    client = client_factory("shared-secret")
-    headers = {"Authorization": "Bearer shared-secret"}
+    client = client_factory("test-shared-secret-token")
+    headers = {"Authorization": "Bearer test-shared-secret-token"}
     alpha = client.post(
         "/api/workspaces", json={"name": "Alpha Client"}, headers=headers
     ).json()
@@ -42,8 +42,8 @@ def test_workspace_list_is_searchable_paginated_and_lifecycle_aware(client_facto
 
 
 def test_recent_workspace_endpoint_returns_active_only(client_factory):
-    client = client_factory("shared-secret")
-    headers = {"Authorization": "Bearer shared-secret"}
+    client = client_factory("test-shared-secret-token")
+    headers = {"Authorization": "Bearer test-shared-secret-token"}
     archived = client.post(
         "/api/workspaces", json={"name": "Archived"}, headers=headers
     ).json()

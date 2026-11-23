@@ -110,7 +110,7 @@ def test_all_scenario_reads_declare_consistency_headers() -> None:
 
 
 def test_health_response_conforms_to_model(client_factory) -> None:
-    client = client_factory("shared-secret")
+    client = client_factory("test-shared-secret-token")
 
     response = client.get("/api/health")
 
@@ -119,11 +119,11 @@ def test_health_response_conforms_to_model(client_factory) -> None:
 
 
 def test_system_status_response_conforms_to_model(client_factory) -> None:
-    client = client_factory("shared-secret")
+    client = client_factory("test-shared-secret-token")
 
     response = client.get(
         "/api/system/status",
-        headers={"Authorization": "Bearer shared-secret"},
+        headers={"Authorization": "Bearer test-shared-secret-token"},
     )
 
     assert response.status_code == 200
@@ -131,11 +131,11 @@ def test_system_status_response_conforms_to_model(client_factory) -> None:
 
 
 def test_config_defaults_response_conforms_to_declared_shape(client_factory) -> None:
-    client = client_factory("shared-secret")
+    client = client_factory("test-shared-secret-token")
 
     response = client.get(
         "/api/config/defaults",
-        headers={"Authorization": "Bearer shared-secret"},
+        headers={"Authorization": "Bearer test-shared-secret-token"},
     )
 
     assert response.status_code == 200

@@ -240,8 +240,8 @@ class ProbeBatchService:
 def _run_batch(monkeypatch, client_factory, workspace_id, scenario_ids):
     ProbeBatchService.probe = ConcurrencyProbe()
     monkeypatch.setattr(batch_router, "SimulationService", ProbeBatchService)
-    client = client_factory("secret")
-    headers = {"Authorization": "Bearer secret"}
+    client = client_factory("test-api-secret-token")
+    headers = {"Authorization": "Bearer test-api-secret-token"}
     created = client.post(
         f"/api/workspaces/{workspace_id}/run-all",
         json={"scenario_ids": scenario_ids, "parallel": True},
