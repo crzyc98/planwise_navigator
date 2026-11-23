@@ -1328,28 +1328,6 @@
       "AutoCalibrationRequest": {
         "description": "Request body for POST /api/calibration/optimize.\n\nSet the two targets; the optimizer sets workforce growth directly (it is\ndeterministic via E077) and searches until every annual avg-comp growth\nresult is within tolerance of the compensation target.",
         "properties": {
-          "config_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config Path"
-          },
-          "database_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Database Path"
-          },
           "end_year": {
             "anyOf": [
               {
@@ -1392,18 +1370,13 @@
             "title": "Start Year"
           },
           "workspace_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workspace Id"
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
           }
         },
         "required": [
+          "workspace_id",
           "settings"
         ],
         "title": "AutoCalibrationRequest",
@@ -3088,28 +3061,6 @@
       "CalibrationRunRequest": {
         "description": "Request body for POST /api/calibration/run (contracts/api-calibration.md).",
         "properties": {
-          "config_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config Path"
-          },
-          "database_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Database Path"
-          },
           "end_year": {
             "anyOf": [
               {
@@ -3149,18 +3100,15 @@
             "title": "Start Year"
           },
           "workspace_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.",
-            "title": "Workspace Id"
+            "description": "Target workspace whose base or scenario config (census, termination rates) is calibrated so the calibrated levers transfer to a full simulation of it.",
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
           }
         },
+        "required": [
+          "workspace_id"
+        ],
         "title": "CalibrationRunRequest",
         "type": "object"
       },

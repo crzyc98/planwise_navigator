@@ -25,7 +25,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from typing_extensions import NotRequired, TypedDict
 
 from planalign_orchestrator.config import load_simulation_config
-from planalign_orchestrator.config.dbt_var_validation import new_hire_age_problem
+from planalign_orchestrator.config.dbt_var_validation import (
+    new_hire_age_problem,
+    validate_dbt_vars,
+)
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.config.seed_coverage import validate_seed_coverage
 from planalign_orchestrator.dbt_runner import DbtRunner
@@ -558,6 +561,12 @@ class CalibrationRunner:
             dbt_vars["new_hire_age_distribution"] = (
                 self.run.params.new_hire_age_distribution
             )
+        var_errors = validate_dbt_vars(dbt_vars)
+        if var_errors:
+            details = "; ".join(
+                f"{error['field']}: {error['message']}" for error in var_errors
+            )
+            raise ConfigurationError(f"Invalid exported dbt variables: {details}")
         stages = WorkflowBuilder.build_calibration_year_workflow(
             year, self.run.start_year
         )
