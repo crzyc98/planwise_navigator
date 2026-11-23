@@ -1,5 +1,6 @@
 """API route handlers."""
 
+from .auth import router as auth_router
 from .system import router as system_router
 from .workspaces import router as workspaces_router
 from .scenarios import router as scenarios_router
@@ -20,6 +21,7 @@ from .evidence_pack import router as evidence_pack_router
 from .report import router as report_router
 
 __all__ = [
+    "auth_router",
     "system_router",
     "workspaces_router",
     "scenarios_router",

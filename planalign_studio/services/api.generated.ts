@@ -21,6 +21,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session Status
+         * @description Return whether authentication is required and whether the caller has a session.
+         */
+        get: operations["get_session_status_api_auth_session_get"];
+        put?: never;
+        /**
+         * Create Session
+         * @description Verify the shared token and set an HttpOnly session cookie.
+         */
+        post: operations["create_session_api_auth_session_post"];
+        /**
+         * Delete Session
+         * @description Revoke the current session and clear the session cookie.
+         */
+        delete: operations["delete_session_api_auth_session_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/batches/{batch_id}/status": {
         parameters: {
             query?: never;
@@ -10924,6 +10952,33 @@ export interface components {
             size_bytes: number;
         };
         /**
+         * SessionSignInRequest
+         * @description Credentials submitted to establish a Studio session cookie.
+         */
+        SessionSignInRequest: {
+            /**
+             * Token
+             * @description Shared API token
+             */
+            token: string;
+        };
+        /**
+         * SessionStatusResponse
+         * @description Current authentication requirement and caller session status.
+         */
+        SessionStatusResponse: {
+            /**
+             * Auth Required
+             * @description Whether the API requires authentication
+             */
+            auth_required: boolean;
+            /**
+             * Authenticated
+             * @description Whether the caller is currently authenticated
+             */
+            authenticated: boolean;
+        };
+        /**
          * SetCensusPathRequest
          * @description Request to set an existing file as the workspace census data source.
          */
@@ -12980,6 +13035,75 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_session_status_api_auth_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionStatusResponse"];
+                };
+            };
+        };
+    };
+    create_session_api_auth_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionSignInRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_session_api_auth_session_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

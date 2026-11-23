@@ -102,3 +102,28 @@ def test_vite_proxy_sends_the_api_its_own_host() -> None:
     ).read_text()
 
     assert source.count("changeOrigin: true") == 2
+
+
+def test_studio_launcher_does_not_forward_token_to_vite_env() -> None:
+    source = (
+        Path(__file__).parents[3] / "planalign_cli" / "commands" / "studio.py"
+    ).read_text(encoding="utf-8")
+
+    assert "VITE_PLANALIGN_API_TOKEN" not in source
+
+
+def test_token_sign_in_notice_printed_only_when_token_configured(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
+    studio._print_token_sign_in_notice()
+    assert capsys.readouterr().out == ""
+
+    monkeypatch.setenv("PLANALIGN_API_TOKEN", "test-studio-api-token")
+    studio._print_token_sign_in_notice(api_only=True)
+    assert capsys.readouterr().out == ""
+
+    studio._print_token_sign_in_notice()
+    out = capsys.readouterr().out
+    assert "prompt" in out.lower()
+    assert "test-studio-api-token" not in out

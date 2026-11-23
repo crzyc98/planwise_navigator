@@ -75,25 +75,42 @@ def test_websocket_requires_configured_token(client_factory, path: str) -> None:
 
 
 @pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
-def test_websocket_accepts_query_token(client_factory, path: str) -> None:
+def test_websocket_accepts_bearer_header_and_rejects_query_token(
+    client_factory, path: str
+) -> None:
     client = client_factory(_TEST_TOKEN)
 
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect(
+            f"{path}?token={_TEST_TOKEN}", headers={"Origin": _ALLOWED_ORIGIN}
+        ):
+            pass
+    assert error.value.code == 1008
+
     with client.websocket_connect(
-        f"{path}?token={_TEST_TOKEN}", headers={"Origin": _ALLOWED_ORIGIN}
+        path,
+        headers={
+            "Origin": _ALLOWED_ORIGIN,
+            "Authorization": f"Bearer {_TEST_TOKEN}",
+        },
     ):
         pass
 
 
 @pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
-@pytest.mark.parametrize("bad_token", ["wrong-secret-token-value", "café", ""])
-def test_websocket_rejects_wrong_token(
+@pytest.mark.parametrize("bad_token", ["wrong-secret-token-value", "short", ""])
+def test_websocket_rejects_wrong_bearer_token(
     client_factory, path: str, bad_token: str
 ) -> None:
     client = client_factory(_TEST_TOKEN)
 
     with pytest.raises(WebSocketDisconnect) as error:
         with client.websocket_connect(
-            f"{path}?token={bad_token}", headers={"Origin": _ALLOWED_ORIGIN}
+            path,
+            headers={
+                "Origin": _ALLOWED_ORIGIN,
+                "Authorization": f"Bearer {bad_token}",
+            },
         ):
             pass
 
@@ -133,8 +150,11 @@ def test_websocket_rejects_disallowed_origin_with_valid_token(
 
     with pytest.raises(WebSocketDisconnect) as error:
         with client.websocket_connect(
-            f"{path}?token={_TEST_TOKEN}",
-            headers={"Origin": "http://attacker.example"},
+            path,
+            headers={
+                "Origin": "http://attacker.example",
+                "Authorization": f"Bearer {_TEST_TOKEN}",
+            },
         ):
             pass
 

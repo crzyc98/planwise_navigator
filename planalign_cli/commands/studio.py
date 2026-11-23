@@ -293,6 +293,15 @@ def _validate_configured_api_token() -> None:
         raise SystemExit(1)
 
 
+def _print_token_sign_in_notice(*, api_only: bool = False) -> None:
+    """Inform the user that Studio prompts for the configured token on first load."""
+    if api_only or not (os.environ.get("PLANALIGN_API_TOKEN") or "").strip():
+        return
+    console.print(
+        "[dim]Authentication is enabled — Studio will prompt for the API token on first load.[/dim]"
+    )
+
+
 def _warn_for_unsafe_bind(bind_host: str) -> None:
     """Display a prominent warning for unauthenticated network exposure."""
     if (
@@ -504,9 +513,6 @@ def launch_studio(
                 "PLANALIGN_STUDIO_ALLOWED_HOSTS",
                 f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
             )
-            api_token = os.environ.get("PLANALIGN_API_TOKEN")
-            if api_token:
-                frontend_env.setdefault("VITE_PLANALIGN_API_TOKEN", api_token)
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
@@ -553,6 +559,7 @@ def launch_studio(
             table.add_row(service, url)
 
         console.print(table)
+        _print_token_sign_in_notice(api_only=api_only)
         console.print()
 
         # Open browser
