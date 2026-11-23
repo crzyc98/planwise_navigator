@@ -8,9 +8,13 @@ and credential redaction from strings surfaced to users.
 
 from __future__ import annotations
 
+import logging
+import os
 import socket
+import stat
 from io import StringIO
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,12 +65,12 @@ def _validate(url: str, monkeypatch, ip: str = "93.184.216.34", **policy) -> str
 
 class TestAllowedRemotes:
     def test_https_public_host_allowed(self, monkeypatch):
-        url = "https://github.com/user/repo.git"
+        url = "https://github.com/a/b.git"
         assert _validate(url, monkeypatch) == url
 
-    def test_scp_style_ssh_allowed(self, monkeypatch):
-        url = "git@github.com:user/repo.git"
-        assert _validate(url, monkeypatch) == url
+    def test_scp_style_ssh_allowed_and_kept_as_given(self, monkeypatch):
+        url = "git@github.com:a/b.git"
+        assert _validate(f"  {url}  ", monkeypatch) == url
 
     def test_ssh_scheme_allowed(self, monkeypatch):
         url = "ssh://git@git.example.com/team/repo.git"
@@ -75,6 +79,10 @@ class TestAllowedRemotes:
     def test_embedded_userinfo_allowed_and_preserved(self, monkeypatch):
         url = "https://user:token@github.com/user/repo.git"
         assert _validate(url, monkeypatch) == url
+
+    def test_ipv4_mapped_public_address_allowed(self, monkeypatch):
+        url = "https://github.com/a/b.git"
+        assert _validate(url, monkeypatch, ip="::ffff:93.184.216.34") == url
 
     def test_http_allowed_via_opt_in(self, monkeypatch):
         url = "http://gitserver.internal/team/repo.git"
@@ -126,6 +134,19 @@ class TestBlockedProtocolsAndMalformedUrls:
             "https://",
             "not a url at all",
             f"https://github.com/repo.git?x={'a' * 3000}",
+            "ssh://github.com#@127.0.0.1/x",
+            "ssh://github.com?@10.0.0.1:2222/x",
+            "github.com#@127.0.0.1:x",
+            "https://0177.0.0.1/x",
+            "https://0x7f000001/x",
+            "https://2130706433/x",
+            "https://127.1/x",
+            "ssh://-oProxyCommand=x@github.com/x",
+            "ssh://-evil.example.com/x",
+            "https://user:p@ss@github.com/x.git",
+            "https://github.com/repo%20name.git",
+            "https://github.com/repo\\name.git",
+            "https://github.com/repo name.git",
         ],
     )
     def test_rejected_without_resolution(self, url, monkeypatch):
@@ -197,16 +218,28 @@ class TestBlockedDestinations:
             ),
             ("https://0.0.0.0/repo.git", "0.0.0.0", "unspecified"),
             ("https://224.0.0.1/repo.git", "224.0.0.1", "multicast"),
+            ("https://100.100.100.200/x", "100.100.100.200", "cgnat-metadata"),
+            ("https://mapped.example.com/repo.git", "::ffff:127.0.0.1", "ipv4-mapped"),
+            (
+                "https://mapped-cgnat.example.com/repo.git",
+                "::ffff:100.100.100.200",
+                "ipv4-mapped-cgnat",
+            ),
         ],
     )
-    def test_blocked_addresses(self, monkeypatch, url, ip, label):
+    def test_blocked_addresses(self, monkeypatch, caplog, url, ip, label):
         monkeypatch.setattr(
             "planalign_api.services.remote_policy.socket.getaddrinfo", _resolver(ip)
         )
-        with pytest.raises(RemotePolicyError) as excinfo:
-            validate_remote_url(url, _settings())
+        with caplog.at_level(
+            logging.WARNING, logger="planalign_api.services.remote_policy"
+        ):
+            with pytest.raises(RemotePolicyError) as excinfo:
+                validate_remote_url(url, _settings())
         message = str(excinfo.value)
-        assert ip in message
+        assert message == "Remote host is not an allowed destination"
+        assert ip not in message
+        assert ip in caplog.text
 
     def test_metadata_service_hostname_blocked(self, monkeypatch):
         # A hostile DNS answer pointing at the cloud metadata service.
@@ -215,14 +248,17 @@ class TestBlockedDestinations:
             "planalign_api.services.remote_policy.socket.getaddrinfo",
             _resolver("169.254.169.254"),
         )
-        with pytest.raises(RemotePolicyError):
+        with pytest.raises(RemotePolicyError) as excinfo:
             validate_remote_url(url, _settings())
+        assert "169.254.169.254" not in str(excinfo.value)
 
-    def test_multi_address_response_blocks_if_any_is_private(self, monkeypatch):
+    def test_multi_address_response_blocks_if_any_is_private(self, monkeypatch, caplog):
+        # Place the blocked IP first so server-side logging also verifies the
+        # offending address (not the last address in the list) is recorded.
         responses = {
-            "93.184.216.34": [
-                (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0)),
+            "dual-homed.example.com": [
                 (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("10.0.0.9", 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0)),
             ]
         }
 
@@ -235,8 +271,16 @@ class TestBlockedDestinations:
             "planalign_api.services.remote_policy.socket.getaddrinfo",
             selective_resolver,
         )
-        with pytest.raises(RemotePolicyError):
-            validate_remote_url("https://dual-homed.example.com/repo.git", _settings())
+        with caplog.at_level(
+            logging.WARNING, logger="planalign_api.services.remote_policy"
+        ):
+            with pytest.raises(RemotePolicyError) as excinfo:
+                validate_remote_url(
+                    "https://dual-homed.example.com/repo.git", _settings()
+                )
+        assert "10.0.0.9" not in str(excinfo.value)
+        assert "93.184.216.34" not in str(excinfo.value)
+        assert "10.0.0.9" in caplog.text
 
     def test_zone_id_link_local_blocked(self, monkeypatch):
         monkeypatch.setattr(
@@ -253,22 +297,56 @@ class TestBlockedDestinations:
 
 
 class TestCredentialRedaction:
-    def test_redacts_password_in_scheme_url(self):
-        redacted = redact_remote_url("https://user:s3cret@github.com/repo.git")
-        assert redacted == "https://user:***@github.com/repo.git"
-
-    def test_redacts_password_in_message_text(self):
-        text = "Push failed: fatal: unable to access 'https://bob:pw123@host/x.git'"
-        assert "pw123" not in redact_remote_url(text)
-        assert ":***@" in redact_remote_url(text)
-
-    def test_leaves_username_visible(self):
-        redacted = redact_remote_url("https://alice:hush@host/repo.git")
-        assert "alice" in redacted
-
-    def test_url_without_credentials_unchanged(self):
-        url = "git@github.com:user/repo.git"
-        assert redact_remote_url(url) == url
+    @pytest.mark.parametrize(
+        ("raw", "expected", "must_not_contain"),
+        [
+            (
+                "https://ghp_secretToken123@github.com/org/repo.git",
+                "https://github.com/org/repo.git",
+                ["ghp_secretToken123"],
+            ),
+            (
+                "https://user:s3cret@github.com/repo.git",
+                "https://github.com/repo.git",
+                ["user", "s3cret"],
+            ),
+            (
+                "https://user:pa/ss@github.com/org/repo.git",
+                "https://github.com/org/repo.git",
+                ["user", "pa/ss"],
+            ),
+            (
+                "https://user:p@ss@github.com/org/repo.git",
+                "https://github.com/org/repo.git",
+                ["user", "p@ss"],
+            ),
+            (
+                "https://user:p@s/s@github.com/org/repo.git",
+                "https://github.com/org/repo.git",
+                ["user", "p@s/s"],
+            ),
+            (
+                "Push failed: fatal: unable to access 'https://bob:pw123@host/x.git'",
+                "Push failed: fatal: unable to access 'https://host/x.git'",
+                ["bob", "pw123"],
+            ),
+            (
+                "fatal: Authentication failed for 'https://tok_999@git.example.com/a/b.git/'",
+                "fatal: Authentication failed for 'https://git.example.com/a/b.git/'",
+                ["tok_999"],
+            ),
+            (
+                "git@github.com:user/repo.git",
+                "git@github.com:user/repo.git",
+                [],
+            ),
+        ],
+    )
+    def test_redaction_table(self, raw, expected, must_not_contain):
+        redacted = redact_remote_url(raw)
+        assert redacted == expected
+        for secret in must_not_contain:
+            assert secret not in redacted
 
     def test_none_passthrough(self):
         assert redact_remote_url(None) is None
@@ -308,7 +386,8 @@ class TestCredentialRedaction:
 
         rendered = output.getvalue()
         assert "secret" not in rendered
-        assert "https://alice:***@example.com/repo.git" in rendered
+        assert "alice" not in rendered
+        assert "https://example.com/repo.git" in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -383,15 +462,130 @@ class TestSyncInitEndpoint:
 
     def test_init_accepts_public_https_remote_shape(self, tmp_path, monkeypatch):
         pytest.importorskip("git")
+        from planalign_api.services.sync_service import SyncService
 
+        monkeypatch.setenv("GIT_AUTHOR_NAME", "PlanAlign Test")
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+        monkeypatch.setenv("GIT_COMMITTER_NAME", "PlanAlign Test")
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
         monkeypatch.setattr(
             "planalign_api.services.remote_policy.socket.getaddrinfo",
             _resolver("140.82.121.4"),
         )
-        client = _api_client(tmp_path, monkeypatch)
-        # The policy gate passes; the subsequent Git fetch fails offline but
-        # the failure must not be a policy rejection.
-        response = client.post(
-            "/api/sync/init", json={"remote_url": "https://github.com/u/r.git"}
+        # Keep the test fully offline by stubbing the remote fetch step.
+        with patch.object(
+            SyncService,
+            "_sync_initial_branch",
+            lambda self, repo, origin, branch: self._create_initial_commit(
+                repo, branch
+            ),
+        ):
+            client = _api_client(tmp_path, monkeypatch)
+            response = client.post(
+                "/api/sync/init", json={"remote_url": "https://github.com/u/r.git"}
+            )
+        assert response.status_code == 200
+
+    def test_sync_config_endpoint_and_disk_files_have_no_secret(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("git")
+        from git import Repo
+        from planalign_api.services.sync_service import (
+            SYNC_CONFIG_FILE,
+            SYNC_LOG_FILE,
+            SyncService,
         )
-        assert response.status_code != 400 or "scheme" not in response.text.lower()
+
+        monkeypatch.setenv("GIT_AUTHOR_NAME", "PlanAlign Test")
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+        monkeypatch.setenv("GIT_COMMITTER_NAME", "PlanAlign Test")
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+        monkeypatch.setattr(
+            "planalign_api.services.remote_policy.socket.getaddrinfo",
+            _resolver("140.82.121.4"),
+        )
+        secret_token = "ghp_superSecretToken98765"
+        remote_with_secret = f"https://alice:{secret_token}@github.com/org/repo.git"
+
+        with patch.object(
+            SyncService,
+            "_sync_initial_branch",
+            lambda self, repo, origin, branch: self._create_initial_commit(
+                repo, branch
+            ),
+        ):
+            client = _api_client(tmp_path, monkeypatch)
+            init_resp = client.post(
+                "/api/sync/init", json={"remote_url": remote_with_secret}
+            )
+            assert init_resp.status_code == 200
+            assert secret_token not in init_resp.text
+
+            cfg_resp = client.get("/api/sync/config")
+            assert cfg_resp.status_code == 200
+            assert secret_token not in cfg_resp.text
+            assert cfg_resp.json()["remote"] == "https://github.com/org/repo.git"
+
+        workspaces_root = tmp_path / "workspaces"
+        sync_cfg_path = workspaces_root / SYNC_CONFIG_FILE
+        sync_log_path = workspaces_root / SYNC_LOG_FILE
+        git_cfg_path = workspaces_root / ".git" / "config"
+
+        assert secret_token not in sync_cfg_path.read_text(encoding="utf-8")
+        assert secret_token not in sync_log_path.read_text(encoding="utf-8")
+        assert secret_token in git_cfg_path.read_text(encoding="utf-8")
+
+        repo = Repo(workspaces_root)
+        committed = [
+            item.path
+            for item in repo.head.commit.tree.traverse()
+            if getattr(item, "type", None) == "blob"
+        ]
+        assert SYNC_CONFIG_FILE not in committed
+        assert SYNC_CONFIG_FILE in (workspaces_root / ".gitignore").read_text(
+            encoding="utf-8"
+        )
+
+        if os.name == "posix":
+            for private_file in (sync_cfg_path, sync_log_path, git_cfg_path):
+                mode = stat.S_IMODE(private_file.stat().st_mode)
+                assert (
+                    mode == 0o600
+                ), f"Expected 0600 on {private_file}, got {oct(mode)}"
+
+    def test_push_and_pull_endpoints_reject_invalid_stored_remote(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("git")
+        from git import Repo
+        from planalign_api.models.sync import SyncConfig
+        from planalign_api.services.sync_service import SyncService
+
+        workspaces_root = tmp_path / "workspaces"
+        service = SyncService(workspaces_root=workspaces_root)
+        repo = Repo.init(workspaces_root)
+        repo.create_remote("origin", "https://git.example.com/org/repo.git")
+        service.save_sync_config(
+            SyncConfig(
+                enabled=True,
+                remote="https://git.example.com/org/repo.git",
+                branch="main",
+            )
+        )
+
+        monkeypatch.setattr(
+            "planalign_api.services.remote_policy.socket.getaddrinfo",
+            _resolver("100.100.100.200"),
+        )
+        client = _api_client(tmp_path, monkeypatch)
+
+        push_resp = client.post("/api/sync/push")
+        assert push_resp.status_code == 400
+        assert "Remote host is not an allowed destination" in push_resp.text
+        assert "100.100.100.200" not in push_resp.text
+
+        pull_resp = client.post("/api/sync/pull")
+        assert pull_resp.status_code == 400
+        assert "Remote host is not an allowed destination" in pull_resp.text
+        assert "100.100.100.200" not in pull_resp.text

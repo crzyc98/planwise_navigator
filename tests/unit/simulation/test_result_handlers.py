@@ -441,6 +441,58 @@ class TestFindResultsExport:
 
         assert find_results_export(tmp_path, "test", "xlsx") == workbook
 
+    def test_ignores_symlinked_results_csv(self, tmp_path):
+        outside = tmp_path / "outside.csv"
+        outside.write_text("secret,data\n1,2\n", encoding="utf-8")
+
+        scenario_dir = tmp_path / "scenario"
+        results_dir = scenario_dir / "results"
+        results_dir.mkdir(parents=True)
+        (results_dir / "results.csv").symlink_to(outside)
+
+        assert find_results_export(scenario_dir, "test", "csv") is None
+
+    def test_ignores_internal_symlink_and_falls_back_to_regular_file(self, tmp_path):
+        scenario_dir = tmp_path / "scenario"
+        results_dir = scenario_dir / "results"
+        results_dir.mkdir(parents=True)
+
+        real_file = results_dir / "results.csv"
+        real_file.write_text("a,b\n1,2\n", encoding="utf-8")
+        (results_dir / "test_results.csv").symlink_to(real_file)
+
+        assert find_results_export(scenario_dir, "test", "csv") == real_file
+
+    def test_ignores_symlink_in_glob_fallback(self, tmp_path):
+        outside = tmp_path / "outside.csv"
+        outside.write_text("secret,data\n1,2\n", encoding="utf-8")
+
+        scenario_dir = tmp_path / "scenario"
+        results_dir = scenario_dir / "results"
+        results_dir.mkdir(parents=True)
+        (results_dir / "other_results.csv").symlink_to(outside)
+
+        assert find_results_export(scenario_dir, "test", "csv") is None
+
+    def test_ignores_path_traversal_in_scenario_name(self, tmp_path):
+        scenario_dir = tmp_path / "scenario"
+        results_dir = scenario_dir / "results"
+        results_dir.mkdir(parents=True)
+        (scenario_dir / "escape_results.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+
+        assert find_results_export(scenario_dir, "../escape", "csv") is None
+
+    def test_ignores_symlinked_results_directory(self, tmp_path):
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        (external_dir / "results.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+
+        scenario_dir = tmp_path / "scenario"
+        scenario_dir.mkdir()
+        (scenario_dir / "results").symlink_to(external_dir)
+
+        assert find_results_export(scenario_dir, "test", "csv") is None
+
 
 @pytest.mark.fast
 class TestResultHandlersBackwardCompatibility:

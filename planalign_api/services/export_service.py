@@ -9,12 +9,13 @@ This service handles:
 import hashlib
 import json
 import logging
+import os
 import shutil
 import stat
 import tempfile
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -52,6 +53,37 @@ MAX_IMPORT_SIZE_BYTES = 1 * 1024 * 1024 * 1024
 
 # Current manifest schema version
 MANIFEST_VERSION = "1.0"
+
+# Private temporary directory prefixes and stale bulk-export retention window
+SINGLE_EXPORT_DIR_PREFIX = "planalign_export_"
+BULK_EXPORT_DIR_PREFIX = "planalign_bulk_export_"
+BULK_EXPORT_MAX_AGE_SECONDS = 24 * 3600
+
+
+def normalize_extracted_permissions(root: Path) -> None:
+    """Normalize POSIX permissions on an extracted archive tree.
+
+    Sets directories to ``0o700`` and regular files to ``0o600``, dropping any
+    setuid/setgid/sticky and group/other bits carried by archive metadata.
+    No-op on Windows.
+    """
+    if os.name != "posix":
+        return
+    if root.is_dir() and not root.is_symlink():
+        os.chmod(root, 0o700)
+    for dirpath, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+        current = Path(dirpath)
+        for dirname in list(dirnames):
+            subdir = current / dirname
+            if subdir.is_symlink():
+                dirnames.remove(dirname)
+                continue
+            os.chmod(subdir, 0o700)
+        for filename in filenames:
+            file_path = current / filename
+            if file_path.is_symlink():
+                continue
+            os.chmod(file_path, 0o600)
 
 
 class ExportWorkspaceNotFoundError(ValueError):
@@ -191,6 +223,8 @@ class ExportService:
         self.storage = storage
         self.settings = settings or get_settings()
         self._bulk_export_operations: Dict[str, BulkExportStatus] = {}
+        self._bulk_export_dirs: Dict[str, Path] = {}
+        self._bulk_export_created_at: Dict[str, datetime] = {}
         self._bulk_import_operations: Dict[str, BulkImportStatus] = {}
         self._bulk_import_created_at: Dict[str, datetime] = {}
         self._bulk_import_terminal_at: Dict[str, datetime] = {}
@@ -374,6 +408,8 @@ class ExportService:
             output_path.mkdir(parents=True, exist_ok=True)
             archive.extractall(path=output_path)
 
+        normalize_extracted_permissions(output_path)
+
         for extracted in output_path.rglob("*"):
             if extracted.is_symlink():
                 raise ValueError(
@@ -478,6 +514,8 @@ class ExportService:
                 errors.append(str(exc))
                 return None
 
+            normalize_extracted_permissions(temp_path)
+
             manifest_path = temp_path / "manifest.json"
             if not manifest_path.exists():
                 errors.append("Archive does not contain manifest.json")
@@ -580,9 +618,12 @@ class ExportService:
         filename = f"{safe_name}_{timestamp}.7z"
 
         # Determine output path
+        created_temp_dir: Optional[Path] = None
         if output_dir is None:
-            output_dir = Path(tempfile.gettempdir()) / "planalign_exports"
-        output_dir.mkdir(parents=True, exist_ok=True)
+            created_temp_dir = Path(tempfile.mkdtemp(prefix=SINGLE_EXPORT_DIR_PREFIX))
+            output_dir = created_temp_dir
+        else:
+            output_dir.mkdir(parents=True, exist_ok=True)
         archive_path = output_dir / filename
 
         try:
@@ -608,8 +649,10 @@ class ExportService:
 
         except Exception as e:
             logger.exception(f"Failed to export workspace {workspace_id}")
-            # Clean up partial archive
-            if archive_path.exists():
+            # Clean up partial archive (and private temp dir if we created it)
+            if created_temp_dir is not None:
+                shutil.rmtree(created_temp_dir, ignore_errors=True)
+            elif archive_path.exists():
                 archive_path.unlink()
             return archive_path, ExportResult(
                 workspace_id=workspace_id,
@@ -760,6 +803,8 @@ class ExportService:
             with open(workspace_json_path, "w") as f:
                 json.dump(workspace_data, f, indent=2)
 
+            normalize_extracted_permissions(new_workspace_path)
+
             # Keep imported file records inside the new workspace
             dropped_records = sanitize_parquet_index(
                 new_workspace_path, new_workspace_id
@@ -802,6 +847,38 @@ class ExportService:
 
     # ==================== Bulk Operations ====================
 
+    def _prune_expired_bulk_export_ops(self, cutoff: datetime) -> None:
+        """Clean up finished bulk-export operations created before ``cutoff``."""
+        for op_id, created_at in list(self._bulk_export_created_at.items()):
+            op = self._bulk_export_operations.get(op_id)
+            in_progress = (
+                op is not None and op.status == BulkOperationStatus.IN_PROGRESS
+            )
+            if created_at < cutoff and not in_progress:
+                self.cleanup_bulk_export(op_id)
+
+    def prune_stale_bulk_exports(
+        self, max_age_seconds: float = BULK_EXPORT_MAX_AGE_SECONDS
+    ) -> None:
+        """Remove never-downloaded bulk exports older than ``max_age_seconds``.
+
+        Also removes leftover ``planalign_bulk_export_*`` directories in the
+        system temp directory, e.g. from before a server restart.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
+        self._prune_expired_bulk_export_ops(cutoff)
+        active = set(self._bulk_export_dirs.values())
+        root = Path(tempfile.gettempdir())
+        for candidate in root.glob(f"{BULK_EXPORT_DIR_PREFIX}*"):
+            if candidate in active or candidate.is_symlink() or not candidate.is_dir():
+                continue
+            try:
+                stale = candidate.stat().st_mtime < cutoff.timestamp()
+            except FileNotFoundError:
+                continue
+            if stale:
+                shutil.rmtree(candidate, ignore_errors=True)
+
     def start_bulk_export(self, workspace_ids: List[str]) -> BulkExportStatus:
         """Start a bulk export operation.
 
@@ -811,6 +888,7 @@ class ExportService:
         Returns:
             BulkExportStatus with operation ID for tracking
         """
+        self.prune_stale_bulk_exports()
         operation_id = str(uuid.uuid4())
         status = BulkExportStatus(
             operation_id=operation_id,
@@ -820,6 +898,7 @@ class ExportService:
             results=[],
         )
         self._bulk_export_operations[operation_id] = status
+        self._bulk_export_created_at[operation_id] = datetime.now(timezone.utc)
         self._export_temp_files[operation_id] = {}
         return status
 
@@ -843,11 +922,12 @@ class ExportService:
 
         status.status = BulkOperationStatus.IN_PROGRESS
 
-        # Create temp directory for exports
-        export_dir = Path(tempfile.gettempdir()) / "planalign_exports" / operation_id
-        export_dir.mkdir(parents=True, exist_ok=True)
+        # Create one private temp directory for this operation
+        export_dir = Path(tempfile.mkdtemp(prefix=BULK_EXPORT_DIR_PREFIX))
+        self._bulk_export_dirs[operation_id] = export_dir
 
         for workspace_id in workspace_ids:
+            workspace = None
             try:
                 # Get workspace name for status update
                 workspace = self.storage.get_workspace(workspace_id)
@@ -882,6 +962,10 @@ class ExportService:
             else BulkOperationStatus.FAILED
         )
 
+        if not self._export_temp_files.get(operation_id):
+            shutil.rmtree(export_dir, ignore_errors=True)
+            self._bulk_export_dirs.pop(operation_id, None)
+
         return status
 
     def get_bulk_export_status(self, operation_id: str) -> Optional[BulkExportStatus]:
@@ -912,24 +996,49 @@ class ExportService:
             return operation_files.get(workspace_id)
         return None
 
+    def complete_bulk_export_download(
+        self, operation_id: str, workspace_id: str
+    ) -> None:
+        """Remove a downloaded bulk-export archive and clean up once all are served."""
+        operation_files = self._export_temp_files.get(operation_id)
+        if operation_files is not None:
+            archive_path = operation_files.pop(workspace_id, None)
+            if archive_path is not None:
+                try:
+                    archive_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning(
+                        "Could not remove bulk export archive %s",
+                        archive_path,
+                        exc_info=True,
+                    )
+        if not operation_files:
+            self.cleanup_bulk_export(operation_id)
+
     def cleanup_bulk_export(self, operation_id: str) -> None:
-        """Clean up temporary files from bulk export.
+        """Clean up temporary files and directory from bulk export.
 
         Args:
             operation_id: Operation ID to clean up
         """
-        # Remove temp files
-        if operation_id in self._export_temp_files:
-            for path in self._export_temp_files[operation_id].values():
-                try:
-                    if path.exists():
-                        path.unlink()
-                except Exception:
-                    pass
-            del self._export_temp_files[operation_id]
+        export_dir = self._bulk_export_dirs.pop(operation_id, None)
+        if export_dir is not None:
+            shutil.rmtree(export_dir, ignore_errors=True)
 
-        # Remove from operations dict
+        # Remove any remaining temp files tracked outside export_dir
+        remaining = self._export_temp_files.pop(operation_id, None)
+        if remaining:
+            for path in remaining.values():
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning(
+                        "Could not remove bulk export file %s", path, exc_info=True
+                    )
+
+        # Remove from operations dicts
         self._bulk_export_operations.pop(operation_id, None)
+        self._bulk_export_created_at.pop(operation_id, None)
 
     def start_bulk_import(self, file_count: int) -> BulkImportStatus:
         """Start a bulk import operation.

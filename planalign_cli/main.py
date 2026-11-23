@@ -738,6 +738,9 @@ app.add_typer(census_app, name="census")
 
 def cli_main():
     """Entry point for the CLI."""
+    from planalign_core.process_security import restrict_file_permissions
+
+    restrict_file_permissions()
     try:
         app()
     except KeyboardInterrupt:

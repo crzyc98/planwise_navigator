@@ -3,8 +3,9 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from .base import APIModel
+from ..services.remote_policy import redact_remote_url
 
 
 class SyncConfig(APIModel):
@@ -20,6 +21,12 @@ class SyncConfig(APIModel):
     ] = Field(
         default="last-write-wins", description="Strategy for handling sync conflicts"
     )
+
+    @field_validator("remote", mode="after")
+    @classmethod
+    def _strip_remote_credentials(cls, value: Optional[str]) -> Optional[str]:
+        """Never retain embedded credentials in sync configuration."""
+        return redact_remote_url(value)
 
 
 class SyncStatus(APIModel):
@@ -38,6 +45,12 @@ class SyncStatus(APIModel):
         default_factory=list, description="List of conflicting files"
     )
     error: Optional[str] = Field(None, description="Last error message if any")
+
+    @field_validator("remote_url", mode="after")
+    @classmethod
+    def _strip_remote_url_credentials(cls, value: Optional[str]) -> Optional[str]:
+        """Never expose embedded credentials in sync status."""
+        return redact_remote_url(value)
 
 
 class SyncLogEntry(APIModel):
