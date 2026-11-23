@@ -23,6 +23,7 @@ console = Console()
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 _WILDCARD_HOSTS = {"0.0.0.0", "::", "[::]"}
+_MIN_API_TOKEN_LENGTH = 16
 
 
 def _repair_workspaces_on_startup() -> None:
@@ -278,9 +279,26 @@ def _url_host(bind_host: str) -> str:
     return bind_host
 
 
+def _validate_configured_api_token() -> None:
+    """Fail fast if PLANALIGN_API_TOKEN is set but blank or shorter than the minimum."""
+    token = os.environ.get("PLANALIGN_API_TOKEN")
+    if token is None:
+        return
+    if len(token.strip()) < _MIN_API_TOKEN_LENGTH:
+        console.print(
+            f"[red]Invalid PLANALIGN_API_TOKEN: must be at least "
+            f"{_MIN_API_TOKEN_LENGTH} non-whitespace characters "
+            "(unset it to disable token authentication).[/red]"
+        )
+        raise SystemExit(1)
+
+
 def _warn_for_unsafe_bind(bind_host: str) -> None:
     """Display a prominent warning for unauthenticated network exposure."""
-    if bind_host in _LOOPBACK_HOSTS or os.environ.get("PLANALIGN_API_TOKEN"):
+    if (
+        bind_host in _LOOPBACK_HOSTS
+        or (os.environ.get("PLANALIGN_API_TOKEN") or "").strip()
+    ):
         return
     console.print(
         Panel.fit(
@@ -315,6 +333,7 @@ def launch_studio(
         no_browser: Don't open browser automatically
         verbose: Show detailed output from both servers
     """
+    _validate_configured_api_token()
     bind_host = _resolve_bind_host(host)
     display_host = _url_host(bind_host)
     # studio.py is at planalign_cli/commands/studio.py

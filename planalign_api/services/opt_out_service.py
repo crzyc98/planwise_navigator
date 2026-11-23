@@ -11,10 +11,10 @@ import duckdb
 
 from ..models.opt_out import OptOutRateAnalysisResult
 from .census_schema import active_filter_sql
+from .path_guard import resolve_workspace_file_path
 from .sql_security import (
     CENSUS_DEFERRAL_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
-    SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,
 )
@@ -55,13 +55,9 @@ class OptOutAnalysisService:
                 or required census columns are absent.
         """
         resolved = self._resolve_path(workspace_id, file_path)
-
-        try:
-            safe_path = validate_file_path_for_sql(
-                resolved, [self.workspaces_root], context="census file"
-            )
-        except SQLSecurityError as exc:
-            raise ValueError(str(exc)) from exc
+        safe_path = validate_file_path_for_sql(
+            resolved, [self.workspaces_root], context="census file"
+        )
 
         suffix = resolved.suffix.lower()
         conn = duckdb.connect(":memory:")
@@ -79,10 +75,9 @@ class OptOutAnalysisService:
     # ------------------------------------------------------------------
 
     def _resolve_path(self, workspace_id: str, file_path: str) -> Path:
-        if file_path.startswith("/"):
-            resolved = Path(file_path)
-        else:
-            resolved = self.workspaces_root / workspace_id / file_path
+        resolved = resolve_workspace_file_path(
+            self.workspaces_root, workspace_id, file_path
+        )
         if not resolved.exists():
             raise ValueError(f"File not found: {file_path}")
         return resolved

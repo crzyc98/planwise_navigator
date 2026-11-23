@@ -42,12 +42,12 @@ def test_running_read_keeps_body_and_exposes_previous_success(tmp_path, client_f
     active_run = str(uuid.uuid4())
     _publish_success(storage, workspace_id, scenario_id, successful_run)
     storage.update_scenario_status(workspace_id, scenario_id, "running", active_run)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     response = client.get(
         f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
         headers={
-            "Authorization": "Bearer secret",
+            "Authorization": "Bearer test-api-secret-token",
             "Origin": "http://localhost:5173",
         },
     )
@@ -70,11 +70,11 @@ def test_failed_attempt_keeps_success_without_warning(tmp_path, client_factory):
     storage.update_scenario_status(
         workspace_id, scenario_id, "failed", str(uuid.uuid4())
     )
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
 
     response = client.get(
         f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
 
     assert response.status_code == 200
@@ -87,11 +87,11 @@ def test_corrupt_pointer_fails_closed(tmp_path, client_factory):
     storage, workspace_id, scenario_id = _scenario(tmp_path)
     scenario_path = storage._scenario_path(workspace_id, scenario_id)
     (scenario_path / "current_result.json").write_text("not-json")
-    client = client_factory("secret", raise_server_exceptions=False)
+    client = client_factory("test-api-secret-token", raise_server_exceptions=False)
 
     response = client.get(
         f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
 
     assert response.status_code == 500
@@ -113,12 +113,12 @@ def test_corrupt_pointer_fails_closed_on_like_for_like_reads(
     assert other is not None
     scenario_path = storage._scenario_path(workspace_id, scenario_id)
     (scenario_path / "current_result.json").write_text("not-json")
-    client = client_factory("secret", raise_server_exceptions=False)
+    client = client_factory("test-api-secret-token", raise_server_exceptions=False)
 
     response = client.get(
         f"/api/workspaces/{workspace_id}"
         + path.format(scenario_id=scenario_id, other_id=other.id),
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
 
     assert response.status_code == 500
@@ -134,11 +134,13 @@ def test_selected_result_available_in_list_and_detail(tmp_path, client_factory, 
     latest_attempt = str(uuid.uuid4())
     _publish_success(storage, workspace_id, scenario_id, successful_run)
     storage.update_scenario_status(workspace_id, scenario_id, status, latest_attempt)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
     base = f"/api/workspaces/{workspace_id}/scenarios"
 
     for path in [base, f"{base}/{scenario_id}"]:
-        response = client.get(path, headers={"Authorization": "Bearer secret"})
+        response = client.get(
+            path, headers={"Authorization": "Bearer test-api-secret-token"}
+        )
         assert response.status_code == 200
         body = response.json()
         scenario = body[0] if isinstance(body, list) else body
@@ -157,10 +159,10 @@ def test_selected_result_available_in_list_and_detail(tmp_path, client_factory, 
 def test_attempt_without_success_is_unavailable(tmp_path, client_factory, status):
     storage, workspace_id, scenario_id = _scenario(tmp_path)
     storage.update_scenario_status(workspace_id, scenario_id, status, str(uuid.uuid4()))
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
     response = client.get(
         f"/api/workspaces/{workspace_id}/scenarios",
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
     assert response.status_code == 200
     assert response.json()[0]["has_selected_result"] is False
@@ -174,9 +176,9 @@ def test_completed_legacy_result_remains_available(tmp_path, client_factory):
         str(storage.get_scenario_database_path(workspace_id, scenario_id))
     ).close()
     storage.update_scenario_status(workspace_id, scenario_id, "completed", run_id)
-    response = client_factory("secret").get(
+    response = client_factory("test-api-secret-token").get(
         f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
-        headers={"Authorization": "Bearer secret"},
+        headers={"Authorization": "Bearer test-api-secret-token"},
     )
     assert response.status_code == 200
     assert response.json()["has_selected_result"] is True

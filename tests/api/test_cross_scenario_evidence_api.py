@@ -138,11 +138,13 @@ def test_api_maps_invalid_pairs_years_and_scenarios(client_factory, tmp_path) ->
 
 def test_api_route_uses_existing_auth(client_factory, tmp_path) -> None:
     a, _ = _scenarios(tmp_path)
-    client = client_factory("secret")
+    client = client_factory("test-api-secret-token")
     url = _url(a.workspace_id)
 
     assert client.get(url, params=_params()).status_code == 401
-    authorized = client.get(url, params=_params(), headers={"X-API-Token": "secret"})
+    authorized = client.get(
+        url, params=_params(), headers={"X-API-Token": "test-api-secret-token"}
+    )
     assert authorized.status_code == 200
 
 
