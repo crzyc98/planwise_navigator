@@ -37,6 +37,7 @@ from planalign_core.constants import (
     TABLE_FCT_WORKFORCE_SNAPSHOT,
     TABLE_FCT_YEARLY_EVENTS,
 )
+from planalign_core.spreadsheet_safety import neutralize_formula
 from .utils import DatabaseConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -237,9 +238,12 @@ class ExcelExporter:
         """
         if export_format.lower() == "csv":
             minimal_path = output_dir / f"{scenario_name}_minimal_export.csv"
-            pd.DataFrame(
-                {"message": ["Simulation completed but no data tables found"]}
-            ).to_csv(minimal_path, index=False)
+            self._write_csv(
+                pd.DataFrame(
+                    {"message": ["Simulation completed but no data tables found"]}
+                ),
+                minimal_path,
+            )
             return minimal_path
         else:
             minimal_path = output_dir / f"{scenario_name}_minimal_export.xlsx"
@@ -247,7 +251,45 @@ class ExcelExporter:
                 pd.DataFrame(
                     {"message": ["Simulation completed but no data tables found"]}
                 ).to_excel(writer, sheet_name="Status", index=False)
+                self._mark_text_cells(writer.sheets["Status"])
             return minimal_path
+
+    @staticmethod
+    def _neutralize_csv_frame(df: pd.DataFrame) -> pd.DataFrame:
+        """Neutralize formula-leading string values before writing CSV.
+
+        Only Python ``str`` values are prefixed; numeric values (including
+        negative numbers) and missing values are left untouched.
+        """
+        out = df.copy()
+        out.columns = [
+            neutralize_formula(col) if isinstance(col, str) else col
+            for col in out.columns
+        ]
+        for col in out.columns:
+            ser = out[col]
+            if isinstance(ser.dtype, pd.CategoricalDtype):
+                out[col] = ser.astype(object).map(
+                    lambda v: neutralize_formula(v) if isinstance(v, str) else v
+                )
+            elif ser.dtype == object or pd.api.types.is_string_dtype(ser):
+                out[col] = ser.map(
+                    lambda v: neutralize_formula(v) if isinstance(v, str) else v
+                )
+        return out
+
+    @classmethod
+    def _write_csv(cls, df: pd.DataFrame, path: Path) -> None:
+        """Write a DataFrame to CSV with formula-trigger strings neutralized."""
+        cls._neutralize_csv_frame(df).to_csv(path, index=False)
+
+    @staticmethod
+    def _mark_text_cells(worksheet: Any) -> None:
+        """Ensure openpyxl stores every string cell as plain text, never a formula."""
+        for row in worksheet.iter_rows():
+            for cell in row:
+                if isinstance(cell.value, str) and cell.data_type == "f":
+                    cell.data_type = "s"
 
     def _export_csv(
         self,
@@ -285,8 +327,8 @@ class ExcelExporter:
                     f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ? ORDER BY {COL_EMPLOYEE_ID}",
                     params=[year],
                 )
-                df_year.to_csv(
-                    output_dir / f"{scenario_name}_workforce_{year}.csv", index=False
+                self._write_csv(
+                    df_year, output_dir / f"{scenario_name}_workforce_{year}.csv"
                 )
         else:
             # Single workforce snapshot CSV
@@ -294,15 +336,13 @@ class ExcelExporter:
                 conn,
                 f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}",
             )
-            df_workforce.to_csv(
-                output_dir / f"{scenario_name}_workforce_snapshot.csv", index=False
+            self._write_csv(
+                df_workforce, output_dir / f"{scenario_name}_workforce_snapshot.csv"
             )
 
         # Export summary metrics
         df_summary = self._calculate_summary_metrics(conn)
-        df_summary.to_csv(
-            output_dir / f"{scenario_name}_summary_metrics.csv", index=False
-        )
+        self._write_csv(df_summary, output_dir / f"{scenario_name}_summary_metrics.csv")
 
         # Export events if table exists
         if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
@@ -311,19 +351,19 @@ class ExcelExporter:
                 conn,
                 f"SELECT * FROM {TABLE_FCT_YEARLY_EVENTS} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}, {COL_EVENT_TYPE}",
             )
-            df_events_detail.to_csv(
-                output_dir / f"{scenario_name}_events_detail.csv", index=False
+            self._write_csv(
+                df_events_detail, output_dir / f"{scenario_name}_events_detail.csv"
             )
 
             # Aggregated summary
             df_events = self._calculate_events_summary(conn)
-            df_events.to_csv(
-                output_dir / f"{scenario_name}_events_summary.csv", index=False
+            self._write_csv(
+                df_events, output_dir / f"{scenario_name}_events_summary.csv"
             )
 
         # Export metadata
         df_metadata = self._build_metadata_dataframe(config, seed, conn, split=split)
-        df_metadata.to_csv(output_dir / f"{scenario_name}_metadata.csv", index=False)
+        self._write_csv(df_metadata, output_dir / f"{scenario_name}_metadata.csv")
 
         return output_dir
 
@@ -361,7 +401,7 @@ class ExcelExporter:
             engine_kwargs={
                 "options": {
                     "strings_to_urls": False,
-                    "strings_to_formulas": True,
+                    "strings_to_formulas": False,
                     "strings_to_numbers": False,
                 }
             },
@@ -406,6 +446,7 @@ class ExcelExporter:
                 pd.DataFrame(
                     {"message": ["Simulation completed but no data tables found"]}
                 ).to_excel(writer, sheet_name="Status", index=False)
+                self._mark_text_cells(writer.sheets["Status"])
                 self._format_worksheet(writer.book["Status"])
             else:
                 distributions = self._sanitize_for_excel(distributions)
@@ -865,6 +906,7 @@ class ExcelExporter:
         else:
             frame.to_excel(writer, sheet_name=sheet_name, index=False)
         if writer.engine == "openpyxl":
+            self._mark_text_cells(writer.sheets[sheet_name])
             self._format_worksheet(writer.sheets[sheet_name])
             return
         if not direct:
@@ -937,9 +979,7 @@ class ExcelExporter:
             if fmt:
                 write = sheet.write_number if fmt == "0" else sheet.write_datetime
             elif isinstance(value, str):
-                write = (
-                    sheet.write if value.startswith(("=", "{=")) else sheet.write_string
-                )
+                write = sheet.write_string
             elif isinstance(value, bool):
                 write = sheet.write_boolean
             else:
@@ -980,7 +1020,10 @@ class ExcelExporter:
             }
         )
         for index, cell in enumerate(sample[1]):
-            sheet.write(0, index, cell.value, header)
+            if isinstance(cell.value, str):
+                sheet.write_string(0, index, cell.value, header)
+            else:
+                sheet.write(0, index, cell.value, header)
             width = sample.column_dimensions[cell.column_letter].width
             # Xlsxwriter adds five pixels of padding; openpyxl stores the
             # requested OOXML character width directly (default font: 7 px).
@@ -1092,6 +1135,7 @@ class ExcelExporter:
                     )
                     pivot_df = self._sanitize_for_excel(pivot_df)
                     pivot_df.to_excel(writer, sheet_name="Year_by_Scenario_Pivot")
+                    self._mark_text_cells(writer.sheets["Year_by_Scenario_Pivot"])
 
                     # Summary statistics
                     summary_stats = (
@@ -1108,6 +1152,7 @@ class ExcelExporter:
                     )
                     summary_stats = self._sanitize_for_excel(summary_stats)
                     summary_stats.to_excel(writer, sheet_name="Scenario_Summary")
+                    self._mark_text_cells(writer.sheets["Scenario_Summary"])
 
                 logger.info(
                     "Comparison workbook created with %d data points",

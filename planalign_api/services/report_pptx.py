@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from planalign_api.models.report import ScenarioReport
+from planalign_core.spreadsheet_safety import neutralize_formula
 from planalign_api.services.report_render import (
     PALETTE,
     ReportTable,
@@ -434,9 +435,9 @@ def _chart_slide(deck: Any, report: ScenarioReport) -> None:
 
     series = cost_series(report)
     data = CategoryChartData(number_format="$#,##0")
-    data.categories = [str(year) for year in report.years]
+    data.categories = [neutralize_formula(str(year)) for year in report.years]
     for line in series:
-        data.add_series(line.name, line.values)
+        data.add_series(neutralize_formula(line.name), line.values)
     slide = _new_slide(deck, report, "Employer cost by year")
     frame = slide.shapes.add_chart(
         XL_CHART_TYPE.LINE_MARKERS,

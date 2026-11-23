@@ -6,6 +6,7 @@
 
 import type { components } from './api.generated';
 import { fetchWithAuth } from './api';
+import { csvCell } from './spreadsheetSafety';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -46,10 +47,6 @@ export function groupOptionalFields(
       fields: optional.filter((f) => (known.has(f.group) ? f.group : 'other') === group.key),
     }))
     .filter((entry) => entry.fields.length > 0);
-}
-
-function csvCell(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /** Every census column as a header, plus one made-up example row. */

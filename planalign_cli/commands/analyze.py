@@ -7,6 +7,7 @@ for simulation results and workforce trends.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -19,6 +20,7 @@ from rich.progress import BarColumn, Progress, TextColumn
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import show_error_message, show_success_message, show_warning_message
 from ..utils.config_helpers import find_default_config
+from planalign_core.spreadsheet_safety import neutralize_formula
 from planalign_orchestrator.excel_exporter import ExcelExporter
 from planalign_orchestrator.config import get_database_path
 
@@ -858,9 +860,13 @@ def _display_cost_series(series: Any) -> None:
         )
 
 
+_INVALID_SHEET_CHARS_RE = re.compile(r"[\[\]:*?/\\]")
+
+
 def _cost_sheet_name(scenario_name: str) -> str:
-    """Excel caps sheet names at 31 characters."""
-    return f"Cost_{scenario_name}"[:31]
+    """Excel caps sheet names at 31 characters and rejects []:*?/\\."""
+    cleaned = _INVALID_SHEET_CHARS_RE.sub("_", scenario_name).strip().strip("'")
+    return f"Cost_{cleaned}"[:31]
 
 
 def _export_cost_excel(series: List[Any], output: Optional[str]) -> Path:
@@ -907,7 +913,9 @@ def _export_cost_excel(series: List[Any], output: Optional[str]) -> Path:
                     "Offset basis": (
                         "measured"
                         if row.offset_basis_available
-                        else (row.offset_unavailable_reason or "unavailable")
+                        else neutralize_formula(
+                            row.offset_unavailable_reason or "unavailable"
+                        )
                     ),
                 }
                 for row in item.years
@@ -928,9 +936,9 @@ def _export_cost_excel(series: List[Any], output: Optional[str]) -> Path:
         # without the change, side by side.
         comparison = [
             {
-                "Scenario": item.scenario_name,
-                "Vesting schedule": item.schedule_name,
-                "Forfeiture policy": item.forfeiture_policy.value,
+                "Scenario": neutralize_formula(item.scenario_name),
+                "Vesting schedule": neutralize_formula(item.schedule_name),
+                "Forfeiture policy": neutralize_formula(item.forfeiture_policy.value),
                 "Gross employer cost": float(item.total_gross_employer_cost),
                 "Forfeiture offset": float(item.total_forfeiture_offset),
                 "Net employer cost": float(item.total_net_employer_cost),

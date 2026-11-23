@@ -20,6 +20,8 @@ from typing import Optional
 import duckdb
 import pandas as pd
 
+from planalign_core.spreadsheet_safety import neutralize_formula
+
 from ..models.imports import DataQualityResult, PlausibilityRuleCount
 from .census_analysis_service import (
     CensusAnalysisService,
@@ -66,9 +68,6 @@ RULES_SKIPPED = (
     "Cross-field checks didn't run: no hire or termination date could be read "
     "to set the census year."
 )
-
-# Leading characters spreadsheet apps read as a formula.
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
 @contextmanager
@@ -164,7 +163,7 @@ def flagged_rows_csv(df: pd.DataFrame, analysis: CensusAnalysisService) -> str:
         writer.writerow(
             (
                 _source_row_number(df, row.row_number),
-                _safe_cell(row.employee_id or ""),
+                neutralize_formula(row.employee_id or ""),
                 "; ".join(RULE_LABELS.get(rule, rule) for rule in row.rule_ids),
             )
         )
@@ -183,8 +182,3 @@ def _null_required_counts(df: pd.DataFrame) -> dict[str, int]:
 def _source_row_number(df: pd.DataFrame, table_row: int) -> int:
     """Map a ``census`` row to its 1-based data row in the upload."""
     return int(df.index[table_row - 1]) + 1
-
-
-def _safe_cell(value: str) -> str:
-    """Stop an employee ID such as ``=1+1`` running as a spreadsheet formula."""
-    return f"'{value}" if value.startswith(_FORMULA_PREFIXES) else value
