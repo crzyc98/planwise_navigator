@@ -91,7 +91,7 @@ Security-relevant properties of the simulation engine itself:
 - `pyproject.toml` is the dependency declaration and holds the core runtime pins (DuckDB, dbt-core, dbt-duckdb, Pydantic); verify them against `requirements.txt` and `uv.lock` using the [release checklist](docs/VERSIONING_GUIDE.md#release-checklist). Upgrade deliberately, not opportunistically.
 - The Studio frontend bundles **all** assets locally via Vite. Never add CDN `<script>`/`<link>` tags or import maps to `index.html` — this is both a security and a corporate-firewall requirement.
 - Report vulnerable-dependency findings through the same private channel as code vulnerabilities.
-- A `pip-audit` CI gate (`python-dependency-audit` job, `.github/workflows/ci.yml`) runs on every PR/push against `requirements.txt` and `requirements-dev.txt`. It fails the build on any advisory not explicitly listed below — new findings must be remediated or added here with justification, never silently ignored in CI.
+- A `pip-audit` CI gate (`python-dependency-audit` job, `.github/workflows/ci.yml`) runs on every PR/push against `requirements.txt`, `requirements-dev.txt` and an export of `uv.lock`. It fails the build on any advisory not explicitly listed below — new findings must be remediated or added here with justification, never silently ignored in CI.
 
 ### Approved Python Dependency Exceptions
 

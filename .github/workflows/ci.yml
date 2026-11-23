@@ -150,6 +150,21 @@ jobs:
       - name: Audit dev dependencies (requirements-dev.txt)
         run: pip-audit -r requirements-dev.txt
 
+      # The requirements files above are what CI installs; uv.lock is what
+      # `uv sync` installs for developers. Audit both so the lock cannot
+      # fall behind (#1191). The export is fully pinned and hashed, so
+      # pip-audit checks it as written without resolving anything.
+      - name: Install uv
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.13.9'
+          enable-cache: false
+
+      - name: Audit locked dependencies (uv.lock)
+        run: |
+          uv export --frozen --all-extras --no-emit-project -o "$RUNNER_TEMP/uv-lock-requirements.txt"
+          pip-audit -r "$RUNNER_TEMP/uv-lock-requirements.txt" --require-hashes --disable-pip
+
   # The PR gate. About 3,250 tests run on 4 xdist workers; recent hosted
   # timings vary from 368-463s (see #928). Budget is enforced below per
   # constitution.md III.
