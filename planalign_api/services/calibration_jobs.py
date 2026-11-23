@@ -20,6 +20,7 @@ from ..config import get_settings
 from ..errors import sanitize_job_error
 from ..models.calibration import CalibrationJob
 from .calibration_temp import remove_calibration_scratch
+from .child_env import build_child_env
 from .calibration_process import (
     ProcessRegistry,
     _terminate,
@@ -265,7 +266,7 @@ class JobRunner:
             process = subprocess.Popen(
                 self.command_factory(directory),
                 cwd=PROJECT_ROOT,
-                env=os.environ.copy(),
+                env=build_child_env(),
                 start_new_session=os.name == "posix",
                 stdout=log,
                 stderr=subprocess.STDOUT,

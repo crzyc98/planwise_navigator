@@ -31,7 +31,7 @@ from ..provenance.capture import config_fingerprint
 from ..simulation.run_execution import scenario_pack_seeds, write_seeds
 from ..simulation.run_slots import queue_capacity_exceeded
 from . import apply as pack_apply
-from .history import HistoryError, HistoryStore, UploadedFile
+from .history import HistoryError, HistoryStore, UploadedFile, safe_upload_names
 from .jobs import JobStore
 from .results import (
     load_result,
@@ -73,6 +73,7 @@ class ParamFitService:
         storage: WorkspaceStorage,
         *,
         max_jobs_per_workspace: int = 20,
+        max_concurrent_fits: int = 2,
         registry: ProcessRegistry = default_registry,
         command_factory: CommandFactory = build_cli_command,
     ):
@@ -82,6 +83,7 @@ class ParamFitService:
         self.jobs = JobStore(root)
         self.registry = registry
         self.max_jobs = max_jobs_per_workspace
+        self.max_concurrent_fits = max_concurrent_fits
         self.runner = JobRunner(
             self.jobs, registry, command_factory, on_finished=self._prune
         )
@@ -94,6 +96,14 @@ class ParamFitService:
         self._require_workspace(workspace_id)
         try:
             return self.history.create(workspace_id, files)
+        except HistoryError as exc:
+            raise ParamFitError(422, str(exc)) from exc
+
+    def check_history_upload(self, workspace_id: str, filenames: list[str]) -> None:
+        """Refuse an upload by workspace, file count and type before reading it."""
+        self._require_workspace(workspace_id)
+        try:
+            safe_upload_names(filenames)
         except HistoryError as exc:
             raise ParamFitError(422, str(exc)) from exc
 
@@ -403,12 +413,20 @@ class ParamFitService:
         return option.split
 
     def _claim(self, job: ParamFitJob) -> None:
-        """Claim ``job``; only backtests wait for a slot, so only they queue."""
+        """Claim ``job``; only backtests wait for a slot, so only they queue.
+
+        Fits are capped by ``max_concurrent_fits`` instead and refused with
+        429 past it, like a full backtest queue.
+        """
         if job.mode != "backtest":
-            # A fit only reads census files and starts at once, so it is
-            # never counted against the backtest queue cap.
-            self.registry.claim(job.job_id)
-            self.registry.begin(job.job_id)
+            # A fit only reads census files and starts at once (no simulation
+            # slot), up to its own cap on concurrently running fits.
+            if not self.registry.try_start_capped(job.job_id, self.max_concurrent_fits):
+                raise ParamFitError(
+                    429,
+                    "Too many fits are already running. Wait for one to "
+                    "finish or cancel one before starting another.",
+                )
             return
         if not self.registry.try_claim(
             job.job_id, lambda queued: not queue_capacity_exceeded(queued)
