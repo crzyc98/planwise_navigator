@@ -21,6 +21,7 @@ import {
   VestingScheduleInfo,
   VestingScheduleType,
 } from '../services/api';
+import { csvCell } from '../services/spreadsheetSafety';
 import { MAX_SCENARIO_SELECTION } from '../constants';
 import { useChartTheme } from '../hooks/useChartTheme';
 
@@ -86,20 +87,20 @@ function buildChartRows(
 }
 
 function toCsv(data: ForfeitureProjectionResponse, cumulative: boolean): string {
-  const header = ['Year', ...data.scenarios.map(s => s.scenario_name)];
-  const rows = buildChartRows(data, cumulative).map(row => [
-    String(row.year),
+  const header: Array<string | number> = ['Year', ...data.scenarios.map(s => s.scenario_name)];
+  const rows: Array<Array<string | number>> = buildChartRows(data, cumulative).map(row => [
+    row.year ?? '',
     ...data.scenarios.map(s => {
       const value = row[s.scenario_id];
-      return value === null ? 'no prior-year basis' : value.toFixed(2);
+      return value === null ? 'no prior-year basis' : Number(value.toFixed(2));
     }),
   ]);
-  const totals = [
+  const totals: Array<string | number> = [
     'Total',
-    ...data.scenarios.map(s => s.total_forfeited.toFixed(2)),
+    ...data.scenarios.map(s => Number(s.total_forfeited.toFixed(2))),
   ];
   return [header, ...rows, totals]
-    .map(cells => cells.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    .map(cells => cells.map(cell => csvCell(cell)).join(','))
     .join('\n');
 }
 
