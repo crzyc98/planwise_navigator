@@ -56,6 +56,10 @@ from ..services.path_guard import (
     resolve_within_roots,
 )
 from ..services.simulation.run_execution import resolve_census_path
+from ..services.simulation.run_slots import (
+    queue_capacity_exceeded,
+    simulation_slot_sync,
+)
 from ..services.sql_security import SQLSecurityError
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -114,6 +118,15 @@ def _register_job() -> OptimizerJob:
         created_at=datetime.now(),
     )
     with _jobs_lock:
+        queued = sum(1 for item in _jobs.values() if item.status == "queued")
+        if queue_capacity_exceeded(queued):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many optimizer jobs are already queued. Wait for one "
+                    "to finish before starting another."
+                ),
+            )
         _jobs[job.run_id] = job
         _prune_finished_jobs_locked()
     return job
@@ -175,9 +188,10 @@ def _start_job_thread(
 ) -> None:
     def _execute() -> None:
         try:
-            _update_job(job.run_id, status="running")
-            build()
-            _update_job(job.run_id, status="completed", completed_at=datetime.now())
+            with simulation_slot_sync():
+                _update_job(job.run_id, status="running")
+                build()
+                _update_job(job.run_id, status="completed", completed_at=datetime.now())
         except (OptimizerSpecError, ValueError) as e:
             _update_job(
                 job.run_id,
@@ -525,7 +539,12 @@ def start_optimizer_run(
         _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    job = _register_job()
+    try:
+        job = _register_job()
+    except HTTPException:
+        _release_reserved_directories(database_dir, output_dir)
+        _remove_temp_config(workspace_config)
+        raise
     search_seed = request.search_seed if request.search_seed is not None else 0
 
     def _build() -> None:
@@ -535,7 +554,8 @@ def start_optimizer_run(
             max_runs=request.max_runs,
             search_seed=search_seed,
             database_dir=database_dir,
-            parallel=request.parallel,
+            # One slot is one simulation: never fan candidates out inside it.
+            parallel=1,
         )
         output_dir.mkdir(parents=True, exist_ok=True)
         dump_resolved_spec(spec, output_dir / "spec.yaml")

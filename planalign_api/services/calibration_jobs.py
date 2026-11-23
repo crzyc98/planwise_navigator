@@ -26,6 +26,7 @@ from .calibration_process import (
     terminate_orphans_by_command,
     wait_for_group_exit,
 )
+from .simulation.run_slots import queue_capacity_exceeded, simulation_slot_sync
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +36,10 @@ CommandFactory = Callable[[Path], list[str]]
 _store_lock = threading.RLock()
 _db_locks: dict[str, threading.Lock] = {}
 registry = ProcessRegistry()
+
+
+class CalibrationQueueFullError(Exception):
+    """Raised when the calibration queue is already at capacity."""
 
 
 class JobStore:
@@ -185,7 +190,15 @@ class JobRunner:
         calibration_database: Path | None = None,
     ) -> None:
         directory = self.store.job_dir(job.run_id)
-        self.registry.claim(job.run_id)
+        if not self.registry.try_claim(
+            job.run_id, lambda queued: not queue_capacity_exceeded(queued)
+        ):
+            _remove_temporary(workspace_config, calibration_database)
+            shutil.rmtree(directory, ignore_errors=True)
+            raise CalibrationQueueFullError(
+                "Too many calibration jobs are already queued. Wait for one "
+                "to finish or cancel a queued job before starting another."
+            )
         try:
             atomic_write_json(
                 directory / "cleanup.json",
@@ -217,9 +230,7 @@ class JobRunner:
         acquired = False
         try:
             acquired = self._acquire(job.run_id, lock)
-            code = None
-            if not self.registry.was_cancelled(job.run_id):
-                code = self._execute(job)
+            code = self._run_in_slot(job)
             self._finalize(job, code)
         except Exception:
             self._fail(job)
@@ -229,6 +240,16 @@ class JobRunner:
             finally:
                 if acquired and lock is not None:
                     lock.release()
+
+    def _run_in_slot(self, job: CalibrationJob) -> int | None:
+        if self.registry.was_cancelled(job.run_id):
+            return None
+        with simulation_slot_sync(
+            is_cancelled=lambda: self.registry.was_cancelled(job.run_id)
+        ) as has_slot:
+            if not has_slot or not self.registry.begin(job.run_id):
+                return None
+            return self._execute(job)
 
     def _acquire(self, run_id: str, lock: threading.Lock | None) -> bool:
         if lock is None:

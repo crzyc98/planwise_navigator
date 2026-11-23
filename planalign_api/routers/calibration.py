@@ -38,7 +38,12 @@ from planalign_api.services.simulation.run_execution import resolve_census_with_
 
 from ..config import APISettings, get_settings
 from ..models.calibration import CalibrationContext, CalibrationJob
-from ..services.calibration_jobs import get_job_runner, get_job_store
+from ..services.calibration_jobs import (
+    CalibrationQueueFullError,
+    get_job_runner,
+    get_job_store,
+)
+from ..services.simulation.run_slots import queue_capacity_exceeded
 from ..models.scenario import Scenario
 from ..services.current_result import CurrentResultIntegrityError
 from ..services.sql_security import SQLSecurityError
@@ -324,6 +329,7 @@ def _materialize_target(
         start_year=start_year,
         end_year=end_year,
     )
+    _require_queue_capacity()
     config_file = _write_temp_config(config)
     try:
         database_file = _copy_calibration_database(source_database)
@@ -489,6 +495,18 @@ def _verify_apply_context(
 # ---------------------------------------------------------------------------
 
 
+def _require_queue_capacity() -> None:
+    """Reject early before copying a large source database when the queue is full."""
+    if queue_capacity_exceeded(get_job_runner().registry.queued_count()):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many calibration jobs are already queued. Wait for one "
+                "to finish or cancel a queued job before starting another."
+            ),
+        )
+
+
 def _enqueue(
     worker_request: WorkerRequest,
     target: Optional[_ResolvedTarget],
@@ -510,13 +528,16 @@ def _enqueue(
         if target:
             _remove_temp_database(target.database_path)
         raise
-    get_job_runner().start(
-        job,
-        worker_request,
-        database_path,
-        workspace_config,
-        target.database_path if target else None,
-    )
+    try:
+        get_job_runner().start(
+            job,
+            worker_request,
+            database_path,
+            workspace_config,
+            target.database_path if target else None,
+        )
+    except CalibrationQueueFullError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     return job
 
 
