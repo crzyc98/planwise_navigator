@@ -67,6 +67,18 @@ class ActiveProcessRegistry:
                 self.processes.pop(run_id, None)
         return True
 
+    async def stop_all(self) -> None:
+        """Stop every tracked job process and its group (API shutdown).
+
+        Jobs run in their own session, so the terminal's Ctrl+C no longer
+        reaches them; without this they would outlive the API.
+        """
+        with self._lock:
+            active = list(self.processes.items())
+        for run_id, process in active:
+            if await stop_process_tree(process, run_id):
+                self.remove(run_id, process)
+
 
 def _process_group(process: Any) -> Optional[int]:
     """The process group a simulation leads (POSIX), or None to signal the leader.

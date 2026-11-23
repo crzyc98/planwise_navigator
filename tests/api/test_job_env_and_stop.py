@@ -228,6 +228,33 @@ def test_simulation_cancel_kills_grandchild(
 
 
 @POSIX_ONLY
+def test_registry_stop_all_kills_tracked_jobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(run_execution, "CANCEL_GRACE_SECONDS", 0.5)
+    child_pid_file = tmp_path / "child.pid"
+    registry = run_execution.ActiveProcessRegistry()
+
+    async def run() -> tuple[int, int]:
+        process, _lines = await create_subprocess(
+            [sys.executable, "-c", _parent_script(child_pid_file)],
+            str(tmp_path),
+            dict(os.environ),
+            new_session=True,
+        )
+        registry.register("run-1", process)
+        while not child_pid_file.exists() or not child_pid_file.read_text():
+            await asyncio.sleep(0.05)
+        await registry.stop_all()
+        return process.pid, int(child_pid_file.read_text())
+
+    leader, child = asyncio.run(run())
+    assert _gone(leader)
+    assert _gone(child)
+    assert not registry.processes
+
+
+@POSIX_ONLY
 def test_param_fit_terminate_kills_grandchild(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
