@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import json
 import shutil
-import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,7 +31,10 @@ from planalign_orchestrator.calibration_runner import (
     CalibrationRun,
 )
 from planalign_orchestrator.calibration_worker import WorkerRequest
-from planalign_api.services.calibration_temp import calibration_database_prefix
+from planalign_api.services.calibration_temp import (
+    create_calibration_temp_dir,
+    remove_calibration_scratch,
+)
 from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
 from planalign_api.services.simulation.run_execution import resolve_census_with_fallback
 
@@ -330,9 +332,11 @@ def _materialize_target(
         end_year=end_year,
     )
     _require_queue_capacity()
-    config_file = _write_temp_config(config)
+    work_dir = create_calibration_temp_dir()
+    config_file = work_dir / "calibration_config.yaml"
     try:
-        database_file = _copy_calibration_database(source_database)
+        _write_temp_config(config, config_file)
+        database_file = _copy_calibration_database(source_database, work_dir)
     except OSError:
         _remove_temp_config(config_file)
         raise HTTPException(
@@ -356,42 +360,33 @@ def _materialize_target(
     )
 
 
-def _write_temp_config(config: Dict[str, Any]) -> Path:
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", prefix="calibration_config_", delete=False
-    )
-    with tmp:
-        yaml.safe_dump(config, tmp, default_flow_style=False)
-    return Path(tmp.name)
+def _write_temp_config(config: Dict[str, Any], target: Path) -> None:
+    with target.open("w", encoding="utf-8") as stream:
+        yaml.safe_dump(config, stream, default_flow_style=False)
 
 
-def _copy_calibration_database(source: Path) -> Path:
-    tmp = tempfile.NamedTemporaryFile(
-        suffix=".duckdb", prefix=calibration_database_prefix(), delete=False
-    )
-    target = Path(tmp.name)
-    tmp.close()
+def _copy_calibration_database(source: Path, work_dir: Path) -> Path:
+    target = work_dir / "calibration.duckdb"
     shutil.copyfile(source, target)
     return target
 
 
 def _remove_temp_config(path: Optional[Path]) -> None:
-    """Delete a materialized workspace-config YAML once the run is done."""
+    """Delete the job's private scratch directory holding this config."""
     if path is None:
         return
     try:
-        path.unlink(missing_ok=True)
+        remove_calibration_scratch(path)
     except OSError as e:
         logger.warning("Could not remove temp calibration config %s: %s", path, e)
 
 
 def _remove_temp_database(path: Optional[Path]) -> None:
-    """Remove only the disposable database created by this router."""
+    """Remove only the disposable database (and its job directory) made here."""
     if path is None:
         return
     try:
-        path.unlink(missing_ok=True)
-        Path(f"{path}.wal").unlink(missing_ok=True)
+        remove_calibration_scratch(path)
     except OSError as e:
         logger.warning("Could not remove temporary calibration database: %s", e)
 
