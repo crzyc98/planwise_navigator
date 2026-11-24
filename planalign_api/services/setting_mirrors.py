@@ -2,7 +2,8 @@
 
 Keep in step with ``MIRRORS`` in
 ``planalign_studio/components/comparisonIntegrity.ts``, which Scenario Diff's
-table uses, so the table and the evidence pack count the same differences.
+table uses, so the table and the evidence pack count the same differences;
+``tests/api/test_setting_mirrors.py`` fails if the two lists differ.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Any
 from ..models.comparison import ConfigDelta
 
 # The engine reads compensation.<name> (decimal); Studio saves <name>_percent.
-_COMPENSATION_PERCENT_FIELDS = (
+COMPENSATION_PERCENT_FIELDS = (
     "cola_rate",
     "merit_budget",
     "raise_budget",
@@ -25,12 +26,14 @@ _COMPENSATION_PERCENT_FIELDS = (
 
 # Studio's dc_plan.core_* settings and the employer_core_contribution keys the
 # archived config derives from them: Studio key -> (engine path, scale).
-_CORE_COPIES: dict[str, tuple[str, float | None]] = {
+CORE_COPIES: dict[str, tuple[str, float | None]] = {
     "core_enabled": ("enabled", None),
     "core_status": ("status", None),
     "core_contribution_rate_percent": ("contribution_rate", 0.01),
     "core_graded_schedule": ("graded_schedule", None),
     "core_points_schedule": ("points_schedule", None),
+    "core_points_min_service_years": ("points_min_service_years", None),
+    "core_points_pre_service_rate": ("points_pre_service_rate", None),
     "core_age_schedule": ("age_schedule", None),
     "core_min_tenure_years": ("eligibility.minimum_tenure_years", None),
     "core_min_hours_annual": ("eligibility.minimum_hours_annual", None),
@@ -45,7 +48,6 @@ _CORE_COPIES: dict[str, tuple[str, float | None]] = {
     "core_integration_level_mode": ("integration.level_mode", None),
     "core_integration_level_value": ("integration.level_value", None),
     "core_integration_disparity_rate": ("integration.disparity_rate", None),
-    "core_integration_disparity_rate_percent": ("integration.disparity_rate", 0.01),
 }
 
 _MATCH_RESPONSE_COPY = "dc_plan.deferral_match_response."
@@ -54,12 +56,12 @@ _MATCH_RESPONSE_COPY = "dc_plan.deferral_match_response."
 def _mirror(path: str) -> tuple[str, float | None] | None:
     """The canonical path and unit scale for a path a mirror rule rewrites."""
     section, _, key = path.partition(".")
-    if section == "compensation" and key in _COMPENSATION_PERCENT_FIELDS:
+    if section == "compensation" and key in COMPENSATION_PERCENT_FIELDS:
         return f"{path}_percent", 100.0
     if path.startswith(_MATCH_RESPONSE_COPY):
         return path.removeprefix("dc_plan."), None
-    if section == "dc_plan" and key in _CORE_COPIES:
-        engine_path, scale = _CORE_COPIES[key]
+    if section == "dc_plan" and key in CORE_COPIES:
+        engine_path, scale = CORE_COPIES[key]
         return f"employer_core_contribution.{engine_path}", scale
     return None
 
@@ -72,7 +74,8 @@ def _comparable(value: Any, scale: float | None) -> str:
     """A value in canonical units; scaling can leave float noise (0.07 * 100)."""
     if _is_number(value):
         value = float(f"{value * (scale or 1.0):.12g}")
-    return json.dumps(value, sort_keys=True, default=str)
+    # Key order counts, as in the table's JSON.stringify.
+    return json.dumps(value, default=str)
 
 
 def _same_setting(

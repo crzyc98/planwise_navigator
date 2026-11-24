@@ -76,6 +76,8 @@ const SETTING_LABELS: Record<string, string> = {
   'employer_core_contribution.contribution_rate': 'Core rate',
   'employer_core_contribution.graded_schedule': 'Core rates by service',
   'employer_core_contribution.points_schedule': 'Core rates by points',
+  'employer_core_contribution.points_min_service_years': 'Core points service minimum',
+  'employer_core_contribution.points_pre_service_rate': 'Core rate before the service minimum',
   'employer_core_contribution.age_schedule': 'Core rates by age',
   'employer_core_contribution.eligibility.minimum_tenure_years': 'Core service requirement',
   'employer_core_contribution.eligibility.minimum_hours_annual': 'Core hours requirement',
@@ -118,7 +120,8 @@ export const COMPENSATION_PERCENT_FIELDS = [
 /**
  * Studio's dc_plan.core_* settings and the employer_core_contribution keys a
  * run's saved config derives from them (#1321): [Studio key, engine path, scale].
- * Keep in step with planalign_api/services/setting_mirrors.py.
+ * tests/api/test_setting_mirrors.py fails if this and
+ * planalign_api/services/setting_mirrors.py differ.
  */
 const CORE_COPIES: ReadonlyArray<readonly [string, string, number?]> = [
   ['core_enabled', 'enabled'],
@@ -126,6 +129,8 @@ const CORE_COPIES: ReadonlyArray<readonly [string, string, number?]> = [
   ['core_contribution_rate_percent', 'contribution_rate', 0.01],
   ['core_graded_schedule', 'graded_schedule'],
   ['core_points_schedule', 'points_schedule'],
+  ['core_points_min_service_years', 'points_min_service_years'],
+  ['core_points_pre_service_rate', 'points_pre_service_rate'],
   ['core_age_schedule', 'age_schedule'],
   ['core_min_tenure_years', 'eligibility.minimum_tenure_years'],
   ['core_min_hours_annual', 'eligibility.minimum_hours_annual'],
@@ -137,14 +142,13 @@ const CORE_COPIES: ReadonlyArray<readonly [string, string, number?]> = [
   ['core_integration_level_mode', 'integration.level_mode'],
   ['core_integration_level_value', 'integration.level_value'],
   ['core_integration_disparity_rate', 'integration.disparity_rate'],
-  ['core_integration_disparity_rate_percent', 'integration.disparity_rate', 0.01],
 ];
 
 /**
  * Settings recorded twice under different paths (#1178). Each maps to one
  * canonical path so both copies render identical text and collapse into one
- * line. `scale` converts the value to the canonical path's units.
- * Keep in step with planalign_api/services/setting_mirrors.py.
+ * line. `scale` converts the value to the canonical path's units. A new rule
+ * also goes in planalign_api/services/setting_mirrors.py.
  */
 const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number }> = [
   // The engine reads compensation.<name>; Studio writes <name>_percent.
