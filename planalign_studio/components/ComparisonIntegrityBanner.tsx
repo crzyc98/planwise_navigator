@@ -18,17 +18,22 @@ const TONE_STYLES: Record<IntegrityTone, { line: string; Icon: typeof CheckCircl
   },
 };
 
-function VerdictLine({ line, diffHref }: Readonly<{ line: IntegrityLine; diffHref: string }>) {
+function VerdictLine({ line, diffHref }: Readonly<{ line: IntegrityLine; diffHref: string | null }>) {
   const { line: lineClass, Icon, icon } = TONE_STYLES[line.tone];
   return (
     <li className={`flex gap-2 text-xs ${lineClass}`}>
       <Icon size={14} className={`mt-0.5 shrink-0 ${icon}`} aria-hidden="true" />
       <div className="space-y-1">
         <p>
-          {line.headline}{' '}
-          <Link to={diffHref} className="underline underline-offset-2 hover:opacity-80">
-            See differences
-          </Link>
+          {line.headline}
+          {diffHref !== null && (
+            <>
+              {' '}
+              <Link to={diffHref} className="underline underline-offset-2 hover:opacity-80">
+                See differences
+              </Link>
+            </>
+          )}
         </p>
         {line.details.length > 0 && (
           <ul className="list-disc pl-4 space-y-0.5">
@@ -41,14 +46,18 @@ function VerdictLine({ line, diffHref }: Readonly<{ line: IntegrityLine; diffHre
   );
 }
 
-/** One verdict line per compared scenario; pure view for tests and reuse. */
+/**
+ * One verdict line per compared scenario; pure view for tests and reuse.
+ * A null `diffBase` drops the "See differences" links (the diff page itself).
+ */
 export function ComparisonIntegrityLines({
   result,
   diffBase,
-}: Readonly<{ result: ComparisonIntegrityResponse; diffBase: string }>) {
+}: Readonly<{ result: ComparisonIntegrityResponse; diffBase: string | null }>) {
   const summary = summarizeIntegrity(result);
-  const href = (scenarioId: string) =>
-    `${diffBase}/analytics/diff?${new URLSearchParams({ a: result.anchor_scenario_id, b: scenarioId })}`;
+  const href = (scenarioId: string) => diffBase === null
+    ? null
+    : `${diffBase}/analytics/diff?${new URLSearchParams({ a: result.anchor_scenario_id, b: scenarioId })}`;
   return (
     <section aria-label="Like-for-like check" className="space-y-1.5">
       <ul className="space-y-1.5">
@@ -70,13 +79,22 @@ type FetchState =
 /**
  * Says whether each compared scenario differs from the anchor only in plan
  * design. Refetches when the selection or anchor changes; a failed check
- * leaves the page working and says the check is unavailable.
+ * leaves the page working, says the check is unavailable and shows
+ * `whenUnavailable` instead. `diffLinks={false}` on the diff page itself.
  */
 export default function ComparisonIntegrityBanner({
   workspaceId,
   scenarioIds,
   anchorId,
-}: Readonly<{ workspaceId: string | undefined; scenarioIds: string[]; anchorId: string | undefined }>) {
+  diffLinks = true,
+  whenUnavailable,
+}: Readonly<{
+  workspaceId: string | undefined;
+  scenarioIds: string[];
+  anchorId: string | undefined;
+  diffLinks?: boolean;
+  whenUnavailable?: React.ReactNode;
+}>) {
   const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>();
   const request = integrityRequest(workspaceId, scenarioIds, anchorId);
   const key = request?.key ?? '';
@@ -101,12 +119,13 @@ export default function ComparisonIntegrityBanner({
 
   if (!key || state.status === 'idle' || state.key !== key) return null;
   if (state.status === 'failed') {
-    return <p className="text-xs text-ink-subtle">Couldn't check whether these scenarios are like-for-like.</p>;
+    return (
+      <>
+        <p className="text-xs text-ink-subtle">Couldn't check whether these scenarios are like-for-like.</p>
+        {whenUnavailable}
+      </>
+    );
   }
-  return (
-    <ComparisonIntegrityLines
-      result={state.result}
-      diffBase={routeWorkspaceId ? `/w/${routeWorkspaceId}` : ''}
-    />
-  );
+  const diffBase = routeWorkspaceId ? `/w/${routeWorkspaceId}` : '';
+  return <ComparisonIntegrityLines result={state.result} diffBase={diffLinks ? diffBase : null} />;
 }

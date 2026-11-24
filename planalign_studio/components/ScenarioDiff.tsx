@@ -34,6 +34,7 @@ import {
 } from '../services/api';
 import { applyDeltaToOverrides, canApplyDelta } from './applyConfigDelta';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
+import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
 import { unsetLabel } from './configDiff';
 import { LayoutContextType } from './Layout';
@@ -256,6 +257,32 @@ function ConfigDeltaRow({ delta, names, apply, locked, onApply }: Readonly<Confi
   );
 }
 
+/**
+ * Seed and provenance warnings from the config diff. The like-for-like check
+ * says all of this (and more), so they show only when that check fails.
+ */
+export function ProvenanceWarnings({ configDiff, scenarioA, scenarioB }: Readonly<{
+  configDiff: ConfigDiffResponse;
+  scenarioA: string;
+  scenarioB: string;
+}>) {
+  const provenanceA = configDiff.provenance[scenarioA];
+  const provenanceB = configDiff.provenance[scenarioB];
+  return (
+    <>
+      {configDiff.seeds_match === false && (
+        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Seeds differ.</strong> Differences may include seed noise.</span></div>
+      )}
+      {configDiff.drift_warning && (
+        <div className="flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-4 text-danger-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance warning.</strong> Results may be mixed-generation or no longer match the displayed configuration.</span></div>
+      )}
+      {!configDiff.drift_warning && (provenanceA?.available === false || provenanceB?.available === false) && (
+        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance unavailable.</strong> At least one scenario predates run tracking, so drift cannot be verified — results may still be mixed-generation.</span></div>
+      )}
+    </>
+  );
+}
+
 export default function ScenarioDiff() {
   const navigate = useWorkspaceNavigate();
   const [searchParams] = useSearchParams();
@@ -376,15 +403,13 @@ export default function ScenarioDiff() {
       </header>
       <SelectedComparisonRuns scenarios={selectedScenarios} />
 
-      {configDiff.seeds_match === false && (
-        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Seeds differ.</strong> Differences may include seed noise.</span></div>
-      )}
-      {configDiff.drift_warning && (
-        <div className="flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-4 text-danger-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance warning.</strong> Results may be mixed-generation or no longer match the displayed configuration.</span></div>
-      )}
-      {!configDiff.drift_warning && (provenanceA?.available === false || provenanceB?.available === false) && (
-        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance unavailable.</strong> At least one scenario predates run tracking, so drift cannot be verified — results may still be mixed-generation.</span></div>
-      )}
+      <ComparisonIntegrityBanner
+        workspaceId={workspaceId}
+        scenarioIds={[scenarioA, scenarioB]}
+        anchorId={scenarioA}
+        diffLinks={false}
+        whenUnavailable={<ProvenanceWarnings configDiff={configDiff} scenarioA={scenarioA} scenarioB={scenarioB} />}
+      />
 
       <section className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm">
         <div className="flex items-center justify-between px-5 py-4">
