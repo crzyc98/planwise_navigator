@@ -13,7 +13,9 @@ Purpose: Transform census data into synthetic enrollment events to maintain full
 Key Features:
 - Preserves exact census rates (1.3% → 0.013, not default 6%)
 - Generates proper event metadata for audit trail
-- Normalizes rates to [0,1] with IRS cap enforcement
+- Uses the census rate unchanged, as the deferral state accumulator does: a
+  rate above the plan deferral cap is not lowered here (#1262), and rates
+  outside 0-1 stop the run before staging (#1263)
 - Only processes employees enrolled at census date
 */
 
@@ -38,7 +40,7 @@ WITH census_enrolled AS (
       AND is_enrolled_at_census = true
 ),
 
--- Generate synthetic enrollment events with proper rate normalization
+-- Generate synthetic enrollment events at the census rate
 synthetic_events AS (
     SELECT
         employee_id,
@@ -47,8 +49,10 @@ synthetic_events AS (
         -- Use census enrollment date as effective date for historical accuracy
         employee_enrollment_date as effective_date,
 
-        -- Preserve exact census rate with proper clamping and normalization
-        {{ normalize_deferral_rate('employee_deferral_rate') }} as employee_deferral_rate,
+        -- Census rate unchanged, so escalation and match response see the
+        -- same rate as int_deferral_rate_state_accumulator (#1262). DOUBLE
+        -- keeps the type the old clamp produced, which downstream rates use.
+        CAST(employee_deferral_rate AS DOUBLE) as employee_deferral_rate,
 
         -- Generate sequence number (all synthetic events are sequence 0)
         0 as event_sequence,
@@ -96,8 +100,6 @@ final_events AS (
         CASE
             WHEN employee_deferral_rate = {{ census_fallback_rate() }}
             THEN 'fallback_rate_applied'
-            WHEN employee_deferral_rate = {{ plan_deferral_cap() }}
-            THEN 'capped_at_irs_limit'
             ELSE 'census_rate_preserved'
         END as data_quality_flag,
 

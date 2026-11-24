@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Census deferral rates above 75% are no longer lowered to 75% before auto-escalation and match response read them. Contributions already used the census rate, so results change only when the escalation cap or a match threshold is above 75%. Before this fix, a 95% saver under a 98% escalation cap was escalated from 75% instead of 95%.
 - The server no longer risks waiting forever for a finished background job whose leftover process cannot be cleaned up; it logs a warning and moves on.
 - Scenario and workspace settings are now checked more strictly before a run; values of the wrong type are rejected with a clear message.
 - Data import now rejects oversized or malformed uploads and calculated fields with a clear message, and import error messages point to row numbers instead of repeating cell contents.
