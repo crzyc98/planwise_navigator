@@ -9,13 +9,13 @@ pytest-xdist==3.8.0
 # Starlette's TestClient needs httpx (was only installed via jupyter)
 httpx==0.28.1
 # Tests use named time zones; pandas no longer installs tzdata on Linux
-tzdata==2026.2
+tzdata==2026.6
 hypothesis>=6.0.0
 factory-boy==3.3.3
-Faker==40.54.0
+Faker==40.62.0
 
 # Code Quality
-ruff==0.17.5
+ruff==0.17.6
 black==26.10.1
 isort==9.0.2
 # Pinned mypy version validated with this project's dev toolchain.
@@ -25,7 +25,7 @@ mypy==2.4.1
 # --ignore-missing-imports because the stub is known to exist on PyPI),
 # keeping the lint job red. See #333.
 types-PyYAML==6.0.12.20261113
-pylint==4.1.3
+pylint==4.1.4
 flake8==7.5.0
 pre-commit==4.7.0
 
@@ -37,8 +37,8 @@ pip-audit==2.10.1
 # mkdocs>=1.6; pymdown-extensions pinned explicitly (was transitive) at its
 # own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
 mkdocs==1.6.1
-mkdocs-material==9.8.1
-pymdown-extensions==13.1
+mkdocs-material==9.8.2
+pymdown-extensions==13.1.1
 mkdocstrings-python==2.0.11
 ipython==9.18.1
 ipdb==0.13.13

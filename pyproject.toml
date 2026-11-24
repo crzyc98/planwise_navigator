@@ -15,7 +15,7 @@ dependencies = [
     "duckdb==2.0.0",
     "dbt-core==1.12.7",
     "dbt-duckdb==1.11.1",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "pandas>=2.0.0",
@@ -48,7 +48,7 @@ dependencies = [
     "inquirer>=3.1.0",
     # API dependencies for PlanAlign Studio backend
     # fastapi Pinned so each bump gets its own PR: minor releases have changed routing internals (0.141 stopped flattening included routers into app.routes; walk routes with fastapi.routing.iter_route_contexts).
-    "fastapi==0.162.7",
+    "fastapi==0.165.0",
     "uvicorn[standard]>=0.27.0",
     "pydantic-settings>=2.7.0",
     "python-multipart>=0.0.6",
@@ -71,19 +71,19 @@ dev = [
     # Starlette's TestClient needs httpx (was only installed via jupyter)
     "httpx==0.28.1",
     # Tests use named time zones; pandas no longer installs tzdata on Linux
-    "tzdata==2026.2",
+    "tzdata==2026.6",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.3",
-    "Faker==40.54.0",
+    "Faker==40.62.0",
 
     # Code Quality
-    "ruff==0.17.5",
+    "ruff==0.17.6",
     "black==26.10.1",
     "isort==9.0.2",
     "mypy==2.4.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20261113",
-    "pylint==4.1.3",
+    "pylint==4.1.4",
     "flake8==7.5.0",
     "pre-commit==4.7.0",
     # Dependency vulnerability scanning (#705)
@@ -94,8 +94,8 @@ dev = [
     # mkdocs>=1.6; pymdown-extensions pinned explicitly (was transitive) at
     # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
     "mkdocs==1.6.1",
-    "mkdocs-material==9.8.1",
-    "pymdown-extensions==13.1",
+    "mkdocs-material==9.8.2",
+    "pymdown-extensions==13.1.1",
     "mkdocstrings-python==2.0.11",
     "ipython==9.18.1",
     "ipdb==0.13.13",
