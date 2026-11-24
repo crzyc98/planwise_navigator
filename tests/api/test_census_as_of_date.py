@@ -72,7 +72,11 @@ def test_wizard_suggests_requires_and_stores_the_date(setup) -> None:
     record = _generate(client, ws, "2025-03-31")
     assert record["census_as_of_date"] == "2025-03-31"
     assert _setup_value(storage, ws, "census_as_of_date") == "2025-03-31"
-    assert _setup_value(storage, ws, "census_parquet_path") == record["storage_path"]
+    # The response names the file relative to its workspace (#1311).
+    assert record["storage_path"].startswith("data/imports/")
+    assert _setup_value(storage, ws, "census_parquet_path") == str(
+        (storage._workspace_path(ws) / record["storage_path"]).resolve()
+    )
 
 
 def test_use_as_census_brings_the_files_own_date(setup, tmp_path: Path) -> None:

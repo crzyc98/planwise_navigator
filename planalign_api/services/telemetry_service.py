@@ -14,6 +14,7 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Deque, Dict, Optional, Set
 
+from .client_paths import redact_server_paths
 from ..models.simulation import (
     EventTypeCounts,
     MilestoneMessage,
@@ -203,6 +204,7 @@ class TelemetryService:
         state = self._runs.get(run_id)
         if state is None or severity not in ("warning", "error"):
             return
+        message = redact_server_paths(message)
         key = message.strip()[:200]
         if key in state._seen_log_messages:
             return

@@ -21,7 +21,7 @@ import re
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict
+from typing import Dict, NoReturn
 
 from .sql_security import SQLSecurityError, validate_file_path
 
@@ -142,7 +142,9 @@ def resolve_within_roots(
     The path is fully resolved, following symlinks, before containment is
     checked, so ``..`` segments and links that leave every root are refused.
     A relative path is tried as given (against the working directory), then
-    under ``anchor``.
+    under ``anchor``. Responses name a path relative to the root that holds
+    it, so when neither of those exists, an existing file or directory under
+    another allowed root is accepted too.
 
     Raises:
         PathGuardError: One generic message for every rejection, so callers
@@ -152,13 +154,36 @@ def resolve_within_roots(
     candidates = [path]
     if anchor is not None and not path.is_absolute():
         candidates.append(anchor / path)
-    for candidate in candidates:
-        for root in allowed_roots:
-            try:
-                return validate_file_path(candidate, root, context="request")
-            except ValueError:  # outside this root, or a NUL byte in the path
-                continue
+    first = next(
+        (
+            found
+            for candidate in candidates
+            if (found := _within_any_root(candidate, allowed_roots)) is not None
+        ),
+        None,
+    )
+    if path.is_absolute() or (first is not None and first.exists()):
+        return first if first is not None else _refuse()
+    for root in allowed_roots:
+        found = _within_any_root(root / path, allowed_roots)
+        if found is not None and found.exists():
+            return found
+    if first is not None:
+        return first
+    return _refuse()
+
+
+def _refuse() -> NoReturn:
     raise PathGuardError("path is outside the allowed directories")
+
+
+def _within_any_root(candidate: Path, allowed_roots: Sequence[Path]) -> Path | None:
+    for root in allowed_roots:
+        try:
+            return validate_file_path(candidate, root, context="request")
+        except ValueError:  # outside this root, or a NUL byte in the path
+            continue
+    return None
 
 
 def resolve_workspace_file_path(

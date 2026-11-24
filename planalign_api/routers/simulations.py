@@ -42,6 +42,7 @@ from ..services.run_health import TieOutLoader, build_run_health, with_census_ti
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
 from ..services.artifact_tickets import create_artifact_ticket
+from ..services.client_paths import redact_server_paths, relative_to_root
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
 router = APIRouter()
@@ -868,7 +869,13 @@ def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
             msg = raw_line
 
         lines.append(
-            SimulationLogLine(sequence=seq, timestamp=ts, severity=sev, message=msg)
+            SimulationLogLine(
+                sequence=seq,
+                timestamp=ts,
+                severity=sev,
+                # Logs written before lines were redacted at the source.
+                message=redact_server_paths(msg),
+            )
         )
 
     return lines
@@ -1183,7 +1190,11 @@ def get_run_details(
             config=config,
             artifacts=artifacts,
             error_message=error_message,
-            storage_path=str(scenario_path) if scenario_path.exists() else None,
+            storage_path=(
+                relative_to_root(scenario_path, storage._workspace_path(workspace.id))
+                if scenario_path.exists()
+                else None
+            ),
         )
     except HTTPException:
         raise

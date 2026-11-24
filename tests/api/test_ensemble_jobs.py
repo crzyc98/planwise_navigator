@@ -258,7 +258,10 @@ def test_ensemble_completes_with_per_seed_progress_and_reader_ids(
     assert output["ensemble_scenario_id"] == "scenario-in-db"
     job_dir = harness.storage.workspaces_root / harness.workspace_id / "ensembles"
     job_dir = job_dir / job["job_id"]
-    assert Path(output["database_path"]) == (job_dir / "ensemble.duckdb").resolve()
+    # Named relative to the workspaces root, one of the ensemble roots (#1311).
+    assert output["database_path"] == (
+        f"{harness.workspace_id}/ensembles/{job['job_id']}/ensemble.duckdb"
+    )
     assert not (job_dir / "work").exists()
     # The existing reader finds it through the path on the record.
     found = client.get("/api/ensembles/discover", params={"root": str(job_dir)}).json()

@@ -15161,7 +15161,7 @@
             "type": "integer"
           },
           "census_path": {
-            "description": "The saved bridge census",
+            "description": "The saved bridge census, relative to the workspace",
             "title": "Census Path",
             "type": "string"
           },
@@ -15510,7 +15510,7 @@
                 "type": "null"
               }
             ],
-            "description": "Scenario storage directory path",
+            "description": "Scenario directory, relative to the workspace",
             "title": "Storage Path"
           },
           "total_events": {

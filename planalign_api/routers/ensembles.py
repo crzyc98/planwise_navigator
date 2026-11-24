@@ -44,6 +44,7 @@ from ..models.ensemble_job import (
     EnsembleJob,
     EnsembleRequest,
 )
+from ..services.client_paths import relative_to_roots
 from ..services.ensemble_jobs import EnsembleJobError, EnsembleJobService
 from ..services.path_guard import PathGuardError, resolve_within_roots
 from ..storage.workspace_storage import WorkspaceStorage
@@ -75,11 +76,17 @@ def discover_ensembles(
         scan_root = resolve_within_roots(
             root or settings.ensembles_root, roots, anchor=settings.ensembles_root
         )
-        return discover_ensemble_databases(
+        found = discover_ensemble_databases(
             scan_root, include=lambda path: _is_contained(path, roots)
         )
     except (PathGuardError, InvalidEnsembleDatabaseError) as exc:
         raise HTTPException(status_code=404, detail=_ROOT_NOT_FOUND) from exc
+    return [
+        summary.model_copy(
+            update={"database_path": relative_to_roots(summary.database_path, roots)}
+        )
+        for summary in found
+    ]
 
 
 @router.get("/ensembles/distributions", response_model=list[MetricDistribution])
@@ -158,10 +165,11 @@ def start_ensemble(
     scenario_id: str,
     request: EnsembleRequest,
     service: EnsembleJobService = Depends(get_ensemble_job_service),
+    settings: APISettings = Depends(get_settings),
 ) -> EnsembleJob:
     """Queue a seed ensemble; it waits for a simulation slot like any run."""
     with _job_errors():
-        return service.start(workspace_id, scenario_id, request)
+        return _client_job(service.start(workspace_id, scenario_id, request), settings)
 
 
 @router.get("/workspaces/{workspace_id}/ensembles", response_model=list[EnsembleJob])
@@ -169,10 +177,12 @@ def list_ensemble_jobs(
     workspace_id: str,
     scenario_id: str | None = Query(default=None),
     service: EnsembleJobService = Depends(get_ensemble_job_service),
+    settings: APISettings = Depends(get_settings),
 ) -> list[EnsembleJob]:
     """A workspace's ensemble jobs, newest first, optionally for one scenario."""
     with _job_errors():
-        return service.list_jobs(workspace_id, scenario_id)
+        jobs = service.list_jobs(workspace_id, scenario_id)
+    return [_client_job(job, settings) for job in jobs]
 
 
 @router.get(
@@ -204,9 +214,10 @@ def get_ensemble_job(
     workspace_id: str,
     job_id: str,
     service: EnsembleJobService = Depends(get_ensemble_job_service),
+    settings: APISettings = Depends(get_settings),
 ) -> EnsembleJob:
     with _job_errors():
-        return service.get(workspace_id, job_id)
+        return _client_job(service.get(workspace_id, job_id), settings)
 
 
 @router.post(
@@ -216,10 +227,11 @@ def cancel_ensemble_job(
     workspace_id: str,
     job_id: str,
     service: EnsembleJobService = Depends(get_ensemble_job_service),
+    settings: APISettings = Depends(get_settings),
 ) -> EnsembleJob:
     """Stop a queued or running ensemble and its whole process tree."""
     with _job_errors():
-        return service.cancel(workspace_id, job_id)
+        return _client_job(service.cancel(workspace_id, job_id), settings)
 
 
 @contextmanager
@@ -228,6 +240,15 @@ def _job_errors() -> Iterator[None]:
         yield
     except EnsembleJobError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+def _client_job(job: EnsembleJob, settings: APISettings) -> EnsembleJob:
+    """The job as a client sees it: its database relative to an ensemble root."""
+    if job.output is None:
+        return job
+    shown = relative_to_roots(job.output.database_path, settings.ensemble_roots)
+    output = job.output.model_copy(update={"database_path": shown})
+    return job.model_copy(update={"output": output})
 
 
 def _validate(database: str, settings: APISettings) -> Path:

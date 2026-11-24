@@ -51,6 +51,7 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
 from ..models.base import APIModel
 from ..models.scenario import Scenario, ScenarioCreate
+from ..services.client_paths import relative_to_root
 from ..services.path_guard import (
     PathGuardError,
     require_canonical_uuid,
@@ -533,6 +534,7 @@ def start_optimizer_run(
     record instead (409 spec/baseline resolution issue, 500 unexpected).
     """
     spec = _parse_spec(request.spec, None)
+    runs_root = settings.optimizer_runs_root
     try:
         database_dir, output_dir = _api_output_paths(
             request.database_dir, request.output_dir, settings
@@ -581,14 +583,16 @@ def start_optimizer_run(
         dump_resolved_spec(spec, output_dir / "spec.yaml")
         write_exports(run, output_dir)
         write_report(run, output_dir)
-        _update_job(job.run_id, result=run, output_dir=str(output_dir))
+        _update_job(
+            job.run_id, result=run, output_dir=relative_to_root(output_dir, runs_root)
+        )
 
     _start_job_thread(job, _build, database_dir, output_dir, workspace_config)
     return OptimizerStartResponse(
         run_id=job.run_id,
         status="queued",
-        database_dir=str(database_dir),
-        output_dir=str(output_dir),
+        database_dir=relative_to_root(database_dir, runs_root),
+        output_dir=relative_to_root(output_dir, runs_root),
     )
 
 

@@ -278,8 +278,9 @@ def test_optimizer_studio_style_runs_write_under_runs_root(
     assert resp.status_code == 202, resp.text
     job = _await_optimizer_job(client, resp.json()["run_id"])
     assert job["status"] == "completed"
-    assert Path(job["output_dir"]).parent == runs_root
-    assert (Path(job["output_dir"]) / "optimizer_results.json").is_file()
+    # Named relative to the runs root: no server directory in the response.
+    assert Path(job["output_dir"]).parent == Path(".")
+    assert (runs_root / job["output_dir"] / "optimizer_results.json").is_file()
 
     # Studio's advanced overrides: relative to the runs root, or absolute in it.
     for field, value in (
@@ -291,7 +292,8 @@ def test_optimizer_studio_style_runs_write_under_runs_root(
             json={"spec": _spec(), "max_runs": 2, field: value},
         )
         assert resp.status_code == 202, resp.text
-        assert Path(resp.json()[field]) == runs_root / Path(value).name
+        assert resp.json()[field] == Path(value).name
+        assert str(runs_root) not in resp.text
         _await_optimizer_job(client, resp.json()["run_id"])
 
     # Workspace baseline: the caller's config_path is ignored, output stays put.
@@ -310,7 +312,7 @@ def test_optimizer_studio_style_runs_write_under_runs_root(
     assert ws_resp.status_code == 202, ws_resp.text
     ws_job = _await_optimizer_job(client, ws_resp.json()["run_id"])
     assert ws_job["status"] == "completed"
-    assert Path(ws_job["output_dir"]).parent == runs_root
+    assert Path(ws_job["output_dir"]).parent == Path(".")
 
 
 def test_optimizer_rejects_non_uuid_workspace_id(sandbox: dict[str, Any]) -> None:
@@ -625,10 +627,20 @@ def test_ensembles_discover_confines_root_and_skips_escaping_symlinks(
 
     default_resp = client.get("/api/ensembles/discover")
     assert default_resp.status_code == 200
-    found_paths = [
-        Path(item["database_path"]).resolve() for item in default_resp.json()
+    # Listed relative to the root that holds it; the reader takes it back.
+    assert [item["database_path"] for item in default_resp.json()] == [
+        "good/ensemble.duckdb"
     ]
-    assert found_paths == [legit_db.resolve()]
+    assert str(ensembles_root) not in default_resp.text
+    read_back = client.get(
+        "/api/ensembles/distributions",
+        params={
+            "database": "good/ensemble.duckdb",
+            "ensemble_scenario_id": "baseline",
+            "ensemble_id": "ens-1",
+        },
+    )
+    assert read_back.status_code == 200, read_back.text
 
     # Workspace ensemble output directory is allowed.
     ws_job_dir = workspaces_root / "ws-1" / "ensembles" / "ens_000000000001"

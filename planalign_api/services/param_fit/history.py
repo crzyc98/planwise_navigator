@@ -33,6 +33,7 @@ from planalign_fit.snapshots import (
     load_snapshots,
 )
 
+from ..client_paths import redact_server_paths
 from ...models.param_fit import HistorySet, SnapshotInfo, SplitOption, SplitPreview
 
 HISTORY_DIRNAME = "fit_history"
@@ -228,6 +229,4 @@ def safe_upload_names(filenames: Sequence[str]) -> list[str]:
 
 def _strip_paths(message: str, files_dir: Path) -> str:
     """Never echo server paths back to the client."""
-    return message.replace(str(files_dir.resolve()), "upload").replace(
-        str(files_dir), "upload"
-    )
+    return redact_server_paths(message, ((files_dir, "upload"),))

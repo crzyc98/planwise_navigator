@@ -41,9 +41,37 @@ from .census_schema import (
     census_date_order_is_ambiguous,
     matching_census_date_formats,
 )
+from .client_paths import redact_server_paths
+from .mapping_engine import MAX_EXAMPLE_ROWS, row_numbers
 from .path_guard import resolve_child_path, resolve_workspace_file_path
 
 logger = logging.getLogger(__name__)
+
+
+def _failing_rows(
+    conn: duckdb.DuckDBPyConnection, where: str, params: Sequence[str]
+) -> tuple[int, str]:
+    """How many census rows match ``where``, and the first few as row numbers.
+
+    Rows are named by their position in the uploaded file (1 is the first
+    data row), never by cell value, matching the mapped-import messages.
+    """
+    count = int(
+        _fetchone_scalar(
+            conn.execute(f"SELECT COUNT(*) FROM census WHERE {where}", list(params))
+        )
+    )
+    if not count:
+        return 0, ""
+    positions = [
+        int(row[0])
+        for row in conn.execute(
+            f"SELECT rowid FROM census WHERE {where} "
+            f"ORDER BY rowid LIMIT {MAX_EXAMPLE_ROWS}",
+            list(params),
+        ).fetchall()
+    ]
+    return count, row_numbers(positions, count)
 
 
 def _fetchone_scalar(cursor: duckdb.DuckDBPyConnection) -> Any:
@@ -234,7 +262,7 @@ class FileService:
         except Exception as e:
             # Clean up file if validation fails
             canonical_path.unlink(missing_ok=True)
-            raise ValueError(f"Failed to parse file: {e}")
+            raise ValueError(f"Failed to parse file: {redact_server_paths(str(e))}")
 
         # Add normalization info to metadata
         metadata["column_renames"] = column_renames
@@ -374,19 +402,16 @@ class FileService:
         for column in self.BOOLEAN_COLUMNS:
             if column not in columns:
                 continue
-            invalid_rows = conn.execute(
-                f'SELECT LOWER(TRIM(CAST("{column}" AS VARCHAR))) AS value, COUNT(*) '
-                f"FROM census WHERE NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '') IS NOT NULL "
-                f'AND LOWER(TRIM(CAST("{column}" AS VARCHAR))) NOT IN ({placeholders}) '
-                "GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT 5",
+            invalid_count, rows = _failing_rows(
+                conn,
+                f"NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '') IS NOT NULL "
+                f'AND LOWER(TRIM(CAST("{column}" AS VARCHAR))) NOT IN ({placeholders})',
                 accepted,
-            ).fetchall()
-            if invalid_rows:
-                invalid_count = sum(int(row[1]) for row in invalid_rows)
-                examples = ", ".join(repr(row[0]) for row in invalid_rows)
+            )
+            if invalid_count:
                 raise ValueError(
-                    f"Column {column!r} contains at least {invalid_count} unsupported "
-                    f"boolean value(s), including {examples}. Use true/false, t/f, "
+                    f"Column {column!r} contains {invalid_count} unsupported "
+                    f"boolean value(s) ({rows}). Use true/false, t/f, "
                     "1/0, yes/no, y/n, or active/inactive."
                 )
 
@@ -546,25 +571,12 @@ class FileService:
             f"AND TRIM(CAST(\"{column}\" AS VARCHAR)) <> '' "
             f"AND {parsed_expression} IS NULL"
         )
-        invalid_count = int(
-            _fetchone_scalar(
-                conn.execute(
-                    f"SELECT COUNT(*) FROM census WHERE {invalid_clause}",
-                    query_params,
-                )
-            )
-        )
+        invalid_count, rows = _failing_rows(conn, invalid_clause, query_params)
         if not invalid_count:
             return
-        examples = conn.execute(
-            f'SELECT DISTINCT CAST("{column}" AS VARCHAR) FROM census '
-            f"WHERE {invalid_clause} ORDER BY 1 LIMIT 5",
-            query_params,
-        ).fetchall()
-        rendered = ", ".join(repr(row[0]) for row in examples)
         raise ValueError(
             f"Column {column!r} contains {invalid_count} value(s) that cannot be "
-            f"parsed as {expected_type}, including {rendered}."
+            f"parsed as {expected_type} ({rows})."
         )
 
     @staticmethod
@@ -705,7 +717,7 @@ class FileService:
         except ValueError:
             raise
         except Exception as e:
-            raise ValueError(f"Failed to read file: {e}")
+            raise ValueError(f"Failed to read file: {redact_server_paths(str(e))}")
         finally:
             conn.close()
 
@@ -965,7 +977,7 @@ class FileService:
                 "valid": False,
                 "exists": True,
                 "readable": False,
-                "error_message": f"Failed to read file: {e}",
+                "error_message": f"Failed to read file: {redact_server_paths(str(e))}",
             }
 
     def list_workspace_files(self, workspace_id: str) -> List[Dict]:

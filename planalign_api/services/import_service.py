@@ -18,6 +18,7 @@ from planalign_orchestrator.census_hourly_rate import summarize_hourly_rates
 
 from ..config import get_settings
 from ..errors import sanitize_job_error
+from .client_paths import relative_to_root
 from ..models.files import CensusHourlyRateSummary
 from ..models.imports import (
     DetectedColumn,
@@ -648,6 +649,16 @@ class ImportService:
         return resolve_workspace_parquet_path(
             self._ws_path(workspace_id), pf, reroot=reroot, must_exist=must_exist
         )
+
+    def client_view(self, workspace_id: str, pf: ParquetFile) -> ParquetFile:
+        """The record as a client sees it: its path relative to the workspace.
+
+        The index keeps absolute paths; a response must not carry them.
+        """
+        workspace = self._ws_path(workspace_id)
+        resolved = self.resolve_parquet_path(workspace_id, pf, must_exist=False)
+        shown = relative_to_root(resolved or pf.storage_path, workspace)
+        return pf.model_copy(update={"storage_path": shown})
 
     def delete_parquet_file(
         self, workspace_id: str, file_id: str, user: str = "system"

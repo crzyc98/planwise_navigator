@@ -29,6 +29,7 @@ import duckdb
 from planalign_ensemble.progress import ENV_FLAG, parse_progress_line
 
 from ...errors import sanitize_job_error
+from ..client_paths import redact_server_paths
 from ...models.ensemble_job import (
     MIN_SEED_COUNT,
     EnsembleError,
@@ -435,10 +436,7 @@ def _last_message(tail: deque[str]) -> str:
 
 def _redact(message: str, paths: JobPaths) -> str:
     """Keep server paths out of messages that reach a client."""
-    job_dir = paths.work_dir.parent
-    for path in (job_dir.resolve(), job_dir):
-        message = message.replace(str(path), "<ensemble>")
-    return message
+    return redact_server_paths(message, ((paths.work_dir.parent, "<ensemble>"),))
 
 
 def _succeeded(output: EnsembleOutput, partial: bool) -> JobMark:

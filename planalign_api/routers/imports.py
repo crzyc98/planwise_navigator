@@ -791,7 +791,7 @@ def generate_parquet(
         correlation_id=session.correlation_id,
         status="completed",
         started_at=started_at,
-        storage_path=parquet_file.storage_path,
+        storage_path=service.client_view(workspace_id, parquet_file).storage_path,
         census_path_set=census_path_set,
     )
 
@@ -815,7 +815,8 @@ def list_parquet_files(
     files = service.list_parquet_files(workspace_id)
     files_sorted = sorted(files, key=lambda f: f.created_at, reverse=True)
     return ParquetFilesResponse(
-        parquet_files=files_sorted, total_count=len(files_sorted)
+        parquet_files=[service.client_view(workspace_id, f) for f in files_sorted],
+        total_count=len(files_sorted),
     )
 
 
@@ -861,7 +862,7 @@ def set_parquet_census_as_of_date(
     resolved = service.resolve_parquet_path(workspace_id, pf)
     if resolved is not None and is_active_census(storage, workspace_id, str(resolved)):
         set_active_census_as_of(storage, workspace_id, pf.census_as_of_date)
-    return pf
+    return service.client_view(workspace_id, pf)
 
 
 @router.delete(
