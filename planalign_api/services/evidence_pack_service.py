@@ -32,6 +32,7 @@ from ..config import get_settings
 from ..models.comparison import ConfigDelta
 from ..storage.workspace_storage import WorkspaceStorage
 from .config_diff_service import ConfigDiffService, diff_configs, shown_differences
+from .setting_mirrors import fold_mirrored
 from .database_path_resolver import create_api_database_path_resolver
 from .provenance.locator import (
     ArchiveUnstableError,
@@ -262,7 +263,7 @@ def get_cross_scenario_evidence_pack(
                 value_b=_config_value(delta.b),
                 status=delta.status,
             )
-            for delta in shown_differences(deltas)
+            for delta in fold_mirrored(shown_differences(deltas))
         ),
         warnings=_labelled("Scenario A", side_a.warnings)
         + _labelled("Scenario B", side_b.warnings)
