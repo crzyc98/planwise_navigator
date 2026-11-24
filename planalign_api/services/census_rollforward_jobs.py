@@ -31,6 +31,7 @@ from ..models.census_rollforward import (
 )
 from ..storage.workspace_storage import WorkspaceStorage
 from .census_activation import activate_census
+from .client_paths import relative_to_root
 from .import_service import ImportService
 from .simulation.run_execution import (
     build_env,
@@ -145,8 +146,8 @@ async def run_job(storage: WorkspaceStorage, job_id: str) -> None:
     async with simulation_slot():
         job = _update(job_id, status="running")
         try:
-            summary = await _roll_forward(storage, job)
-            _activate(storage, job.workspace_id, summary)
+            summary, census = await _roll_forward(storage, job)
+            _activate(storage, job.workspace_id, summary, census)
         except Exception:
             _update(
                 job_id,
@@ -197,8 +198,12 @@ def _census_path(
 
 async def _roll_forward(
     storage: WorkspaceStorage, job: RollForwardJob
-) -> RollForwardSummary:
-    """Run the roll-forward CLI in an isolated run directory."""
+) -> tuple[RollForwardSummary, Path]:
+    """Run the roll-forward CLI in an isolated run directory.
+
+    Returns the summary, which names the bridge census relative to the
+    workspace, and where that census is on disk.
+    """
     config = _workspace_config(storage, job.workspace_id)
     try:
         census = _census_path(storage, job.workspace_id, config)
@@ -224,7 +229,8 @@ async def _roll_forward(
         final = workspace_dir / "data" / f"census_bridge_{job.bridge_year}.parquet"
         final.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(work / "bridge.parquet"), final)
-        return summary.model_copy(update={"census_path": str(final)})
+        shown = relative_to_root(final, workspace_dir)
+        return summary.model_copy(update={"census_path": shown}), final
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -276,10 +282,12 @@ async def run_cli(command: List[str], env: Dict[str, str]) -> None:
 
 
 def _activate(
-    storage: WorkspaceStorage, workspace_id: str, summary: RollForwardSummary
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    summary: RollForwardSummary,
+    path: Path,
 ) -> None:
     """Make the bridge census the workspace census and list it in Imported Files."""
-    path = Path(summary.census_path)
     # The bridge census describes the workforce at the end of the bridge year.
     if not activate_census(storage, workspace_id, str(path), _bridge_as_of(summary)):
         raise RuntimeError(f"Could not set the census for workspace {workspace_id}")

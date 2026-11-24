@@ -21,7 +21,9 @@ class RollForwardSummary(APIModel):
     simulated_employees: int = Field(
         ..., description="Bridge census employees the simulation hired"
     )
-    census_path: str = Field(..., description="The saved bridge census")
+    census_path: str = Field(
+        ..., description="The saved bridge census, relative to the workspace"
+    )
 
 
 class RollForwardJob(APIModel):

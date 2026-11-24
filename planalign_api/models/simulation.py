@@ -488,7 +488,7 @@ class RunDetails(APIModel):
 
     # E087: Storage location info
     storage_path: Optional[str] = Field(
-        None, description="Scenario storage directory path"
+        None, description="Scenario directory, relative to the workspace"
     )
 
     class Config:

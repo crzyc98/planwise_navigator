@@ -101,7 +101,8 @@ class TestBooleanNormalization:
             file_service.save_uploaded_file(workspace_id, content, "invalid-active.csv")
 
         assert "'active'" in str(exc_info.value)
-        assert "'sometimes'" in str(exc_info.value)
+        assert "row 1" in str(exc_info.value)
+        assert "sometimes" not in str(exc_info.value)
         assert not (workspace_root / workspace_id / "data" / "census.parquet").exists()
 
 
@@ -164,7 +165,8 @@ class TestCanonicalTypeNormalization:
             file_service.save_uploaded_file(workspace_id, content, "invalid-number.csv")
 
         assert "'employee_gross_compensation'" in str(exc_info.value)
-        assert "'competitive'" in str(exc_info.value)
+        assert "row 1" in str(exc_info.value)
+        assert "competitive" not in str(exc_info.value)
 
     @pytest.mark.parametrize("sql_type", ["DATE", "TIMESTAMP", "TIMESTAMPTZ"])
     def test_native_parquet_dates_are_accepted(
@@ -919,7 +921,8 @@ class TestDataQualityDates:
             file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
         assert "'employee_hire_date'" in str(exc_info.value)
-        assert "'not-a-date'" in str(exc_info.value)
+        assert "row 1" in str(exc_info.value)
+        assert "not-a-date" not in str(exc_info.value)
 
 
 # =============================================================================

@@ -42,6 +42,7 @@ from ..services.run_health import TieOutLoader, build_run_health, with_census_ti
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
 from ..services.artifact_tickets import create_artifact_ticket
+from ..services.client_paths import redact_server_paths, relative_to_root
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
 router = APIRouter()
@@ -650,7 +651,7 @@ def get_run(
         participation_rate=metadata.get("participation_rate"),
         config=config,
         artifacts=sorted(artifacts, key=lambda a: a.name),
-        error_message=metadata.get("error_message"),
+        error_message=_shown_error(metadata.get("error_message")),
     )
 
 
@@ -836,6 +837,11 @@ def _tie_out_loader(
     return load
 
 
+def _shown_error(message: Optional[str]) -> Optional[str]:
+    """A stored failure message, relabelled in case it predates redaction."""
+    return redact_server_paths(message) if message else message
+
+
 def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
     """Read simulation.log and return a list of SimulationLogLine objects."""
     from datetime import datetime, timezone
@@ -868,7 +874,13 @@ def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
             msg = raw_line
 
         lines.append(
-            SimulationLogLine(sequence=seq, timestamp=ts, severity=sev, message=msg)
+            SimulationLogLine(
+                sequence=seq,
+                timestamp=ts,
+                severity=sev,
+                # Logs written before lines were redacted at the source.
+                message=redact_server_paths(msg),
+            )
         )
 
     return lines
@@ -1121,7 +1133,7 @@ def get_run_details(
             duration_seconds = run_metadata.get("duration_seconds")
             total_events = run_metadata.get("events_generated")
             final_headcount_from_metadata = run_metadata.get("final_headcount")
-            error_message = run_metadata.get("error_message")
+            error_message = _shown_error(run_metadata.get("error_message"))
             if run_metadata.get("started_at"):
                 started_at = datetime.fromisoformat(run_metadata["started_at"])
             if run_metadata.get("completed_at"):
@@ -1183,7 +1195,11 @@ def get_run_details(
             config=config,
             artifacts=artifacts,
             error_message=error_message,
-            storage_path=str(scenario_path) if scenario_path.exists() else None,
+            storage_path=(
+                relative_to_root(scenario_path, storage._workspace_path(workspace.id))
+                if scenario_path.exists()
+                else None
+            ),
         )
     except HTTPException:
         raise

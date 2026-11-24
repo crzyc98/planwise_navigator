@@ -9875,7 +9875,7 @@ export interface components {
             bridge_year: number;
             /**
              * Census Path
-             * @description The saved bridge census
+             * @description The saved bridge census, relative to the workspace
              */
             census_path: string;
             /**
@@ -10044,7 +10044,7 @@ export interface components {
             status: "pending" | "running" | "completed" | "failed" | "cancelled" | "not_run";
             /**
              * Storage Path
-             * @description Scenario storage directory path
+             * @description Scenario directory, relative to the workspace
              */
             storage_path: string | null;
             /**

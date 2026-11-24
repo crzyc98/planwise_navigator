@@ -29,6 +29,7 @@ from planalign_fit.pack import MANIFEST_FILENAME
 from planalign_fit.progress import ENV_FLAG, parse_progress_line
 
 from ...errors import sanitize_job_error
+from ..client_paths import redact_server_paths
 from ...models.param_fit import JobError, JobProgress, ParamFitJob
 from ..child_env import build_child_env
 from ..process_groups import new_session_kwargs, terminate_group, wait_for_group_exit
@@ -483,9 +484,7 @@ def _redact(message: str, paths: JobPaths) -> str:
         (paths.base_config, "base_config.yaml"),
         (paths.seeds_dir, "seeds"),
     )
-    for path, label in replacements:
-        message = message.replace(str(path.resolve()), label).replace(str(path), label)
-    return message
+    return redact_server_paths(message, replacements)
 
 
 def _terminate(process: subprocess.Popen[str]) -> None:

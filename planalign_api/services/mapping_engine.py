@@ -281,7 +281,7 @@ def _strip_currency(series: pd.Series) -> pd.Series:
     return series.apply(_clean)
 
 
-def _row_numbers(positions: list[int], total: int) -> str:
+def row_numbers(positions: list[int], total: int) -> str:
     """Describe failing rows as 1-based data row numbers, never cell values."""
     shown = ", ".join(str(pos + 1) for pos in positions[:MAX_EXAMPLE_ROWS])
     more = ", ..." if total > MAX_EXAMPLE_ROWS else ""
@@ -295,7 +295,7 @@ def _coercion_error(
     positions = np.flatnonzero(invalid_mask.to_numpy(dtype=bool)).tolist()
     return FieldCoercionError(
         f"Column {input_column!r} contains {len(positions)} value(s) that "
-        f"cannot be parsed as {field_type} ({_row_numbers(positions, len(positions))}).",
+        f"cannot be parsed as {field_type} ({row_numbers(positions, len(positions))}).",
         rows_affected=len(positions),
     )
 
@@ -325,7 +325,7 @@ def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
     if invalid:
         raise FieldCoercionError(
             f"Column {input_column!r} contains {len(invalid)} unsupported boolean "
-            f"value(s) ({_row_numbers(invalid, len(invalid))}). Use true/false, "
+            f"value(s) ({row_numbers(invalid, len(invalid))}). Use true/false, "
             "t/f, 1/0, yes/no, y/n, or active/inactive.",
             rows_affected=len(invalid),
         )

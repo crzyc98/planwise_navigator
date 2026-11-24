@@ -19,6 +19,7 @@ from ..database_path_resolver import (
 )
 
 from .log_writer import SimulationLogWriter
+from ..client_paths import redact_server_paths
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
 from .run_archiver import archive_failed_run, archive_run, prune_old_runs
@@ -344,7 +345,7 @@ class SimulationService:
         and archive run metadata so the run (and its logs) appear in run history."""
         was_cancelled = self._process_registry.is_cancelled(run_id)
         terminal_status = "cancelled" if was_cancelled else STATUS_FAILED
-        error_message = None if was_cancelled else str(error)
+        error_message = None if was_cancelled else redact_server_paths(str(error))
         if was_cancelled:
             logger.info(f"Simulation {run_id} cancelled by user")
         else:

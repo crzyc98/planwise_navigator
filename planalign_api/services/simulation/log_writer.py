@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Optional
 
+from ..client_paths import redact_server_paths
+
 logger = logging.getLogger(__name__)
 
 _SEVERITY_MAP = {"error": "ERROR", "warning": "WARNING", "debug": "INFO"}
@@ -50,7 +52,8 @@ class SimulationLogWriter:
         level = _SEVERITY_MAP.get(severity, "INFO")
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
         try:
-            self._file.write(f"{ts} [{level}] {message}\n")
+            # Clients read this file, so server directories are relabelled.
+            self._file.write(f"{ts} [{level}] {redact_server_paths(message)}\n")
             self._file.flush()
         except OSError as exc:
             logger.warning("SimulationLogWriter: write failed — %s", exc)

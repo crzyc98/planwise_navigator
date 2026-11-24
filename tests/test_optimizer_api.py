@@ -140,8 +140,9 @@ def test_run_returns_completed_job_with_candidates(
     assert job["status"] == "completed"
     assert job["result"]["candidates"][0]["candidate_id"] == "candidate-0000"
     assert job["result"]["ranked_feasible"] == ["candidate-0000"]
-    assert Path(job["output_dir"]).exists()
-    assert (Path(job["output_dir"]) / "optimizer_results.json").exists()
+    # Named relative to the optimizer runs root (#1311).
+    assert job["output_dir"] == "db"
+    assert (tmp_path / job["output_dir"] / "optimizer_results.json").exists()
 
 
 def test_run_rejects_invalid_spec_yaml(client) -> None:

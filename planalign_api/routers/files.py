@@ -30,6 +30,7 @@ from ..services.compensation_solver import CompensationSolver, WorkforceDynamics
 from ..services.census_activation import activate_census, prefill_as_of
 from ..services.census_as_of import suggest_census_as_of_date
 from ..services.file_service import FileService
+from ..models.imports import ParquetFile
 from ..services.import_service import ImportService
 from ..services.sql_security import SQLSecurityError
 from ..storage.workspace_storage import WorkspaceStorage
@@ -191,6 +192,22 @@ def _suggested_as_of(census_path: str) -> Optional[date]:
         return suggest_census_as_of_date(conn, "census", "employee_hire_date")
 
 
+def _stored_census_path(
+    workspace_id: str, file_path: str, record: Optional[ParquetFile]
+) -> str:
+    """The census path to keep in the workspace config.
+
+    Imported Files lists paths relative to the workspace. A listed file is
+    stored by its location on disk, as it was before the list hid that.
+    """
+    if record is None:
+        return file_path
+    resolved = ImportService(
+        workspaces_root=get_settings().workspaces_root
+    ).resolve_parquet_path(workspace_id, record)
+    return str(resolved) if resolved is not None else file_path
+
+
 def _register_and_activate_upload(
     workspace_id: str, absolute_path: str, metadata: dict, filename: str
 ) -> tuple[Optional[str], Optional[date]]:
@@ -296,7 +313,7 @@ def set_census_path(
     activate_census(
         storage,
         workspace_id,
-        request.file_path,
+        _stored_census_path(workspace_id, request.file_path, record),
         record.census_as_of_date if record else None,
     )
 

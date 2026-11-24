@@ -126,8 +126,11 @@ def test_roll_forward_saves_lists_and_activates_the_bridge(
     assert job["status"] == "completed"
     assert job["summary"]["hires"] == 12
     bridge = job["summary"]["census_path"]
-    assert bridge.endswith("data/census_bridge_2025.parquet")
-    assert _base_census(tmp_path, workspace_id) == bridge
+    # Responses name the census relative to its workspace (#1311).
+    assert bridge == "data/census_bridge_2025.parquet"
+    assert _base_census(tmp_path, workspace_id) == str(
+        tmp_path / "workspaces" / workspace_id / bridge
+    )
     assert [f["storage_path"] for f in files] == [bridge]
     # The bridge describes the workforce at the end of the bridge year.
     assert [f["census_as_of_date"] for f in files] == ["2025-12-31"]

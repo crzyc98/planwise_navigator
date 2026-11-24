@@ -273,7 +273,7 @@ class TestGenerateParquet:
         )
         assert resp.status_code in (201, 202)
 
-    def test_generated_parquet_readable_by_duckdb(self, client, workspace_id):
+    def test_generated_parquet_readable_by_duckdb(self, client, workspace_id, tmp_path):
         import duckdb
 
         import_id = self._upload_and_map(client, workspace_id)
@@ -290,7 +290,10 @@ class TestGenerateParquet:
             f"/api/workspaces/{workspace_id}/parquet-files"
         ).json()
         assert parquet_files["total_count"] >= 1
-        storage_path = parquet_files["parquet_files"][0]["storage_path"]
+        listed = parquet_files["parquet_files"][0]["storage_path"]
+        # Listed relative to the workspace (#1311).
+        assert listed.startswith("data/imports/")
+        storage_path = str(tmp_path / "workspaces" / workspace_id / listed)
         conn = duckdb.connect(":memory:")
         try:
             count = conn.execute(
