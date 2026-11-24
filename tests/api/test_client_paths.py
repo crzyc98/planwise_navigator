@@ -38,6 +38,9 @@ def test_relative_to_root_inside_and_outside(tmp_path: Path) -> None:
     # Outside the root: only the file name, never the directory.
     assert relative_to_root(tmp_path / "elsewhere" / "x.parquet", root) == "x.parquet"
     assert relative_to_root(r"C:\Users\someone\data\x.parquet", root) == "x.parquet"
+    # ".." never yields a relative path that climbs out of the root.
+    climbing = root / "data" / ".." / ".." / "other" / "x.parquet"
+    assert relative_to_root(climbing, root) == "x.parquet"
 
 
 def test_relative_to_roots_uses_the_containing_root(tmp_path: Path) -> None:
@@ -47,9 +50,7 @@ def test_relative_to_roots_uses_the_containing_root(tmp_path: Path) -> None:
     assert relative_to_roots(database, [first, second]) == (
         "ws/ensembles/job/ensemble.duckdb"
     )
-    assert relative_to_roots(tmp_path / "other" / "e.duckdb", [first, second]) == (
-        "e.duckdb"
-    )
+    assert relative_to_roots(tmp_path / "other" / "e.duckdb", [first, second]) is None
 
 
 def test_redact_labels_each_server_directory() -> None:
@@ -84,6 +85,25 @@ def test_redact_prefers_the_callers_label_and_whole_directories() -> None:
     sibling = f"{PROJECT_ROOT}-old/file.py"
     assert redact_server_paths(sibling).endswith("-old/file.py")
     assert "<app>" not in redact_server_paths(sibling)
+
+
+def test_redact_handles_sentence_ends_and_leaves_other_paths_whole() -> None:
+    home = Path.home()
+
+    assert redact_server_paths(f"Permission denied: {home}. Check it.") == (
+        "Permission denied: <home>. Check it."
+    )
+    tmp = tempfile.gettempdir()
+    # The temp directory's name inside another path is not the temp directory.
+    assert (
+        redact_server_paths(f"/data/elsewhere{tmp}/job") == f"/data/elsewhere{tmp}/job"
+    )
+    assert redact_server_paths(f"{PROJECT_ROOT}{tmp}/x") == f"<app>{tmp}/x"
+
+
+def test_overlong_path_is_refused_not_an_error(tmp_path: Path) -> None:
+    with pytest.raises(PathGuardError):
+        resolve_within_roots("x" * 300, [tmp_path / "a", tmp_path / "b"])
 
 
 def test_imported_file_is_listed_by_workspace_relative_path(tmp_path: Path) -> None:
@@ -190,3 +210,21 @@ def test_census_upload_errors_name_rows_not_values(
     assert "rows 3, 5" in message
     assert bad not in message
     assert str(tmp_path) not in message
+
+
+def test_census_upload_error_survives_a_rowid_column(tmp_path: Path) -> None:
+    csv = (
+        "employee_id,employee_hire_date,employee_gross_compensation,RowID\n"
+        "E1,2020-01-01,50000,A-1\nE2,2020-01-02,SECRET-PAY,C-9\n"
+    )
+    (tmp_path / WORKSPACE_ID).mkdir()
+
+    with pytest.raises(ValueError) as error:
+        FileService(workspaces_root=tmp_path).save_uploaded_file(
+            workspace_id=WORKSPACE_ID, file_content=csv.encode(), filename="c.csv"
+        )
+
+    message = str(error.value)
+    assert "cannot be parsed as a number" in message
+    assert "row numbers unavailable" in message
+    assert "SECRET-PAY" not in message and "C-9" not in message

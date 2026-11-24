@@ -162,15 +162,22 @@ def resolve_within_roots(
         ),
         None,
     )
-    if path.is_absolute() or (first is not None and first.exists()):
+    if path.is_absolute() or (first is not None and _exists(first)):
         return first if first is not None else _refuse()
     for root in allowed_roots:
         found = _within_any_root(root / path, allowed_roots)
-        if found is not None and found.exists():
+        if found is not None and _exists(found):
             return found
     if first is not None:
         return first
     return _refuse()
+
+
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:  # a component too long to stat, for one
+        return False
 
 
 def _refuse() -> NoReturn:

@@ -51,7 +51,7 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
 from ..models.base import APIModel
 from ..models.scenario import Scenario, ScenarioCreate
-from ..services.client_paths import relative_to_root
+from ..services.client_paths import redact_server_paths, relative_to_root
 from ..services.path_guard import (
     PathGuardError,
     require_canonical_uuid,
@@ -199,7 +199,7 @@ def _start_job_thread(
             _update_job(
                 job.run_id,
                 status="failed",
-                error=str(e),
+                error=redact_server_paths(str(e)),
                 error_status=409,
                 completed_at=datetime.now(),
             )

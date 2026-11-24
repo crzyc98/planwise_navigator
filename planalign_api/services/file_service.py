@@ -63,6 +63,10 @@ def _failing_rows(
     )
     if not count:
         return 0, ""
+    names = {str(row[0]).lower() for row in conn.execute("DESCRIBE census").fetchall()}
+    if "rowid" in names:
+        # The file's own rowid column hides the row position.
+        return count, "row numbers unavailable: the file has a rowid column"
     positions = [
         int(row[0])
         for row in conn.execute(

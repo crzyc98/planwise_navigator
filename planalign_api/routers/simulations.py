@@ -651,7 +651,7 @@ def get_run(
         participation_rate=metadata.get("participation_rate"),
         config=config,
         artifacts=sorted(artifacts, key=lambda a: a.name),
-        error_message=metadata.get("error_message"),
+        error_message=_shown_error(metadata.get("error_message")),
     )
 
 
@@ -835,6 +835,11 @@ def _tie_out_loader(
         )
 
     return load
+
+
+def _shown_error(message: Optional[str]) -> Optional[str]:
+    """A stored failure message, relabelled in case it predates redaction."""
+    return redact_server_paths(message) if message else message
 
 
 def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
@@ -1128,7 +1133,7 @@ def get_run_details(
             duration_seconds = run_metadata.get("duration_seconds")
             total_events = run_metadata.get("events_generated")
             final_headcount_from_metadata = run_metadata.get("final_headcount")
-            error_message = run_metadata.get("error_message")
+            error_message = _shown_error(run_metadata.get("error_message"))
             if run_metadata.get("started_at"):
                 started_at = datetime.fromisoformat(run_metadata["started_at"])
             if run_metadata.get("completed_at"):

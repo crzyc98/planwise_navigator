@@ -83,7 +83,10 @@ def discover_ensembles(
         raise HTTPException(status_code=404, detail=_ROOT_NOT_FOUND) from exc
     return [
         summary.model_copy(
-            update={"database_path": relative_to_roots(summary.database_path, roots)}
+            update={
+                "database_path": relative_to_roots(summary.database_path, roots)
+                or Path(summary.database_path).name
+            }
         )
         for summary in found
     ]
@@ -243,11 +246,15 @@ def _job_errors() -> Iterator[None]:
 
 
 def _client_job(job: EnsembleJob, settings: APISettings) -> EnsembleJob:
-    """The job as a client sees it: its database relative to an ensemble root."""
+    """The job as a client sees it: its database relative to an ensemble root.
+
+    A database no longer under any root can't be read through the API, so
+    the job is shown without output and no other file is opened in its place.
+    """
     if job.output is None:
         return job
     shown = relative_to_roots(job.output.database_path, settings.ensemble_roots)
-    output = job.output.model_copy(update={"database_path": shown})
+    output = job.output.model_copy(update={"database_path": shown}) if shown else None
     return job.model_copy(update={"output": output})
 
 
