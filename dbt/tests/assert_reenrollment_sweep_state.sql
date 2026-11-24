@@ -29,6 +29,6 @@ LEFT JOIN {{ ref('int_enrollment_state_accumulator') }} enrollment
   USING (employee_id, scenario_id, simulation_year)
 LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} deferral
   USING (employee_id, scenario_id, simulation_year)
-WHERE enrollment.enrollment_status IS DISTINCT FROM NOT e.opted_out
-  OR deferral.is_enrolled_flag IS DISTINCT FROM NOT e.opted_out
+WHERE enrollment.enrollment_status IS DISTINCT FROM (NOT e.opted_out)
+  OR deferral.is_enrolled_flag IS DISTINCT FROM (NOT e.opted_out)
   OR deferral.current_deferral_rate IS DISTINCT FROM e.employee_deferral_rate
