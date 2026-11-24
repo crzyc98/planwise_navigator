@@ -184,6 +184,22 @@ def test_comparison_treats_removed_acquisitions_as_none():
     )
 
 
+def test_comparison_reads_acquisitions_in_a_section_only_one_run_has():
+    """A run config without a workforce section still compares per setting."""
+    base = RunRecord(scenario_id="base", name="base", has_run_record=True, config={})
+    renamed = [{**item, "name": "Renamed"} for item in ACQUISITIONS]
+
+    def reasons(scenario: dict[str, Any]) -> list[Any]:
+        other = RunRecord(
+            scenario_id="x", name="x", has_run_record=True, config=scenario
+        )
+        return compare_records(base, other).reasons
+
+    assert reasons({"workforce": {"acquisitions": []}}) == []
+    [reason] = reasons({"workforce": {"acquisitions": renamed}})
+    assert reason.path == "workforce.acquisitions"
+
+
 def test_comparison_ignores_acquisition_names():
     renamed = [{**item, "name": f"{item['name']} (renamed)"} for item in ACQUISITIONS]
     assert (

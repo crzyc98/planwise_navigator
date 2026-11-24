@@ -72,7 +72,9 @@ def test_api_cites_config_differences_and_flags_census_mismatch(
     config_b = b.run_dir / "config.yaml"
     config_b.write_text(
         config_b.read_text(encoding="utf-8")
-        + "setup:\n  census_parquet_path: data/other_census.parquet\n",
+        + "setup:\n  census_parquet_path: data/other_census.parquet\n"
+        + "dc_plan:\n  core_enabled: true\n"
+        + "storage:\n  keep_runs: 5\n",
         encoding="utf-8",
     )
     client = client_factory(None)
@@ -80,17 +82,22 @@ def test_api_cites_config_differences_and_flags_census_mismatch(
     payload = client.get(_url(a.workspace_id), params=_params()).json()
 
     differences = {d["path"]: d for d in payload["pack"]["config_differences"]}
-    setup = differences["setup"]
-    assert setup["value_a"] is None
-    assert "data/other_census.parquet" in setup["value_b"]
-    assert setup["status"] == "only_b"
+    # A setting only B saved is a difference; housekeeping and the census path
+    # (checked by its own warning) are not cited.
+    assert list(differences) == ["dc_plan.core_enabled"]
+    assert differences["dc_plan.core_enabled"] == {
+        "path": "dc_plan.core_enabled",
+        "value_a": None,
+        "value_b": "true",
+        "status": "only_b",
+    }
     codes = {w["code"]: w for w in payload["pack"]["warnings"]}
     assert codes["census_mismatch"]["severity"] == "caution"
-    unrecorded = payload["text_export"].split(
-        "### Recorded in only one run's configuration"
-    )
-    assert len(unrecorded) == 2, "one-sided settings belong in their own subsection"
-    assert "| `setup` |" in unrecorded[1]
+    text = payload["text_export"]
+    assert "Recorded in only one run" not in text
+    assert "| `dc_plan.core_enabled` | Not set | `true` | Only in B |" in text
+    assert "keep_runs" not in text
+    assert "other_census" not in text.split("## Configuration differences")[1]
 
 
 def _write_workspace(scenario) -> None:

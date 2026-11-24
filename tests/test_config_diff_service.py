@@ -61,6 +61,61 @@ def test_null_and_unrecorded_keys_are_not_differences() -> None:
     assert result.unchanged_count == 2
 
 
+def test_empty_list_means_unset_only_where_the_engine_says_so() -> None:
+    """Studio saves [] after every minimum wage step or acquisition is removed;
+    the engine reads that as none. An emptied schedule elsewhere still differs."""
+    configs = {
+        "a": {
+            "compensation": {"minimum_wage": []},
+            "workforce": {"acquisitions": []},
+            "dc_plan": {"core_age_schedule": []},
+        },
+        "b": {"compensation": {}, "workforce": {"acquisitions": None}, "dc_plan": {}},
+    }
+    result = _service(configs).compare("ws", "a", "b", {"a": "A", "b": "B"})
+    assert [(d.path, d.status) for d in result.differences] == [
+        ("dc_plan.core_age_schedule", "only_a")
+    ]
+    assert result.unchanged_count == 2
+
+
+def test_a_section_only_one_run_has_is_diffed_per_setting() -> None:
+    """One-sided sections become leaf rows, so the leaf rules still apply."""
+    configs = {
+        "a": {
+            "workforce": {"acquisitions": []},
+            "dc_plan": {"core_enabled": True, "nested": {"rate": 0.5}},
+            "empty": {},
+        },
+        "b": {},
+    }
+    result = _service(configs).compare("ws", "a", "b", {"a": "A", "b": "B"})
+    assert [(d.path, d.status, d.a, d.b) for d in result.differences] == [
+        ("dc_plan.core_enabled", "only_a", True, None),
+        ("dc_plan.nested.rate", "only_a", 0.5, None),
+    ]
+
+
+def test_settings_that_cannot_change_results_are_hidden_only_when_one_sided() -> None:
+    """Housekeeping and separately checked keys one run lacks are not shown;
+    the same keys recorded by both runs still show when they differ."""
+    configs = {
+        "a": {
+            "setup": {"census_parquet_path": "/runs/a/census.parquet"},
+            "storage": {"keep_runs": 5},
+            "advanced": {"log_level": "DEBUG", "engine": "polars"},
+            "param_pack": {"pack_id": "p1"},
+        },
+        "b": {"advanced": {"log_level": "INFO"}},
+    }
+    result = _service(configs).compare("ws", "a", "b", {"a": "A", "b": "B"})
+    assert [(d.path, d.status) for d in result.differences] == [
+        ("advanced.engine", "only_a"),
+        ("advanced.log_level", "changed"),
+        ("param_pack.pack_id", "only_a"),
+    ]
+
+
 def test_identical_effective_configs_have_no_differences() -> None:
     config = {"simulation": {"growth": 0.03}}
     result = _service({"a": config, "b": config}).compare(

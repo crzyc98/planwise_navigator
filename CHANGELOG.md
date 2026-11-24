@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Scenario Diff, its evidence panel and the exported evidence pack now count a setting that only one scenario sets as a change, shown as "Not set" on the other side. Studio saves only the settings you edit, so these were often real differences, but they sat in a collapsed "recorded in only one run's config" list that said the other value was unknown, and the page could say "No effective settings differ" when scenarios did differ. That list is gone. Housekeeping settings that can't change results (such as log level and storage), and the census path and seed that are checked separately, are left out when only one run has them, and an empty minimum wage or acquisitions list still counts as none.
 - Census deferral rates above 75% are no longer lowered to 75% before auto-escalation and match response read them. Contributions already used the census rate, so results change only when the escalation cap or a match threshold is above 75%. Before this fix, a 95% saver under a 98% escalation cap was escalated from 75% instead of 95%.
 - The server no longer risks waiting forever for a finished background job whose leftover process cannot be cleaned up; it logs a warning and moves on.
 - Scenario and workspace settings are now checked more strictly before a run; values of the wrong type are rejected with a clear message.

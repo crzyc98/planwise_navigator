@@ -31,7 +31,7 @@ from planalign_evidence.service import (
 from ..config import get_settings
 from ..models.comparison import ConfigDelta
 from ..storage.workspace_storage import WorkspaceStorage
-from .config_diff_service import ConfigDiffService
+from .config_diff_service import ConfigDiffService, diff_configs, shown_differences
 from .database_path_resolver import create_api_database_path_resolver
 from .provenance.locator import (
     ArchiveUnstableError,
@@ -170,16 +170,19 @@ def _config_value(value: Any) -> str | None:
 def _config_deltas(
     storage: WorkspaceStorage, workspace_id: str, scenario_a: str, scenario_b: str
 ) -> list[ConfigDelta]:
-    """Diff the configs archived with each selected run (the ones that produced it)."""
+    """Diff the configs archived with each selected run (the ones that produced it).
+
+    Every difference, including ones the cited list leaves out (the census path
+    is checked here even when only one run recorded it)."""
+    service = ConfigDiffService(storage)
     try:
-        diff = ConfigDiffService(storage).compare(
-            workspace_id, scenario_a, scenario_b, {}
-        )
+        config_a = service.get_effective_config(workspace_id, scenario_a)
+        config_b = service.get_effective_config(workspace_id, scenario_b)
     except ValueError as exc:
         raise UnsupportedEvidenceError(
             f"{exc}, so the configuration differences behind this comparison cannot be cited"
         ) from exc
-    return diff.differences
+    return diff_configs(config_a, config_b)[0]
 
 
 def _nested(value: Any, keys: list[str]) -> Any:
@@ -259,7 +262,7 @@ def get_cross_scenario_evidence_pack(
                 value_b=_config_value(delta.b),
                 status=delta.status,
             )
-            for delta in deltas
+            for delta in shown_differences(deltas)
         ),
         warnings=_labelled("Scenario A", side_a.warnings)
         + _labelled("Scenario B", side_b.warnings)
