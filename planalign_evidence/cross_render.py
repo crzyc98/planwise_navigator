@@ -36,37 +36,33 @@ def _provenance(label: str, provenance: PackProvenance) -> list[str]:
 
 
 _STATUS_LABELS = {"changed": "Changed", "only_a": "Only in A", "only_b": "Only in B"}
-UNRECORDED_NOTE = (
-    "These settings appear in only one run's saved configuration, usually because "
-    "the other run was produced by an earlier build that did not record them. Its "
-    "effective value is unknown, so they are listed separately rather than counted "
-    "as differences."
-)
+# Studio saves only the settings an analyst edits, so a setting missing from
+# one run's config is still a difference; that side is shown as not set.
+_MISSING_SIDE = {"only_a": "b", "only_b": "a"}
 
 
-def _config_table(differences: list[ConfigDifference]) -> list[str]:
-    rows = ["| Path | Scenario A | Scenario B | Status |", "| --- | --- | --- | --- |"]
-    for item in differences:
-        value_a = "—" if item.value_a is None else f"`{item.value_a}`"
-        value_b = "—" if item.value_b is None else f"`{item.value_b}`"
-        rows.append(
-            f"| `{item.path}` | {value_a} | {value_b} | {_STATUS_LABELS[item.status]} |"
-        )
-    return rows
+def _cell(item: ConfigDifference, side: str) -> str:
+    value = item.value_a if side == "a" else item.value_b
+    if value is not None:
+        return f"`{value}`"
+    return "Not set" if _MISSING_SIDE.get(item.status) == side else "—"
 
 
 def _config_lines(differences: tuple[ConfigDifference, ...]) -> list[str]:
-    changed = [item for item in differences if item.status == "changed"]
-    unrecorded = [item for item in differences if item.status != "changed"]
     lines = ["## Configuration differences", ""]
+    if not differences:
+        lines.append(
+            "No effective configuration differences between the selected runs."
+        )
+        return lines
     lines.extend(
-        _config_table(changed)
-        if changed
-        else ["No effective configuration differences between the selected runs."]
+        ["| Path | Scenario A | Scenario B | Status |", "| --- | --- | --- | --- |"]
     )
-    if unrecorded:
-        lines.extend(["", "### Recorded in only one run's configuration", ""])
-        lines.extend([UNRECORDED_NOTE, "", *_config_table(unrecorded)])
+    for item in differences:
+        lines.append(
+            f"| `{item.path}` | {_cell(item, 'a')} | {_cell(item, 'b')} | "
+            f"{_STATUS_LABELS[item.status]} |"
+        )
     return lines
 
 

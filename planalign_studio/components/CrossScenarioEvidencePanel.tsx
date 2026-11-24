@@ -8,7 +8,7 @@ import {
   getCrossScenarioEvidencePack,
 } from '../services/api';
 import { EVIDENCE_METRICS, FigureValue } from './EvidencePackPanel';
-import { splitConfigDeltas, UNRECORDED_NOTE } from './configDiff';
+import { unsetLabel } from './configDiff';
 
 type PackWarning = CrossScenarioEvidencePackEnvelope['pack']['warnings'][number];
 
@@ -32,11 +32,10 @@ export function citationLabel(figure: Pick<CrossScenarioFigure, 'citations'>): s
   return figure.citations.map(citation => `${citation.query_id}.${citation.result_column}`).join(', ');
 }
 
-export function differencesSummary(changed: number, unrecorded = 0): string {
-  const head = changed === 0
+export function differencesSummary(count: number): string {
+  return count === 0
     ? 'No configuration differences cited'
-    : `${changed} configuration difference${changed === 1 ? '' : 's'} cited`;
-  return unrecorded === 0 ? head : `${head} (+${unrecorded} recorded in only one run)`;
+    : `${count} configuration difference${count === 1 ? '' : 's'} cited`;
 }
 
 function WarningBanner({ warning }: { warning: PackWarning }) {
@@ -66,7 +65,7 @@ function Citations({ figure }: { figure: CrossScenarioFigure }) {
 function PackBody({ envelope, nameA, nameB }: { envelope: CrossScenarioEvidencePackEnvelope; nameA: string; nameB: string }) {
   const { pack } = envelope;
   const { change, residual } = pack;
-  const { changed, unrecorded } = splitConfigDeltas(pack.config_differences ?? []);
+  const differences = pack.config_differences ?? [];
   return (
     <div className="space-y-4">
       {(pack.warnings ?? []).map((warning, index) => <WarningBanner key={`${warning.code}-${index}`} warning={warning} />)}
@@ -87,20 +86,11 @@ function PackBody({ envelope, nameA, nameB }: { envelope: CrossScenarioEvidenceP
       </div>
       <details className="rounded-lg border border-border bg-surface-raised p-4 text-sm">
         <summary className="cursor-pointer font-semibold text-ink">
-          {differencesSummary(changed.length, unrecorded.length)}
+          {differencesSummary(differences.length)}
         </summary>
         <ul className="mt-2 space-y-1 text-ink-muted">
-          {changed.map(item => <li key={item.path}><code>{item.path}</code>: {item.value_a ?? '—'} → {item.value_b ?? '—'}</li>)}
+          {differences.map(item => <li key={item.path}><code>{item.path}</code>: {unsetLabel(item, 'a') ?? item.value_a ?? '—'} → {unsetLabel(item, 'b') ?? item.value_b ?? '—'}</li>)}
         </ul>
-        {unrecorded.length > 0 && (
-          <div className="mt-3">
-            <p className="font-medium text-ink">Recorded in only one run&apos;s config</p>
-            <p className="mt-1 text-xs text-ink-muted">{UNRECORDED_NOTE}</p>
-            <ul className="mt-2 space-y-1 text-ink-muted">
-              {unrecorded.map(item => <li key={item.path}><code>{item.path}</code>: {item.value_a ?? '—'} → {item.value_b ?? '—'}</li>)}
-            </ul>
-          </div>
-        )}
       </details>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface-raised">
         <table className="w-full text-left text-sm">

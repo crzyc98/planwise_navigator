@@ -46,6 +46,7 @@ from ..models.provenance import RunProvenanceManifest
 from ..models.workspace import Workspace
 from ..storage.workspace_storage import WorkspaceStorage
 from .config_diff_service import diff_configs
+from .config_paths import ignored_delta, matches
 from .database_path_resolver import (
     DatabasePathResolver,
     ResolvedDatabasePath,
@@ -139,40 +140,6 @@ CONFIG_GROUP_PREFIXES: dict[str, ConfigGroup] = {
     "eligibility.new_hire_eligibility_match_census": "workforce_and_pay",
 }
 
-# Covered by their own checks (census hash, seed, years), so a different census
-# path holding the same file is not a difference.
-_CHECKED_SEPARATELY = frozenset(
-    {
-        "simulation.random_seed",
-        "simulation.start_year",
-        "simulation.end_year",
-        "setup.census_parquet_path",
-        "data_sources.census_parquet_path",
-    }
-)
-# Labels, runtime knobs and housekeeping that cannot change results. Matched
-# like CONFIG_GROUP_PREFIXES ("setup.clear" covers "setup.clear_tables").
-# Anything that might change results (e.g. "advanced.engine") stays out.
-_IGNORED_PREFIXES = (
-    "simulation.name",
-    "advanced.log_level",
-    "advanced.memory_limit_gb",
-    "advanced.checkpoint_frequency",
-    "advanced.enable_multithreading",
-    "advanced.strict_validation",
-    # Threading, memory and the single supported execution engine.
-    "optimization",
-    "orchestrator.threading",
-    # Archive retention and garbage collection.
-    "storage",
-    # Which intermediate tables are cleared between runs.
-    "setup.clear",
-    # Backup, log and database location settings.
-    "production_safety",
-)
-# Lists where an empty list means the same to the engine as no setting, so
-# Studio's [] after removing every entry is not a difference.
-_EMPTY_MEANS_UNSET = frozenset({"compensation.minimum_wage"})
 # Engine-only changes; a rerun after an upgrade is not "inputs changed".
 _ENGINE_CODES = frozenset({"engine_version_differs", "engine_build_differs"})
 _RUN_CHANGE_CODES = frozenset(get_args(RunChangeCode))
@@ -180,41 +147,10 @@ _RUN_CHANGE_CODES = frozenset(get_args(RunChangeCode))
 
 def config_group(path: str) -> ConfigGroup:
     """Group a dotted config path; an unmapped path is ``other``."""
-    matches = [prefix for prefix in CONFIG_GROUP_PREFIXES if _matches(path, prefix)]
-    if not matches:
+    found = [prefix for prefix in CONFIG_GROUP_PREFIXES if matches(path, prefix)]
+    if not found:
         return "other"
-    return CONFIG_GROUP_PREFIXES[max(matches, key=len)]
-
-
-def _matches(path: str, prefix: str) -> bool:
-    return path == prefix or path.startswith((f"{prefix}.", f"{prefix}_"))
-
-
-def _ignored(path: str) -> bool:
-    return path in _CHECKED_SEPARATELY or any(
-        _matches(path, prefix) for prefix in _IGNORED_PREFIXES
-    )
-
-
-def _ignored_delta(delta: ConfigDelta) -> bool:
-    """Ignored path, a section only one run has whose settings are all ignored,
-    or an empty list on one side of a setting where that means unset."""
-    if delta.path in _EMPTY_MEANS_UNSET and not delta.a and not delta.b:
-        return True
-    section = delta.a if isinstance(delta.a, Mapping) else delta.b
-    if not isinstance(section, Mapping):
-        return _ignored(delta.path)
-    return all(_ignored(path) for path in _leaf_paths(delta.path, section))
-
-
-def _leaf_paths(path: str, value: Any) -> list[str]:
-    if not isinstance(value, Mapping) or not value:
-        return [path]
-    return [
-        leaf
-        for key, child in value.items()
-        for leaf in _leaf_paths(f"{path}.{key}", child)
-    ]
+    return CONFIG_GROUP_PREFIXES[max(found, key=len)]
 
 
 @dataclass(frozen=True)
@@ -602,7 +538,7 @@ def _config_reasons(
     reasons: list[IntegrityReason] = []
     plan_differences: list[ConfigDelta] = []
     for delta in differences:
-        if _ignored_delta(delta) or _same_engine_acquisitions(delta):
+        if ignored_delta(delta) or _same_engine_acquisitions(delta):
             continue
         group = config_group(delta.path)
         if group == "plan_design":

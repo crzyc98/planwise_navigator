@@ -1,16 +1,10 @@
 import type { ConfigDelta } from '../services/api';
 
 /**
- * Split real setting changes from settings only one run's saved config
- * recorded. A one-sided key usually means the other run predates the setting,
- * so its effective value is unknown -- not that the scenarios differ.
+ * "Not set" for the side of a one-sided row whose config lacks the setting,
+ * else null. Studio saves only the settings an analyst edits, so a missing key
+ * usually means the scenario never set it; the row is still a difference.
  */
-export function splitConfigDeltas<T extends { status: ConfigDelta['status'] }>(deltas: T[]): { changed: T[]; unrecorded: T[] } {
-  return {
-    changed: deltas.filter(delta => delta.status === 'changed'),
-    unrecorded: deltas.filter(delta => delta.status !== 'changed'),
-  };
+export function unsetLabel(delta: { status: ConfigDelta['status'] }, side: 'a' | 'b'): string | null {
+  return delta.status === (side === 'a' ? 'only_b' : 'only_a') ? 'Not set' : null;
 }
-
-export const UNRECORDED_NOTE =
-  "These settings appear in only one run's saved configuration, usually because the other run was produced by an earlier build that did not record them. Its effective value is unknown, so they are listed separately rather than counted as differences.";

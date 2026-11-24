@@ -582,7 +582,10 @@ def test_new_section_with_any_result_setting_breaks(tmp_path: Path) -> None:
     )
 
     assert result.scenarios[0].verdict == "not_like_for_like"
-    assert result.scenarios[0].reasons[0].path == "advanced"
+    # Diffed key by key: the ignored log level drops out, the engine breaks.
+    assert [reason.path for reason in result.scenarios[0].reasons] == [
+        "advanced.engine"
+    ]
 
 
 def test_compare_records_ignores_build_without_engine_version() -> None:

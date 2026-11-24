@@ -27,6 +27,7 @@ from .database_path_resolver import (
     ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
+from .config_paths import EMPTY_MEANS_UNSET, ignored_delta
 from .run_trust import evaluate_run_trust
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ class ConfigDiffService:
         config_a = self.get_effective_config(workspace_id, scenario_a, workspace)
         config_b = self.get_effective_config(workspace_id, scenario_b, workspace)
         differences, unchanged_count = _diff_configs(config_a, config_b)
+        differences = shown_differences(differences)
         provenance = {
             scenario_a: self._read_provenance(workspace_id, scenario_a, config_a),
             scenario_b: self._read_provenance(workspace_id, scenario_b, config_b),
@@ -154,6 +156,16 @@ def diff_configs(
     return _diff_configs(config_a, config_b)
 
 
+def shown_differences(differences: list[ConfigDelta]) -> list[ConfigDelta]:
+    """Drop a setting only one run recorded when it cannot change results or
+    is checked separately (e.g. the census path); rows both runs recorded stay."""
+    return [
+        delta
+        for delta in differences
+        if delta.status == "changed" or not ignored_delta(delta)
+    ]
+
+
 def _diff_configs(
     config_a: Mapping[str, Any], config_b: Mapping[str, Any]
 ) -> tuple[list[ConfigDelta], int]:
@@ -168,6 +180,11 @@ def _walk_diff(
     path: str,
     differences: list[ConfigDelta],
 ) -> int:
+    # A section only one run has is diffed key by key, like any other section.
+    if value_a is _MISSING and isinstance(value_b, Mapping):
+        value_a = {}
+    if value_b is _MISSING and isinstance(value_a, Mapping):
+        value_b = {}
     if isinstance(value_a, Mapping) and isinstance(value_b, Mapping):
         unchanged = 0
         for key in sorted(set(value_a) | set(value_b)):
@@ -183,12 +200,18 @@ def _walk_diff(
         return unchanged
     if value_a is not _MISSING and value_b is not _MISSING and value_a == value_b:
         return 1
-    if value_a in (_MISSING, None) and value_b in (_MISSING, None):
-        # An explicit null and an unrecorded key both mean "no value": not a
-        # difference, just a config written by a build that omitted the key.
+    if _no_value(path, value_a) and _no_value(path, value_b):
         return 1
     differences.append(_make_delta(path, value_a, value_b))
     return 0
+
+
+def _no_value(path: str, value: Any) -> bool:
+    # An explicit null and an unrecorded key both mean "no value": not a
+    # difference, just a config written by a build that omitted the key.
+    if value is _MISSING or value is None:
+        return True
+    return path in EMPTY_MEANS_UNSET and value == []
 
 
 def _make_delta(path: str, value_a: Any, value_b: Any) -> ConfigDelta:
