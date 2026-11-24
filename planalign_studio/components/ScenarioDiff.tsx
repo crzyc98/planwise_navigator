@@ -36,7 +36,7 @@ import { applyDeltaToOverrides, canApplyDelta } from './applyConfigDelta';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
-import { unsetLabel } from './configDiff';
+import { configDiffRows, ConfigDiffRow } from './configDiff';
 import { LayoutContextType } from './Layout';
 import { loadDiffSelection } from './comparisonSelection';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
@@ -74,35 +74,12 @@ const METRICS: MetricDefinition[] = [
   { key: 'employer-cost', label: 'Total Employer Cost', format: 'currency', source: 'dc', select: m => m.total_employer_cost },
 ];
 
-const FRIENDLY_LABELS: Record<string, string> = {
-  'simulation.target_growth_rate': 'Target growth rate',
-  'compensation.cola_rate': 'Cost-of-living adjustment',
-  'compensation.merit_budget': 'Merit budget',
-  'employer_match.active_formula': 'Employer match formula',
-  'enrollment.auto_enrollment.enabled': 'Automatic enrollment',
-  'plan_eligibility.minimum_age': 'Minimum eligibility age',
-  'plan_eligibility.minimum_tenure_years': 'Eligibility service requirement',
-};
-
-function friendlyLabel(path: string): string {
-  if (FRIENDLY_LABELS[path]) return FRIENDLY_LABELS[path];
-  const segment = path.split('.').at(-1) ?? path;
-  return segment.replaceAll('_', ' ').replace(/^./, value => value.toUpperCase());
-}
-
 function formatMetric(value: number, format: MetricDefinition['format']): string {
   if (format === 'currency') {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
   }
   if (format === 'percent') return `${value.toFixed(1)}%`;
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
-}
-
-function displayConfigValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
 }
 
 function buildChartData(
@@ -185,7 +162,7 @@ interface ApplyState {
 }
 
 interface ConfigDeltaRowProps {
-  delta: ConfigDelta;
+  row: ConfigDiffRow;
   names: Record<Side, string>;
   apply?: ApplyState;
   /** Another copy is saving; one at a time so saves can't overwrite each other. */
@@ -223,7 +200,8 @@ function ApplyStatus({ apply, names }: Readonly<{ apply: ApplyState; names: Reco
   );
 }
 
-function ConfigDeltaRow({ delta, names, apply, locked, onApply }: Readonly<ConfigDeltaRowProps>) {
+export function ConfigDeltaRow({ row, names, apply, locked, onApply }: Readonly<ConfigDeltaRowProps>) {
+  const { delta } = row;
   const statusLabel = {
     changed: 'Changed',
     only_a: 'Only in A',
@@ -234,7 +212,7 @@ function ConfigDeltaRow({ delta, names, apply, locked, onApply }: Readonly<Confi
     const other: Side = side === 'a' ? 'b' : 'a';
     return (
       <td className="px-4 py-3 text-sm text-ink-muted">
-        <div>{unsetLabel(delta, side) ?? displayConfigValue(delta[side])}</div>
+        <div>{row[side]}</div>
         {canCopy && (
           <ApplyButton from={side} to={other} names={names} disabled={locked} onClick={() => onApply(delta, other)} />
         )}
@@ -245,11 +223,11 @@ function ConfigDeltaRow({ delta, names, apply, locked, onApply }: Readonly<Confi
     <tr className="border-t border-border align-top">
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-ink">{friendlyLabel(delta.path)}</span>
+          <span className="font-medium text-ink">{row.label}</span>
           <span className="rounded-full bg-info-surface px-2 py-0.5 text-xs font-medium text-info-ink">{statusLabel}</span>
           {apply && <ApplyStatus apply={apply} names={names} />}
         </div>
-        <code className="text-xs text-ink-muted">{delta.path}</code>
+        {row.paths.map(path => <code key={path} className="block text-xs text-ink-muted">{path}</code>)}
       </td>
       {valueCell('a')}
       {valueCell('b')}
@@ -378,8 +356,9 @@ export default function ScenarioDiff() {
     }
   }
   const saving = Object.values(applyStates).some(state => state.status === 'saving');
-  const renderRow = (delta: ConfigDelta) => (
-    <ConfigDeltaRow key={delta.path} delta={delta} names={names} apply={applyStates[delta.path]} locked={saving} onApply={(row, to) => { void applyDelta(row, to); }} />
+  const rows = configDiffRows(configDiff.differences);
+  const renderRow = (row: ConfigDiffRow) => (
+    <ConfigDeltaRow key={row.delta.path} row={row} names={names} apply={applyStates[row.delta.path]} locked={saving} onApply={(delta, to) => { void applyDelta(delta, to); }} />
   );
   const provenanceA = configDiff.provenance[scenarioA];
   const provenanceB = configDiff.provenance[scenarioB];
@@ -414,12 +393,12 @@ export default function ScenarioDiff() {
       <section className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm">
         <div className="flex items-center justify-between px-5 py-4">
           <div><h2 className="font-semibold text-ink">Configuration changes</h2><p className="text-sm text-ink-muted">Settings each result ran with. Use the buttons to copy one setting to the other scenario; rerun it to see the effect.</p></div>
-          <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{configDiff.differences.length} changed</span>
+          <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{rows.length} changed</span>
         </div>
-        {configDiff.differences.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="flex items-center gap-2 border-t border-border px-5 py-5 text-ink-muted"><CheckCircle className="text-success-ink" />No effective settings differ.</div>
         ) : (
-          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{configDiff.differences.map(renderRow)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{rows.map(renderRow)}</tbody></table></div>
         )}
         <div className="border-t border-border px-5 py-3 text-sm text-ink-muted">
           {configDiff.unchanged_count} unchanged settings omitted

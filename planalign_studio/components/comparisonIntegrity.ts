@@ -49,6 +49,38 @@ const SETTING_LABELS: Record<string, string> = {
   'dc_plan.opt_out_rate_target': 'Auto-enrollment opt-out rate',
   'dc_plan.voluntary_enrollment_rate': 'Voluntary enrollment rate',
   'dc_plan.match_magnet_probability': 'Share who defer to the match maximum',
+  // Studio's DC plan form, in the form's own words (#1236).
+  'dc_plan.eligibility_months': 'Eligibility waiting period',
+  'dc_plan.auto_enroll': 'Automatic enrollment',
+  'dc_plan.auto_enroll_scope': 'Enrollment scope',
+  'dc_plan.auto_enroll_hire_date_cutoff': 'Auto-enrollment hire date cutoff',
+  'dc_plan.default_deferral_percent': 'Default deferral rate',
+  'dc_plan.new_hire_opt_out_rate': 'New-hire opt-out rate',
+  'dc_plan.deferral_spread_max_lift': 'Max upward spread',
+  'dc_plan.match_enabled': 'Employer match',
+  'dc_plan.match_status': 'Match calculation mode',
+  'dc_plan.match_template': 'Match template',
+  'dc_plan.core_enabled': 'Employer core contribution',
+  'dc_plan.core_status': 'Core contribution type',
+  'dc_plan.core_contribution_rate_percent': 'Core rate',
+  'dc_plan.core_integration_enabled': 'Social Security integration',
+  'dc_plan.core_integration_level_mode': 'Integration level',
+  'dc_plan.core_integration_disparity_rate': 'Integration disparity rate',
+  'dc_plan.auto_escalation': 'Automatic contribution increases',
+  'dc_plan.escalation_mode': 'Who gets automatic increases',
+  'dc_plan.escalation_rate_percent': 'Annual automatic increase',
+  'dc_plan.escalation_hire_date_cutoff': 'Automatic increase hire date cutoff',
+  'dc_plan.easy_enroll_enabled': 'Easy Enroll',
+  // Also labels Studio's dc_plan.deferral_match_response.* copy (MIRRORS).
+  'deferral_match_response.enabled': 'First-year match response',
+  'deferral_match_response.upward_participation_rate': 'Increase deferral response',
+  'deferral_match_response.downward_enabled': 'Allow deferral decreases',
+  'deferral_match_response.downward_participation_rate': 'Decrease deferral response',
+  // Engine sections.
+  'employer_match.active_formula': 'Employer match formula',
+  'enrollment.auto_enrollment.enabled': 'Automatic enrollment',
+  'plan_eligibility.minimum_age': 'Minimum eligibility age',
+  'plan_eligibility.minimum_tenure_years': 'Eligibility service requirement',
 };
 
 const CHECK_WORDS: Record<UnevaluatedCheck['check'], string> = {
@@ -90,6 +122,10 @@ const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number 
 
 /** Last path segments too vague to label a setting on their own. */
 const GENERIC_KEYS = new Set(['enabled', 'rate', 'mode', 'value', 'status', 'type', 'amount', 'scope']);
+/** Top-level sections whose keys name the setting on their own (dc_plan.core_enabled). */
+const SELF_NAMED_SECTIONS = new Set(['simulation', 'setup', 'workforce', 'compensation', 'new_hire', 'dc_plan', 'advanced']);
+/** Unit suffixes the formatted value already shows. */
+const UNIT_SUFFIX = /_(percent|pct)$/;
 
 const MAX_SEED_FILES = 3;
 
@@ -132,16 +168,52 @@ export function settingLabel(rawPath: string): string {
   const segments = path.split('.');
   const key = segments.at(-1) ?? path;
   const parent = segments.at(-2);
-  const label = GENERIC_KEYS.has(key) && parent ? `${words(parent)} ${words(key)}` : words(key);
+  const name = words(key.replace(UNIT_SUFFIX, ''));
+  // A key inside a nested or engine section reads with its parent ("Integration
+  // disparity rate", not "Disparity rate"); so does a vague one anywhere.
+  const withParent = parent !== undefined && (GENERIC_KEYS.has(key) || !SELF_NAMED_SECTIONS.has(parent));
+  const label = withParent ? joinParent(words(parent), name) : name;
   return label.replace(/^./, letter => letter.toUpperCase());
 }
 
-function trimNumber(value: number): string {
-  return String(Number(value.toFixed(2)));
+/** "Employer core contribution rate", not "... contribution contribution rate". */
+function joinParent(parent: string, name: string): string {
+  const overlap = `${parent.split(' ').at(-1)} `;
+  return `${parent} ${name.startsWith(overlap) ? name.slice(overlap.length) : name}`;
+}
+
+function trimNumber(value: number, digits = 2): string {
+  return String(Number(value.toFixed(digits)));
 }
 
 /** `_percent` keys Studio saves as decimals (0.75 = 75%), not whole percents. */
 const DECIMAL_PERCENT_KEYS = new Set(['max_voluntary_deferral_percent', 'match_cap_percent']);
+/**
+ * Rate keys saved as whole percents (2 = 2%): the points-based core rate before
+ * the service minimum, in Studio's dc_plan copy and the engine section. dbt
+ * divides both by 100.
+ */
+const WHOLE_PERCENT_KEYS = new Set(['core_points_pre_service_rate', 'points_pre_service_rate']);
+/** Settings where no value means none to the engine. */
+export const NONE_WHEN_UNSET = new Set(['compensation.minimum_wage', 'workforce.acquisitions']);
+
+type NumberUnit = 'whole_percent' | 'decimal_percent' | 'number';
+
+/** One unit for every value given, so two sides of a difference never mix units. */
+function numberUnit(path: string, values: number[]): NumberUnit {
+  const key = path.split('.').at(-1) ?? path;
+  if (DECIMAL_PERCENT_KEYS.has(key)) return 'decimal_percent';
+  if (WHOLE_PERCENT_KEYS.has(key) || key.endsWith('_percent')) return 'whole_percent';
+  // A rate is a decimal fraction only if every value could be one.
+  const fractions = values.every(value => Math.abs(value) <= 1);
+  return /(_rate|_pct|_probability)$/.test(key) && fractions ? 'decimal_percent' : 'number';
+}
+
+function formatNumber(value: number, unit: NumberUnit, digits = 2): string {
+  if (unit === 'decimal_percent') return `${trimNumber(value * 100, digits)}%`;
+  if (unit === 'whole_percent') return `${trimNumber(value, digits)}%`;
+  return trimNumber(value, digits);
+}
 
 /** A config value in plain words, or null when it can't be shown inline. */
 export function formatSetting(path: string, value: unknown): string | null {
@@ -153,13 +225,27 @@ export function formatSetting(path: string, value: unknown): string | null {
   if (typeof value === 'boolean') return value ? 'on' : 'off';
   if (typeof value === 'string') return value;
   if (typeof value !== 'number') return null;
-  const key = path.split('.').at(-1) ?? path;
-  if (DECIMAL_PERCENT_KEYS.has(key)) return `${trimNumber(value * 100)}%`;
-  if (key.endsWith('_percent')) return `${trimNumber(value)}%`;
-  if (/(_rate|_pct|_probability)$/.test(key) && Math.abs(value) <= 1) {
-    return `${trimNumber(value * 100)}%`;
+  return formatNumber(value, numberUnit(path, [value]));
+}
+
+const MAX_DIGITS = 12;
+
+/**
+ * Two numbers for one setting in a shared unit, with enough decimals that
+ * different values never read the same and a nonzero value never reads 0.
+ */
+export function formatNumberPair(path: string, a: number, b: number): [string, string] {
+  const unit = numberUnit(path, [a, b]);
+  const unclear = (digits: number, texts: [string, string]) => digits < MAX_DIGITS && (
+    (a !== b && texts[0] === texts[1]) || [a, b].some((value, index) => value !== 0 && Number.parseFloat(texts[index]) === 0)
+  );
+  let digits = 2;
+  let texts: [string, string] = [formatNumber(a, unit, digits), formatNumber(b, unit, digits)];
+  while (unclear(digits, texts)) {
+    digits += 1;
+    texts = [formatNumber(a, unit, digits), formatNumber(b, unit, digits)];
   }
-  return trimNumber(value);
+  return texts;
 }
 
 function plain(value: unknown): string {
