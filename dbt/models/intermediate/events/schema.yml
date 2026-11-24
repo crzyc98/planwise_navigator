@@ -127,7 +127,7 @@ models:
         data_tests:
           - not_null
       - name: employee_deferral_rate
-        description: Preserved census deferral rate (normalized to [0,1])
+        description: Census deferral rate, unchanged (0 to 1; #1262)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -145,7 +145,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['census_rate_preserved', 'capped_at_irs_limit', 'fallback_rate_applied']
+                values: ['census_rate_preserved', 'fallback_rate_applied']
       - name: has_valid_rate
         description: Boolean flag indicating valid deferral rate
         data_tests:
