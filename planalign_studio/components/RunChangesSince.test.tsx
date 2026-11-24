@@ -34,7 +34,7 @@ describe('summarizeRunChanges', () => {
       'Engine version: 3.1.0 → 3.2.0',
       'Census: a.parquet → b.parquet',
       'Turnover: 12% → 15%',
-      'Match cap percent: 4% → 6%',
+      'Match cap: 4% → 6%',
     ]);
   });
 
@@ -69,7 +69,7 @@ describe('summarizeRunChanges mirrored settings', () => {
     ];
     expect(summarizeRunChanges(response({ changes })).changes).toEqual([
       'Cost-of-living raise: 2% → 2.5%',
-      'Upward participation rate: 40% → 50%',
+      'Increase deferral response: 40% → 50%',
       'Model seed tables differ: config_job_levels.csv',
     ]);
   });

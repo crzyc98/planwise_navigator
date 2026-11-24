@@ -144,7 +144,7 @@ describe('like-for-like copy', () => {
     expect(line.details).toEqual([
       'Cost-of-living raise: 2% vs 3%',
       'Merit budget: 3.5% vs 4%',
-      'Deferral match response enabled: off vs on',
+      'First-year match response: off vs on',
       'Turnover: 12% vs 15%',
       'and 2 more settings',
     ]);
@@ -187,6 +187,8 @@ describe('like-for-like copy', () => {
     expect(formatSetting('dc_plan.match_cap_percent', 0.06)).toBe('6%');
     expect(formatSetting('workforce.total_termination_rate', 0.12)).toBe('12%');
     expect(formatSetting('dc_plan.auto_enroll', true)).toBe('on');
+    expect(formatSetting('dc_plan.core_points_pre_service_rate', 1)).toBe('1%');
+    expect(formatSetting('workforce.total_termination_rate', 0.0312)).toBe('3.12%');
     expect(formatSetting('new_hire.age_distribution', [{ age: 25 }])).toBeNull();
     expect(planDesignSummary([])).toBe('No settings differ.');
     expect(planDesignSummary([

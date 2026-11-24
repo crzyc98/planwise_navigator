@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { ComparisonIntegrityResponse, ConfigDiffResponse, IntegrityReason } from '../services/api';
 import { ComparisonIntegrityLines } from './ComparisonIntegrityBanner';
-import { ProvenanceWarnings } from './ScenarioDiff';
+import { configDiffRows } from './configDiff';
+import { ConfigDeltaRow, ProvenanceWarnings } from './ScenarioDiff';
 
 function reason(overrides: Partial<IntegrityReason>): IntegrityReason {
   return {
@@ -59,5 +60,33 @@ describe('ProvenanceWarnings (shown only when the check fails)', () => {
     const missing = { available: false, config_fingerprint: null, drift_reasons: [], drift_warning: false, random_seed: null, run_timestamp: null };
     expect(render(configDiff({ provenance: { a: missing } }))).toContain('Provenance unavailable.');
     expect(render(configDiff({}))).toBe('');
+  });
+});
+
+describe('Scenario Diff configuration rows (#1236)', () => {
+  const names = { a: 'Baseline', b: 'Richer match' };
+  const render = (row: ReturnType<typeof configDiffRows>[number]) => renderToStaticMarkup(
+    <table><tbody><ConfigDeltaRow row={row} names={names} locked={false} onApply={() => undefined} /></tbody></table>,
+  );
+
+  it('shows a collapsed mirror once, with both raw paths, percent values and copy buttons', () => {
+    const [row] = configDiffRows([
+      { path: 'compensation.cola_rate', a: 0.02, b: 0.03, status: 'changed' },
+      { path: 'compensation.cola_rate_percent', a: 2, b: 3, status: 'changed' },
+    ]);
+    const html = render(row);
+    expect(html).toContain('Cost-of-living raise');
+    expect(html).toContain('<code class="block text-xs text-ink-muted">compensation.cola_rate</code>');
+    expect(html).toContain('<code class="block text-xs text-ink-muted">compensation.cola_rate_percent</code>');
+    expect(html).toContain('<div>2%</div>');
+    expect(html).toContain('<div>3%</div>');
+    expect(html).toContain('Use in Richer match');
+  });
+
+  it('still renders an object value', () => {
+    const [row] = configDiffRows([
+      { path: 'dc_plan.match_tiers', a: [{ match_rate: 0.5 }], b: [{ match_rate: 1 }], status: 'changed' },
+    ]);
+    expect(render(row)).toContain('[{&quot;match_rate&quot;:1}]');
   });
 });
