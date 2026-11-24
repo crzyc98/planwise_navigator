@@ -89,6 +89,14 @@ Timing is reported but not gated, at the owner's direction.
   every S cell uses base 42, with 52 as its unseen seed. The 4.5/3 search ran at base 52
   (seeds 52-54) because the scenario was left on seed 52, so its unseen seed is 42. Studio's default run budget is
   20 evaluations, not 12.
+- **Guardrail with four growth years (2026-11-24).** A 2026–2030 horizon has four growth
+  years, so the 80% bar allowed no misses, where it was meant to allow one. Development
+  (bases 307 and 311 on A and B, 16 cells) had exactly one year outside 0.5pp in 5 cells,
+  by 0.51 to 0.69pp, and passed every other check. The owner approved reading criterion 2
+  as at most one year outside 0.5pp, before any holdout ran on A, B or L. The recorded S
+  cells have no years outside, so they are unaffected.
+- **Sponsor 4.5/3 (2026-11-24).** Reproduction was exact, within 1e-12, in all 16
+  development cells. The owner will rerun this cell with the scenario on seed 42.
 
 ## Results
 
