@@ -68,6 +68,15 @@ describe('like-for-like copy', () => {
     expect(line.headline).toBe("Can't tell whether Richer match is like-for-like with Baseline: Richer match's run did not record its census.");
   });
 
+  it('still says what could not be checked when a difference settles the verdict', () => {
+    const [line] = summarizeIntegrity(response([scenario({
+      verdict: 'not_like_for_like',
+      reasons: [reason({ code: 'seed_differs', anchor_value: 42, scenario_value: 7 })],
+      unevaluated: [{ check: 'census', scenario_id: 'b', cause: 'no_run_record' }],
+    })])).lines;
+    expect(line.notes).toEqual(["Not everything could be checked: Richer match's result has no run record."]);
+  });
+
   it('keeps notes separate and shows anchor notes once', () => {
     const summary = summarizeIntegrity(response([scenario({
       reasons: [

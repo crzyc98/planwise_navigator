@@ -270,6 +270,12 @@ function breakingDetails(reasons: IntegrityReason[], names: Record<string, strin
   return unique([...facts, ...withMore(shown, settings.length, 'setting')]);
 }
 
+/** What couldn't be checked, when a found difference already settles the verdict. */
+function uncheckedNote(item: ScenarioIntegrity, names: Record<string, string>): string[] {
+  if (item.verdict !== 'not_like_for_like' || item.unevaluated.length === 0) return [];
+  return [`Not everything could be checked: ${unknownCause(item.unevaluated, names)}.`];
+}
+
 const TONES: Record<ScenarioIntegrity['verdict'], IntegrityTone> = {
   like_for_like: 'ok',
   not_like_for_like: 'warning',
@@ -299,7 +305,7 @@ export function summarizeIntegrity(result: ComparisonIntegrityResponse): Integri
       tone: TONES[item.verdict],
       headline: headline(item, result.anchor_scenario_name, names),
       details: breakingDetails(item.reasons, names),
-      notes: notesAbout(item.scenario_id)(item),
+      notes: [...notesAbout(item.scenario_id)(item), ...uncheckedNote(item, names)],
     })),
   };
 }
