@@ -28,11 +28,11 @@ describe('config diff rows (#1236)', () => {
       changed('dc_plan.core_contribution_rate_percent', 2, 3),
       changed('deferral_match_response.downward_enabled', false, true),
     ]);
-    expect(integration.label).toBe('Integration enabled');
+    expect(integration.label).toBe('Social Security integration');
     expect(core.label).toBe('Core rate');
     expect(response.label).toBe('Allow deferral decreases');
     expect(settingLabel('promotion_hazard.base_rate')).toBe('Promotion hazard base rate');
-    expect(settingLabel('employer_core_contribution.contribution_rate')).toBe('Employer core contribution rate');
+    expect(settingLabel('employer_match.eligibility.minimum_hours_annual')).toBe('Eligibility minimum hours annual');
   });
 
   it('shows rates and percents in percent, booleans as On/Off', () => {
@@ -63,6 +63,30 @@ describe('config diff rows (#1236)', () => {
       ['dc_plan.match_cap_percent'],
     ]);
     expect([rows[0].label, rows[0].a, rows[0].b]).toEqual(['Cost-of-living raise', '3%', '7%']);
+  });
+
+  it('collapses Studio core settings and the engine copies a run derives from them (#1321)', () => {
+    const rows = configDiffRows([
+      changed('dc_plan.core_contribution_rate_percent', 2, 3.5),
+      changed('dc_plan.core_enabled', false, true),
+      changed('dc_plan.core_min_tenure_years', 0, 1),
+      changed('employer_core_contribution.contribution_rate', 0.02, 0.035),
+      changed('employer_core_contribution.eligibility.minimum_tenure_years', 0, 1),
+      changed('employer_core_contribution.enabled', false, true),
+    ]);
+    expect(rows.map(row => [row.label, row.a, row.b, row.paths])).toEqual([
+      ['Core rate', '2%', '3.5%', ['dc_plan.core_contribution_rate_percent', 'employer_core_contribution.contribution_rate']],
+      ['Employer core contribution', 'Off', 'On', ['dc_plan.core_enabled', 'employer_core_contribution.enabled']],
+      ['Core service requirement', '0', '1', ['dc_plan.core_min_tenure_years', 'employer_core_contribution.eligibility.minimum_tenure_years']],
+    ]);
+  });
+
+  it('keeps a Studio core setting and an engine copy that disagree', () => {
+    const rows = configDiffRows([
+      changed('dc_plan.core_contribution_rate_percent', 2, 3),
+      changed('employer_core_contribution.contribution_rate', 0.02, 0.04),
+    ]);
+    expect(rows.map(row => [row.label, row.a, row.b])).toEqual([['Core rate', '2%', '3%'], ['Core rate', '2%', '4%']]);
   });
 
   it('keeps both copies of a mirrored pair that disagree', () => {

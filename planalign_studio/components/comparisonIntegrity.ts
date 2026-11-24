@@ -60,12 +60,6 @@ const SETTING_LABELS: Record<string, string> = {
   'dc_plan.match_enabled': 'Employer match',
   'dc_plan.match_status': 'Match calculation mode',
   'dc_plan.match_template': 'Match template',
-  'dc_plan.core_enabled': 'Employer core contribution',
-  'dc_plan.core_status': 'Core contribution type',
-  'dc_plan.core_contribution_rate_percent': 'Core rate',
-  'dc_plan.core_integration_enabled': 'Social Security integration',
-  'dc_plan.core_integration_level_mode': 'Integration level',
-  'dc_plan.core_integration_disparity_rate': 'Integration disparity rate',
   'dc_plan.auto_escalation': 'Automatic contribution increases',
   'dc_plan.escalation_mode': 'Who gets automatic increases',
   'dc_plan.escalation_rate_percent': 'Annual automatic increase',
@@ -76,6 +70,23 @@ const SETTING_LABELS: Record<string, string> = {
   'deferral_match_response.upward_participation_rate': 'Increase deferral response',
   'deferral_match_response.downward_enabled': 'Allow deferral decreases',
   'deferral_match_response.downward_participation_rate': 'Decrease deferral response',
+  // Also labels Studio's dc_plan.core_* copies (CORE_COPIES).
+  'employer_core_contribution.enabled': 'Employer core contribution',
+  'employer_core_contribution.status': 'Core contribution type',
+  'employer_core_contribution.contribution_rate': 'Core rate',
+  'employer_core_contribution.graded_schedule': 'Core rates by service',
+  'employer_core_contribution.points_schedule': 'Core rates by points',
+  'employer_core_contribution.age_schedule': 'Core rates by age',
+  'employer_core_contribution.eligibility.minimum_tenure_years': 'Core service requirement',
+  'employer_core_contribution.eligibility.minimum_hours_annual': 'Core hours requirement',
+  'employer_core_contribution.eligibility.require_active_at_year_end': 'Core requires year-end employment',
+  'employer_core_contribution.eligibility.allow_new_hires': 'Core for new hires',
+  'employer_core_contribution.eligibility.allow_terminated_new_hires': 'Core for new hires who leave',
+  'employer_core_contribution.eligibility.allow_experienced_terminations': 'Core for other leavers',
+  'employer_core_contribution.integration.enabled': 'Social Security integration',
+  'employer_core_contribution.integration.level_mode': 'Integration level',
+  'employer_core_contribution.integration.level_value': 'Integration level amount',
+  'employer_core_contribution.integration.disparity_rate': 'Integration disparity rate',
   // Engine sections.
   'employer_match.active_formula': 'Employer match formula',
   'enrollment.auto_enrollment.enabled': 'Automatic enrollment',
@@ -105,9 +116,35 @@ export const COMPENSATION_PERCENT_FIELDS = [
 ] as const;
 
 /**
+ * Studio's dc_plan.core_* settings and the employer_core_contribution keys a
+ * run's saved config derives from them (#1321): [Studio key, engine path, scale].
+ * Keep in step with planalign_api/services/setting_mirrors.py.
+ */
+const CORE_COPIES: ReadonlyArray<readonly [string, string, number?]> = [
+  ['core_enabled', 'enabled'],
+  ['core_status', 'status'],
+  ['core_contribution_rate_percent', 'contribution_rate', 0.01],
+  ['core_graded_schedule', 'graded_schedule'],
+  ['core_points_schedule', 'points_schedule'],
+  ['core_age_schedule', 'age_schedule'],
+  ['core_min_tenure_years', 'eligibility.minimum_tenure_years'],
+  ['core_min_hours_annual', 'eligibility.minimum_hours_annual'],
+  ['core_require_year_end_active', 'eligibility.require_active_at_year_end'],
+  ['core_allow_new_hires', 'eligibility.allow_new_hires'],
+  ['core_allow_terminated_new_hires', 'eligibility.allow_terminated_new_hires'],
+  ['core_allow_experienced_terminations', 'eligibility.allow_experienced_terminations'],
+  ['core_integration_enabled', 'integration.enabled'],
+  ['core_integration_level_mode', 'integration.level_mode'],
+  ['core_integration_level_value', 'integration.level_value'],
+  ['core_integration_disparity_rate', 'integration.disparity_rate'],
+  ['core_integration_disparity_rate_percent', 'integration.disparity_rate', 0.01],
+];
+
+/**
  * Settings recorded twice under different paths (#1178). Each maps to one
  * canonical path so both copies render identical text and collapse into one
  * line. `scale` converts the value to the canonical path's units.
+ * Keep in step with planalign_api/services/setting_mirrors.py.
  */
 const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number }> = [
   // The engine reads compensation.<name>; Studio writes <name>_percent.
@@ -118,6 +155,11 @@ const MIRRORS: ReadonlyArray<{ pattern: RegExp; replace: string; scale?: number 
   },
   // Studio's DC plan form copy of the engine section.
   { pattern: /^dc_plan\.deferral_match_response\./, replace: 'deferral_match_response.' },
+  ...CORE_COPIES.map(([studioKey, enginePath, scale]) => ({
+    pattern: new RegExp(`^dc_plan\\.${studioKey}$`),
+    replace: `employer_core_contribution.${enginePath}`,
+    scale,
+  })),
 ];
 
 /** Last path segments too vague to label a setting on their own. */

@@ -100,6 +100,25 @@ def test_api_cites_config_differences_and_flags_census_mismatch(
     assert "other_census" not in text.split("## Configuration differences")[1]
 
 
+def test_api_cites_a_mirrored_setting_once(client_factory, tmp_path) -> None:
+    a, b = _scenarios(tmp_path)
+    for scenario, percent in ((a, 2), (b, 3)):
+        config = scenario.run_dir / "config.yaml"
+        config.write_text(
+            config.read_text(encoding="utf-8")
+            + f"compensation:\n  cola_rate: {percent / 100}\n"
+            + f"  cola_rate_percent: {percent}\n",
+            encoding="utf-8",
+        )
+
+    payload = client_factory(None).get(_url(a.workspace_id), params=_params()).json()
+
+    assert [d["path"] for d in payload["pack"]["config_differences"]] == [
+        "compensation.cola_rate"
+    ]
+    assert "cola_rate_percent" not in payload["text_export"]
+
+
 def _write_workspace(scenario) -> None:
     """Give legacy (unmanaged) scenarios a resolvable effective config."""
     (scenario.scenario_path.parent.parent / "workspace.json").write_text(
