@@ -6,7 +6,8 @@ PlanAlign Engine is an **on-premises** workforce and DC-plan simulation platform
 
 | Version | Supported |
 |---------|-----------|
-| 3.6.x   | ✅ Active |
+| 3.7.x   | ✅ Active |
+| 3.6.x   | ⚠️ Critical fixes only |
 | 3.5.x   | ⚠️ Critical fixes only |
 | 3.4.x   | ⚠️ Critical fixes only |
 | 3.3.x   | ⚠️ Critical fixes only |
