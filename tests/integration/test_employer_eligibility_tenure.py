@@ -103,8 +103,10 @@ def _assert_characterization(
     actual: tuple[float, int, float, int], expected: dict[str, float | int]
 ) -> None:
     assert (actual[1], actual[3]) == (expected["core_paid"], expected["match_paid"])
+    # Totals are ROUND(SUM(float), 2); summation order can flip the last cent
+    # (e.g. across DuckDB releases), so allow one cent of rounding noise.
     assert (actual[0], actual[2]) == pytest.approx(
-        (expected["core_cost"], expected["match_cost"]), rel=0, abs=0.01
+        (expected["core_cost"], expected["match_cost"]), rel=0, abs=0.015
     )
 
 
