@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-11-25
+
 ### Added
 
 - A minimum wage step now covers acquired group members (#1253). A member takes the hourly rate of the person they were sampled from, scaled with any pay override, and is raised on the step's date like census staff. A member who joins after the latest step took effect, in the same year or a later one, is raised on the day they join. A group joining on a step's own date joins first and is then raised. Members sampled from someone with no hourly rate are left alone and counted as not covered. `fct_minimum_wage_steps` counts members with a rate under `people_with_rate`. Scenarios without acquisitions or without a minimum wage produce the same results as before.
