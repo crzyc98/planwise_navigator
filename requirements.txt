@@ -3,7 +3,7 @@
 # dbt-duckdb 1.8.1->1.9.6 unblock protobuf/dbt-common/deepdiff advisories
 # (see SECURITY.md exception table); duckdb 1.0.0->1.1.3 fixes PYSEC-2024-203
 # (last patch release on the minimal-fix minor line, to limit engine drift).
-duckdb==2.0.0
+duckdb==2.0.1
 dbt-core==1.12.7
 dbt-duckdb==1.11.1
 pydantic==2.14.4
