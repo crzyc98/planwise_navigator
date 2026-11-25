@@ -12515,7 +12515,7 @@
       },
       "MinimumWageStep": {
         "additionalProperties": false,
-        "description": "A new minimum hourly rate that takes effect on a date (#1229).\n\nEveryone with a census hourly rate below it on that date is raised to it,\nwith hours unchanged. Simulated hires and acquired members have no rate.",
+        "description": "A new minimum hourly rate that takes effect on a date (#1229).\n\nEveryone with a census hourly rate below it on that date is raised to it,\nwith hours unchanged. Acquired members take the rate of the person they\nwere sampled from; simulated hires have no rate.",
         "properties": {
           "effective_date": {
             "format": "date",
@@ -12582,7 +12582,7 @@
                 "type": "null"
               }
             ],
-            "description": "Annual pay the step added on its date",
+            "description": "Annual pay those raises added on their dates",
             "title": "Added Annual Pay"
           },
           "effective_date": {
@@ -12625,7 +12625,7 @@
                 "type": "null"
               }
             ],
-            "description": "Simulated hires and acquired members on the date; not covered",
+            "description": "Simulated hires, and acquired members with no rate, on the date; not covered",
             "title": "People Not Covered"
           },
           "people_raised": {
@@ -12637,7 +12637,7 @@
                 "type": "null"
               }
             ],
-            "description": "Raised on the date",
+            "description": "Raised on the date, plus acquired members raised on joining later that year",
             "title": "People Raised"
           },
           "people_with_rate": {
@@ -12649,7 +12649,7 @@
                 "type": "null"
               }
             ],
-            "description": "On staff on the date with a census hourly rate",
+            "description": "On staff on the date with an hourly rate: census staff and acquired members sampled from them",
             "title": "People With Rate"
           },
           "people_without_rate": {

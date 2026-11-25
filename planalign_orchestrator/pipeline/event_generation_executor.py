@@ -409,6 +409,7 @@ class EventGenerationExecutor:
             "int_hazard_merit",
             MODEL_INT_PROMOTION_EVENTS,
             MODEL_INT_MERIT_EVENTS,
+            "int_acquired_member_hourly_rates",
             "int_minimum_wage_events",
             "fct_minimum_wage_steps",
             "int_eligibility_events",

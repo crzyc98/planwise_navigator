@@ -22,6 +22,29 @@
 {% endmacro %}
 
 
+{% macro minimum_wage_in_force(simulation_year) %}
+  {#-
+    The latest minimum wage step dated from the start year up to
+    simulation_year, in the form minimum_wage_step returns, or none. Acquired
+    members joining in a year without a step still meet the minimum an earlier
+    step set (#1253). A step before the start year is applied to nobody.
+  -#}
+  {%- set latest = namespace(step=none) -%}
+  {%- set start_year = var('start_year', simulation_year) | int -%}
+  {%- for item in var('minimum_wage_steps', []) -%}
+    {%- set effective_date = (item['effective_date'] | string)[:10] -%}
+    {%- if start_year <= (effective_date[:4] | int) <= (simulation_year | int)
+        and (latest.step is none or effective_date > latest.step['effective_date']) -%}
+      {%- set latest.step = {
+        'hourly_rate': item['hourly_rate'] | float,
+        'effective_date': effective_date | replace("'", "''")
+      } -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ return(latest.step) }}
+{% endmacro %}
+
+
 {% macro census_hourly_rate_now(census_rate, census_pay, current_pay) %}
   {#- A census hourly rate moved with pay since the census: hours stay fixed,
       so the rate rises in proportion to the annual pay rate (#1229). -#}

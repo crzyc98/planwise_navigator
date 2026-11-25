@@ -171,7 +171,8 @@ new_hires AS (
     CAST('{{ simulation_year }}-01-01' AS DATE)
       - INTERVAL (e.hire_age * 365) DAY AS employee_birth_date,
     e.hire_date AS employee_hire_date,
-    e.hire_salary AS employee_gross_compensation,
+    -- #1253: an acquired member can be raised to the minimum wage in the year they join
+    COALESCE(e.minimum_wage_salary, e.hire_salary) AS employee_gross_compensation,
     e.hire_age AS current_age,
     CAST(COALESCE(e.hire_tenure, 0) AS INTEGER) AS current_tenure,
     CAST(e.hire_level_id AS INTEGER) AS level_id,

@@ -60,8 +60,8 @@ export default function MinimumWagePanel({ rows, comparePath }: Readonly<Props>)
       </div>
       <div className="mt-3 space-y-1 text-xs text-ink-muted">
         <p>
-          People raised and added annual pay are counted on each step's date. Census staff with no hourly rate are never raised,
-          and simulated hires and acquired members have no rate, so they aren't covered.
+          People raised and added annual pay are counted on each step's date, plus acquired members raised when they join later that year. Census staff with no hourly rate are never raised.
+          Acquired members take the rate of the person they were sampled from. Simulated hires have no rate, so they aren't covered.
         </p>
         <p>
           Added pay at year end is an estimate: for everyone a step raised who is still active, their year-end pay times the share of it the

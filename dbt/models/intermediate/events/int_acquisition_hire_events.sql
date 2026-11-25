@@ -163,7 +163,9 @@ SELECT
   1.0 AS event_probability,
   'hire' AS event_category,
   CAST(p.scheduled_hours_per_week AS DECIMAL(5,2)) AS scheduled_hours_per_week,
-  d.acquisition_id
+  d.acquisition_id,
+  -- #1253: whose pay and hours the member copies, and so whose hourly rate
+  p.employee_id AS donor_employee_id
 FROM draws d
 LEFT JOIN donor_pool p
   ON d.donor_index = p.donor_index

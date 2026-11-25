@@ -191,7 +191,8 @@ hire_rows AS (
     'hire' AS event_category,
     nha.scheduled_hours_per_week,
     -- #1226: set only on acquired-group members; NULL marks an organic hire
-    NULL::VARCHAR AS acquisition_id
+    NULL::VARCHAR AS acquisition_id,
+    NULL::VARCHAR AS donor_employee_id
   FROM new_hire_assignments nha
   {% if acquisitions_join_this_year %}
   UNION ALL BY NAME

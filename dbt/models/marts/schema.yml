@@ -492,9 +492,10 @@ models:
   - name: fct_minimum_wage_steps
     description: >
       One row per minimum wage step (#1229) per scenario: the people on staff on
-      its effective date with a census hourly rate, how many were raised and the
-      annual pay that added on the date, census staff with no rate (not touched),
-      and simulated hires and acquired members (not covered).
+      its effective date with an hourly rate (census staff, and acquired members
+      sampled from them, including members who join later in the year), how many
+      were raised and the annual pay that added, census staff with no rate (not
+      touched), and simulated hires and acquired members with no rate (not covered).
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

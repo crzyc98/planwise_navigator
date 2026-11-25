@@ -6,6 +6,11 @@
 {% set simulation_year = var('simulation_year') | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set step = minimum_wage_step(simulation_year) %}
+{% set in_force = minimum_wage_in_force(simulation_year) %}
+{% set step_date = "DATE '" ~ step.effective_date ~ "'" if step is not none else 'CAST(NULL AS DATE)' %}
+{% set step_rate = 'CAST(' ~ step.hourly_rate ~ ' AS DOUBLE)' if step is not none else 'CAST(NULL AS DOUBLE)' %}
+{% set in_force_date = "DATE '" ~ in_force.effective_date ~ "'" if in_force is not none else 'CAST(NULL AS DATE)' %}
+{% set in_force_rate = 'CAST(' ~ in_force.hourly_rate ~ ' AS DOUBLE)' if in_force is not none else 'CAST(NULL AS DOUBLE)' %}
 
 {# A configured minimum wage needs rates. The orchestrator checks this before
    the first year; this stops any other path (such as calibration) here. #}
@@ -29,22 +34,17 @@
 -- and a raise that already reaches the minimum needs no floor. The floor is
 -- outside the raise budget: merit events are priced without it.
 --
--- Only census staff carry a rate. Simulated hires and acquired members are
--- never in int_baseline_workforce, so they are never raised.
+-- Census staff carry a rate, and so do acquired members sampled from them
+-- (#1253, int_acquired_member_hourly_rates). Simulated hires never do.
+--
+-- A member joining this year is held to the latest step dated on or before the
+-- end of the year. They are raised on that step's date, or on the day they
+-- join when the step is already in force, which covers a step from an earlier
+-- year. A group joining on a step's own date joins first and is then raised.
+-- Each person has at most one floor event a year, so a member who joins below
+-- an earlier year's minimum, before this year's step, waits for this year's.
 
-WITH step AS (
-  SELECT
-    {% if step is not none %}
-    DATE '{{ step.effective_date }}' AS effective_date,
-    CAST({{ step.hourly_rate }} AS DOUBLE) AS minimum_hourly_rate
-    {% else %}
-    CAST(NULL AS DATE) AS effective_date,
-    CAST(NULL AS DOUBLE) AS minimum_hourly_rate
-    WHERE FALSE
-    {% endif %}
-),
-
-census_rates AS (
+WITH rates AS (
   SELECT
     employee_id,
     census_hourly_rate,
@@ -53,9 +53,18 @@ census_rates AS (
   WHERE simulation_year = {{ start_year }}
     AND census_hourly_rate IS NOT NULL
     AND current_compensation > 0
+  UNION ALL
+  SELECT
+    employee_id,
+    census_hourly_rate,
+    census_annual_pay
+  FROM {{ ref('int_acquired_member_hourly_rates') }}
+  WHERE simulation_year <= {{ simulation_year }}
+    AND scenario_id = '{{ var('scenario_id', 'default') | replace("'", "''") }}'
 ),
 
 opening_pay AS (
+  -- Staff at the start of the year, on this year's step
   SELECT
     comp.employee_id,
     comp.employee_ssn,
@@ -66,12 +75,38 @@ opening_pay AS (
     comp.age_band,
     comp.tenure_band,
     rates.census_hourly_rate,
-    rates.census_annual_pay
+    rates.census_annual_pay,
+    {{ step_date }} AS effective_date,
+    {{ step_rate }} AS minimum_hourly_rate
   FROM {{ ref('int_employee_compensation_by_year') }} comp
-  INNER JOIN census_rates rates ON comp.employee_id = rates.employee_id
+  INNER JOIN rates ON comp.employee_id = rates.employee_id
   WHERE comp.simulation_year = {{ simulation_year }}
     AND comp.employment_status = 'active'
     AND comp.employee_compensation > 0
+    AND {{ 'TRUE' if step is not none else 'FALSE' }}
+
+  UNION ALL
+
+  -- Acquired members joining this year, on the minimum in force
+  SELECT
+    hire.employee_id,
+    hire.employee_ssn,
+    hire.compensation_amount AS employee_compensation,
+    hire.employee_age AS current_age,
+    hire.employee_tenure AS current_tenure,
+    hire.level_id,
+    hire.age_band,
+    hire.tenure_band,
+    rates.census_hourly_rate,
+    rates.census_annual_pay,
+    GREATEST(CAST(hire.effective_date AS DATE), {{ in_force_date }}) AS effective_date,
+    {{ in_force_rate }} AS minimum_hourly_rate
+  FROM {{ ref('int_hiring_events') }} hire
+  INNER JOIN rates ON hire.employee_id = rates.employee_id
+  WHERE hire.simulation_year = {{ simulation_year }}
+    AND hire.acquisition_id IS NOT NULL
+    AND hire.compensation_amount > 0
+    AND {{ 'TRUE' if in_force is not none else 'FALSE' }}
 ),
 
 -- Pay on the effective date, compounded as int_workforce_state_accumulator
@@ -79,8 +114,6 @@ opening_pay AS (
 pay_on_date AS (
   SELECT
     o.*,
-    s.effective_date,
-    s.minimum_hourly_rate,
     p.level_id AS promoted_level_id,
     CASE
       WHEN p.employee_id IS NOT NULL AND m.employee_id IS NOT NULL
@@ -91,21 +124,20 @@ pay_on_date AS (
       ELSE o.employee_compensation
     END AS pay_before
   FROM opening_pay o
-  CROSS JOIN step s
   LEFT JOIN {{ ref('int_employee_termination_dates') }} t
     ON o.employee_id = t.employee_id
    AND t.simulation_year = {{ simulation_year }}
   LEFT JOIN {{ ref('int_promotion_events') }} p
     ON o.employee_id = p.employee_id
    AND p.simulation_year = {{ simulation_year }}
-   AND p.effective_date <= s.effective_date
+   AND p.effective_date <= o.effective_date
   LEFT JOIN {{ ref('int_merit_events') }} m
     ON o.employee_id = m.employee_id
    AND m.simulation_year = {{ simulation_year }}
-   AND m.effective_date <= s.effective_date
+   AND m.effective_date <= o.effective_date
    AND m.previous_compensation > 0
   -- Same rule as merit: someone who leaves before the date is not raised.
-  WHERE t.termination_date IS NULL OR t.termination_date >= s.effective_date
+  WHERE t.termination_date IS NULL OR t.termination_date >= o.effective_date
 ),
 
 floored AS (
