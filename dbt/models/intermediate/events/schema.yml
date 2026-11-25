@@ -4,9 +4,11 @@ models:
   - name: int_minimum_wage_events
     description: >
       Minimum wage floor events (#1229). On a step's effective date, one event per
-      census employee whose hourly rate (census rate moved with pay) is below the
-      new minimum. Pay rises by minimum / rate; hours are unchanged. Simulated
-      hires and acquired members have no rate and are never raised.
+      person whose hourly rate (census rate moved with pay) is below the new
+      minimum. Pay rises by minimum / rate; hours are unchanged. Census staff
+      carry a rate, and so do acquired members sampled from them (#1253), who are
+      raised on the day they join when a step is already in force. Simulated
+      hires have no rate and are never raised.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -29,6 +31,35 @@ models:
         description: Hourly rate on the date, before the floor
       - name: hourly_rate_after
         description: The new minimum hourly rate
+
+  - name: int_acquired_member_hourly_rates
+    description: >
+      Hourly rates for acquired members (#1253): one row per member whose donor
+      has a rate, written in the year the member joins. Holds the donor's census
+      rate and census pay; the member's rate on a date is that rate x the
+      member's pay / that pay. Members whose donor has no rate have no row.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - scenario_id
+              - employee_id
+    columns:
+      - name: employee_id
+        data_tests:
+          - not_null
+      - name: donor_employee_id
+        description: The person the member's pay and hours were copied from
+        data_tests:
+          - not_null
+      - name: census_hourly_rate
+        description: The donor's census hourly rate
+        data_tests:
+          - not_null
+      - name: census_annual_pay
+        description: The donor's census annual pay, which the rate is relative to
+        data_tests:
+          - not_null
 
   - name: int_eligibility_events
     description: >

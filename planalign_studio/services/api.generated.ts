@@ -8803,7 +8803,8 @@ export interface components {
          * @description A new minimum hourly rate that takes effect on a date (#1229).
          *
          *     Everyone with a census hourly rate below it on that date is raised to it,
-         *     with hours unchanged. Simulated hires and acquired members have no rate.
+         *     with hours unchanged. Acquired members take the rate of the person they
+         *     were sampled from; simulated hires have no rate.
          */
         MinimumWageStep: {
             /**
@@ -8853,7 +8854,7 @@ export interface components {
         MinimumWageYear: {
             /**
              * Added Annual Pay
-             * @description Annual pay the step added on its date
+             * @description Annual pay those raises added on their dates
              */
             added_annual_pay: number | null;
             /**
@@ -8874,17 +8875,17 @@ export interface components {
             minimum_hourly_rate: number | null;
             /**
              * People Not Covered
-             * @description Simulated hires and acquired members on the date; not covered
+             * @description Simulated hires, and acquired members with no rate, on the date; not covered
              */
             people_not_covered: number | null;
             /**
              * People Raised
-             * @description Raised on the date
+             * @description Raised on the date, plus acquired members raised on joining later that year
              */
             people_raised: number | null;
             /**
              * People With Rate
-             * @description On staff on the date with a census hourly rate
+             * @description On staff on the date with an hourly rate: census staff and acquired members sampled from them
              */
             people_with_rate: number | null;
             /**

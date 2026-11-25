@@ -285,9 +285,13 @@ class MinimumWageYear(APIModel):
     minimum_hourly_rate: Optional[float] = Field(
         None, description="This year's minimum"
     )
-    people_raised: Optional[int] = Field(None, description="Raised on the date")
+    people_raised: Optional[int] = Field(
+        None,
+        description="Raised on the date, plus acquired members raised on joining later that year",
+    )
     people_with_rate: Optional[int] = Field(
-        None, description="On staff on the date with a census hourly rate"
+        None,
+        description="On staff on the date with an hourly rate: census staff and acquired members sampled from them",
     )
     people_without_rate: Optional[int] = Field(
         None,
@@ -295,10 +299,10 @@ class MinimumWageYear(APIModel):
     )
     people_not_covered: Optional[int] = Field(
         None,
-        description="Simulated hires and acquired members on the date; not covered",
+        description="Simulated hires, and acquired members with no rate, on the date; not covered",
     )
     added_annual_pay: Optional[float] = Field(
-        None, description="Annual pay the step added on its date"
+        None, description="Annual pay those raises added on their dates"
     )
     raised_still_active: int = Field(
         0, description="People any step so far raised who are active at year end"

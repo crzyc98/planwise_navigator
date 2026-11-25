@@ -98,7 +98,8 @@ class MinimumWageStep(BaseModel):
     """A new minimum hourly rate that takes effect on a date (#1229).
 
     Everyone with a census hourly rate below it on that date is raised to it,
-    with hours unchanged. Simulated hires and acquired members have no rate.
+    with hours unchanged. Acquired members take the rate of the person they
+    were sampled from; simulated hires have no rate.
     """
 
     model_config = ConfigDict(extra="forbid")
