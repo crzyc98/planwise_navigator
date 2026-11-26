@@ -37,6 +37,7 @@ SEEDS = (521, 523, 541)
 VARIANTS = ("baseline", "acquisition", "minimum_wage", "both")
 # A baseline on the same census with its hourly rate columns removed.
 NO_RATES = "no_rate_columns"
+NO_RATES_CENSUS = "census_no_rates.parquet"
 RATE_COLUMNS = ("hourly_rate", "hours_worked", "scheduled_hours_per_week")
 
 
@@ -136,6 +137,14 @@ EDGE_SETTINGS: Dict[str, Tuple[Tuple[str, ...], Dict[str, Any]]] = {
 EDGE_CONFIGS = tuple(EDGE_SETTINGS)
 
 
+def _section(parent: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """A config section, created when it is missing or left empty in the YAML."""
+    if not isinstance(parent.get(key), dict):
+        parent[key] = {}
+    section: Dict[str, Any] = parent[key]
+    return section
+
+
 def _apply_edge(raw: Dict[str, Any], family: str) -> None:
     """Apply one edge config's settings, if ``family`` is one."""
     if family not in EDGE_SETTINGS:
@@ -143,23 +152,23 @@ def _apply_edge(raw: Dict[str, Any], family: str) -> None:
     path, settings = EDGE_SETTINGS[family]
     section = raw
     for key in path:
-        section = section.setdefault(key, {})
+        section = _section(section, key)
     section.update(copy.deepcopy(settings))
 
 
 def build_config(plan: Plan, run: Run) -> Dict[str, Any]:
     """The base config with this run's years, seed, edge setting and changes."""
     raw: Dict[str, Any] = copy.deepcopy(yaml.safe_load(plan.config.read_text()))
-    raw.setdefault("simulation", {}).update(
+    _section(raw, "simulation").update(
         {
             "start_year": plan.start_year,
             "end_year": plan.end_year,
             "random_seed": run.seed,
         }
     )
-    raw.setdefault("setup", {})["census_parquet_path"] = str(plan.census)
-    raw.setdefault("workforce", {})["acquisitions"] = []
-    raw.setdefault("compensation", {})["minimum_wage"] = []
+    _section(raw, "setup")["census_parquet_path"] = str(plan.census)
+    _section(raw, "workforce")["acquisitions"] = []
+    _section(raw, "compensation")["minimum_wage"] = []
     _apply_edge(raw, run.family)
     if run.variant in ("acquisition", "both"):
         raw["workforce"]["acquisitions"] = plan.acquisitions()
@@ -177,7 +186,7 @@ def census_without_rates(plan: Plan, directory: Path) -> Path:
     """Copy the census without the columns that give an hourly rate."""
     import duckdb
 
-    target = directory / "census_no_rates.parquet"
+    target = directory / NO_RATES_CENSUS
     with duckdb.connect() as connection:
         source = connection.read_parquet(str(plan.census))
         keep = [f'"{name}"' for name in source.columns if name not in RATE_COLUMNS]
@@ -213,16 +222,20 @@ def simulate(directory: Path, start_year: int, end_year: int) -> None:
 def launch(plan: Plan, run: Run) -> str:
     """Run one simulation in its own process, unless it already finished."""
     directory = run_directory(plan, run)
-    if (directory / "done").exists():
-        return f"{run.name}: reused"
     directory.mkdir(parents=True, exist_ok=True)
-    for stale in directory.glob("sim.duckdb*"):
-        stale.unlink()
     config = build_config(plan, run)
     if run.family == NO_RATES:
-        stripped = census_without_rates(plan, directory)
-        config["setup"]["census_parquet_path"] = str(stripped)
-    (directory / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
+        config["setup"]["census_parquet_path"] = str(directory / NO_RATES_CENSUS)
+    text = yaml.safe_dump(config, sort_keys=False)
+    saved = directory / "config.yaml"
+    # Reuse a finished run only when it was made with this exact config.
+    if (directory / "done").exists() and saved.exists() and saved.read_text() == text:
+        return f"{run.name}: reused"
+    for stale in [*directory.glob("sim.duckdb*"), directory / "done"]:
+        stale.unlink(missing_ok=True)
+    if run.family == NO_RATES:
+        census_without_rates(plan, directory)
+    saved.write_text(text)
     command = [sys.executable, __file__, "--worker", str(directory)]
     command += ["--start-year", str(plan.start_year), "--end-year", str(plan.end_year)]
     with (directory / "log.txt").open("w") as log:

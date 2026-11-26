@@ -444,7 +444,12 @@ def write_report(plan: "Plan", runs: Sequence["Run"]) -> int:
     costs: List[Dict[str, Any]] = []
     pairs = sorted({(run.family, run.seed) for run in runs if run.family != NO_RATES})
     for family, seed in pairs:
-        group = Group(plan, family, seed)
+        try:
+            group = Group(plan, family, seed)
+        except FileNotFoundError as error:
+            label = f"{family} / seed {seed}"
+            checks.append(Check(label, "All four runs finished", False, str(error)))
+            continue
         check_group(group)
         checks += group.checks
         costs += cost_table(group)

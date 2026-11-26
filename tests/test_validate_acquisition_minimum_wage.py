@@ -13,6 +13,7 @@ from planalign_orchestrator.config import load_simulation_config
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import validate_acquisition_minimum_wage as validation  # noqa: E402
+from validate_acquisition_minimum_wage_checks import write_report  # noqa: E402
 
 sys.path.remove(str(SCRIPTS))
 
@@ -63,3 +64,22 @@ def test_every_config_loads(plan: validation.Plan, family: str, tmp_path: Path) 
     config = load_simulation_config(path, env_overrides=False)
     assert len(config.workforce.acquisitions) == 3
     assert config.compensation.minimum_wage[0].hourly_rate == 21.0
+
+
+def test_an_empty_section_in_the_base_config_is_filled(
+    plan: validation.Plan, tmp_path: Path
+) -> None:
+    base = yaml.safe_load(plan.config.read_text())
+    base["enrollment"] = None
+    base["compensation"] = None
+    path = tmp_path / "base.yaml"
+    path.write_text(yaml.safe_dump(base))
+    sparse = validation.Plan(**{**plan.__dict__, "config": path})
+    raw = validation.build_config(sparse, validation.Run("ae_all_eligible", "both", 7))
+    assert raw["enrollment"]["auto_enrollment"]["scope"] == "all_eligible_employees"
+    assert len(raw["compensation"]["minimum_wage"]) == 1
+
+
+def test_a_group_with_an_unfinished_run_fails_the_report(plan: validation.Plan) -> None:
+    assert write_report(plan, [validation.Run("default", "baseline", 7)]) == 1
+    assert "All four runs finished" in (plan.out / "report.md").read_text()
