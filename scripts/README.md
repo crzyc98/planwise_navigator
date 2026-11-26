@@ -48,3 +48,11 @@ against a finished run (opened read-only). Optional `--scenario-id`, `--targets`
 (CSV: dimension,band,metric,value), and `--output` (CSV) filter, compare, and export
 continuous-participant metrics. Percentages use 0–100; changes are percentage
 points, with negative decrease averages. Undefined conditional metrics are NULL.
+
+### Acquisition and minimum wage validation
+
+`python scripts/validate_acquisition_minimum_wage.py --census <parquet> --config <yaml>
+--minimum-wage 21 --out var/validate-1232/<name>` runs a baseline, an acquisition, a
+minimum wage and both, on three seeds and four edge configs, each in its own database,
+and writes `report.md` with aggregates only. The census needs an hourly rate column.
+See `docs/studies/acquisition_minimum_wage_validation.md`.
