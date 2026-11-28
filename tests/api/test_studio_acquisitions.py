@@ -42,6 +42,7 @@ ACQUISITIONS = [
         "effective_date": "2026-07-01",
         "service_credit": "acquisition_date",
         "plan_entry": "waiting_period",
+        "join_year_hours_credit": "full_year",
         "starting_participation_rate": 0.6,
         "starting_deferral_rate": 0.05,
         "relative_pay": 0.9,
@@ -416,6 +417,7 @@ def test_report_without_acquisitions_looks_as_before(tmp_path):
     [
         ("service_credit", "prior_service"),
         ("plan_entry", "acquisition_date"),
+        ("join_year_hours_credit", "none"),
         ("starting_participation_rate", 0.7),
         ("relative_pay", 1.1),
         ("average_pay", 80_000),

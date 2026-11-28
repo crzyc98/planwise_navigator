@@ -118,7 +118,10 @@ The edge configs pass every check on both censuses.
   (1,821 to 1,839 on A).
 - **A group joining late in the year gets no match or core that year** when the plan
   requires 1,000 hours, because only hours after the join date count. On A the group
-  joining on 1 October deferred $190k and received nothing. Filed as #1329.
+  joining on 1 October deferred $190k and received nothing. Filed as #1329, which added
+  the acquisition setting `join_year_hours_credit: full_year` ("Credit a full year of
+  hours" in Studio) to count members as meeting the hours rule in the join year. This
+  runner leaves it unset, so its checks still describe the default.
 
 ## Still to do
 

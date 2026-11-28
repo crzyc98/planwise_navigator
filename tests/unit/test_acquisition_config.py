@@ -349,3 +349,48 @@ def test_overrides_reach_the_joining_macro() -> None:
 def test_overrides_reject_invalid_values(override: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         AcquisitionSettings.model_validate({**ACME, **override})
+
+
+# --- #1329: join-year hours credit ------------------------------------------
+
+
+def test_join_year_hours_credit_defaults_to_none_and_is_not_exported() -> None:
+    assert AcquisitionSettings.model_validate(ACME).join_year_hours_credit == "none"
+    unset = _config([ACME])
+    explicit = _config([{**ACME, "join_year_hours_credit": "none"}])
+    assert "join_year_hours_credit" not in to_dbt_vars(explicit)["acquisitions"][0]
+    # A config saved before the setting keeps its fingerprint.
+    assert compute_config_fingerprint(unset) == compute_config_fingerprint(explicit)
+
+
+def test_full_year_hours_credit_is_exported_and_changes_the_fingerprint() -> None:
+    config = _config([{**ACME, "join_year_hours_credit": "full_year"}])
+    exported = to_dbt_vars(config)["acquisitions"][0]
+    assert exported["join_year_hours_credit"] == "full_year"
+    assert compute_config_fingerprint(config) != compute_config_fingerprint(
+        _config([ACME])
+    )
+
+
+@pytest.mark.parametrize("value", ["partial", "yes", True, None])
+def test_join_year_hours_credit_rejects_other_values(value: Any) -> None:
+    with pytest.raises(ValidationError):
+        AcquisitionSettings.model_validate({**ACME, "join_year_hours_credit": value})
+
+
+def test_hours_credit_macro_selects_only_full_year_groups() -> None:
+    macros = Path(__file__).resolve().parents[2] / "dbt" / "macros"
+    env = Environment(extensions=["jinja2.ext.do"])
+    returned: list[Any] = []
+    groups = [
+        {"id": "acme", "join_year_hours_credit": "full_year"},
+        {"id": "beta", "join_year_hours_credit": "none"},
+        {"id": "gamma"},
+    ]
+    env.globals["var"] = lambda name, default=None: (
+        groups if name == "acquisitions" else default
+    )
+    env.globals["return"] = lambda value: returned.append(value) or ""
+    module = env.from_string((macros / "events" / "acquisitions.sql").read_text())
+    module.module.acquisitions_where("join_year_hours_credit", "full_year", "none")
+    assert [item["id"] for item in returned[0]] == ["acme"]

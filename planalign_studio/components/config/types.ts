@@ -62,6 +62,8 @@ export interface AcquisitionRow {
   // Plan settings (#1227)
   serviceCredit: 'prior_service' | 'acquisition_date';
   planEntry: 'acquisition_date' | 'waiting_period';
+  /** #1329: full_year meets the match and core hours rule in the join year. */
+  joinYearHoursCredit: 'none' | 'full_year';
   /** Percents; both null sends members through auto-enrollment like new hires. */
   startingParticipationPct: number | null;
   startingDeferralPct: number | null;

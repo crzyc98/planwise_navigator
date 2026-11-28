@@ -202,6 +202,7 @@ def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path)
         "effective_date": "2026-07-01",
         "service_credit": "acquisition_date",
         "plan_entry": "waiting_period",
+        "join_year_hours_credit": "full_year",
         "starting_participation_rate": 0.7,
         "starting_deferral_rate": 0.05,
     }
@@ -214,6 +215,8 @@ def test_acquisition_plan_settings_round_trip_through_scenario_storage(tmp_path)
     )
     stored = storage.get_scenario(workspace.id, created.id).config_overrides
     assert stored == overrides
+    copied = service.duplicate_scenario(workspace.id, created.id, "Copy")
+    assert copied is not None and copied.config_overrides == overrides
     merged = service.get_merged_config(workspace.id, created.id)
     loaded = AcquisitionSettings.model_validate(merged["workforce"]["acquisitions"][0])
     assert loaded.model_dump(mode="json", exclude_none=True) == acquisition

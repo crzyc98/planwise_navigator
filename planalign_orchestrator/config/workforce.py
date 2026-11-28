@@ -52,6 +52,15 @@ class AcquisitionSettings(BaseModel):
             "waiting_period applies the plan's waiting period from that date"
         ),
     )
+    # #1329: the hours rule for match and core in the year the group joins.
+    join_year_hours_credit: Literal["none", "full_year"] = Field(
+        default="none",
+        description=(
+            "none counts only hours worked after the effective date; full_year "
+            "treats members as meeting the match and core hours requirement "
+            "in the year they join"
+        ),
+    )
     starting_participation_rate: Optional[float] = Field(
         default=None,
         ge=0,

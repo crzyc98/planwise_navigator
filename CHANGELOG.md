@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- An acquisition can credit its members with a full year of hours in the year they join (#1329). Set `join_year_hours_credit: full_year` on the group in `workforce.acquisitions`, or choose "Credit a full year of hours" under Join-year hours in Studio's Acquisitions list. Members then meet the plan's hours requirement for match and core in the join year, so a group joining late in the year no longer gets $0 employer contributions. Contributions still use their actual deferrals and earned pay, other eligibility rules still apply, and later years are unchanged. The default, `none`, counts only hours after the join date, as before.
+
 ## [3.7.0] - 2026-11-25
 
 ### Added
