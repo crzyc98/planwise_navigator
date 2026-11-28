@@ -222,6 +222,8 @@ export default function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOverlayOpen, setSidebarOverlayOpen] = useState(false);
   const isNarrowViewport = useNarrowViewport();
+  // Widening the window dismisses the overlay so narrowing again starts collapsed.
+  if (!isNarrowViewport && sidebarOverlayOpen) setSidebarOverlayOpen(false);
   const shell = sidebarShell({
     isNarrow: isNarrowViewport,
     desktopCollapsed: sidebarCollapsed,
