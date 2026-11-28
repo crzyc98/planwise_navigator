@@ -23,6 +23,7 @@ import {
 } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from './AuthGate';
+import { sidebarShell, useNarrowViewport } from './sidebarShell';
 
 export interface LayoutContextType {
   activeWorkspace: Workspace;
@@ -46,10 +47,11 @@ export interface LayoutContextType {
   lastHeartbeatRef: React.MutableRefObject<number>;
 }
 
-const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; icon: React.ReactNode; label: string; end?: boolean; collapsed?: boolean }>) => (
+const NavItem = ({ to, icon, label, end, collapsed, onNavigate }: Readonly<{ to: string; icon: React.ReactNode; label: string; end?: boolean; collapsed?: boolean; onNavigate?: () => void }>) => (
   <NavLink
     to={to}
     end={end}
+    onClick={onNavigate}
     title={collapsed ? label : undefined}
     className={({ isActive }) =>
       `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-brand-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-brand-ink'}`
@@ -216,8 +218,32 @@ export default function Layout() {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastRunScenarioId, setLastRunScenarioId] = useState<string | null>(null);
 
-  // Sidebar collapse state
+  // Sidebar collapse state: in-flow on desktop, an overlay at phone width (#1251)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOverlayOpen, setSidebarOverlayOpen] = useState(false);
+  const isNarrowViewport = useNarrowViewport();
+  const shell = sidebarShell({
+    isNarrow: isNarrowViewport,
+    desktopCollapsed: sidebarCollapsed,
+    overlayOpen: sidebarOverlayOpen,
+  });
+  const setSidebarExpanded = (expanded: boolean) => {
+    if (isNarrowViewport) {
+      setSidebarOverlayOpen(expanded);
+    } else {
+      setSidebarCollapsed(!expanded);
+    }
+  };
+  const closeSidebarOverlay = shell.overlay ? () => setSidebarOverlayOpen(false) : undefined;
+
+  useEffect(() => {
+    if (!shell.overlay) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSidebarOverlayOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shell.overlay]);
 
   // Feature 045: Global simulation running state
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
@@ -864,13 +890,24 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-surface-raised border-r border-border flex flex-col z-10 flex-shrink-0 transition-all duration-200`}>
-        <div className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-6'} h-16 border-b border-border`}>
-          {sidebarCollapsed ? (
+      {shell.overlay && (
+        <>
+          {/* Keeps the collapsed rail's width so the page doesn't shift under the overlay */}
+          <div className="w-16 flex-shrink-0" aria-hidden="true" />
+          <div className="fixed inset-0 z-30 bg-overlay" role="presentation" onClick={closeSidebarOverlay} />
+        </>
+      )}
+      <aside id="app-sidebar" className={shell.asideClassName}>
+        <div className={`flex items-center ${shell.collapsed ? 'justify-center px-2' : 'px-6'} h-16 border-b border-border`}>
+          {shell.collapsed ? (
             <button
-              onClick={() => setSidebarCollapsed(false)}
+              type="button"
+              onClick={() => setSidebarExpanded(true)}
               className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-brand-ink transition-colors"
               title="Expand sidebar"
+              aria-label="Expand sidebar"
+              aria-expanded={false}
+              aria-controls="app-sidebar"
             >
               <PanelLeftOpen size={20} />
             </button>
@@ -879,9 +916,14 @@ export default function Layout() {
               <Activity className="w-8 h-8 text-brand-ink mr-3 flex-shrink-0" />
               <span className="text-lg font-bold text-ink tracking-tight flex-1 truncate">{APP_NAME}</span>
               <button
-                onClick={() => setSidebarCollapsed(true)}
+                type="button"
+                onClick={() => setSidebarExpanded(false)}
                 className="p-1.5 rounded-lg text-ink-subtle hover:bg-surface-subtle hover:text-ink-muted transition-colors flex-shrink-0"
                 title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                aria-expanded={true}
+                aria-controls="app-sidebar"
+                autoFocus={shell.overlay}
               >
                 <PanelLeftClose size={18} />
               </button>
@@ -889,13 +931,13 @@ export default function Layout() {
           )}
         </div>
 
-        <nav className={`flex-1 ${sidebarCollapsed ? 'px-2' : 'px-4'} py-6 overflow-y-auto`}>
+        <nav className={`flex-1 ${shell.collapsed ? 'px-2' : 'px-4'} py-6 overflow-y-auto`}>
           {NAV_SECTIONS.map((section, sectionIndex) => (
             <div key={section.heading ?? 'top'}>
-              {sectionIndex > 0 && sidebarCollapsed && (
+              {sectionIndex > 0 && shell.collapsed && (
                 <div className="border-t border-border my-2 mx-3" />
               )}
-              {!sidebarCollapsed && section.heading && (
+              {!shell.collapsed && section.heading && (
                 <div className={`${sectionIndex > 0 ? 'mt-6' : ''} mb-2 px-4 text-xs font-semibold text-ink-subtle uppercase tracking-wider`}>
                   {section.heading}
                 </div>
@@ -907,7 +949,8 @@ export default function Layout() {
                   icon={item.icon}
                   label={item.label}
                   end={item.end}
-                  collapsed={sidebarCollapsed}
+                  collapsed={shell.collapsed}
+                  onNavigate={closeSidebarOverlay}
                 />
               ))}
             </div>
@@ -918,7 +961,7 @@ export default function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-surface-raised border-b border-border flex items-center justify-between px-8 shadow-sm flex-shrink-0 z-20">
+        <header className="h-16 bg-surface-raised border-b border-border flex items-center justify-between px-4 sm:px-8 shadow-sm flex-shrink-0 z-20">
 
           {/* Workspace Selector (Global Context) */}
           <div className="flex items-center" ref={workspaceDropdownRef}>
