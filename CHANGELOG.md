@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Optimizer results in Studio now name each candidate's database relative to the optimizer runs folder instead of by its full server path (#1311). The exported results and report on the server still give the full path.
+
 ## [3.7.0] - 2026-11-25
 
 ### Added

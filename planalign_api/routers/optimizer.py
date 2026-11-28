@@ -114,6 +114,25 @@ _reserved_dirs: set[Path] = set()
 _reserved_dirs_guard = threading.Lock()
 
 
+def _client_run(run: OptimizerRun, runs_root: Path) -> OptimizerRun:
+    """``run`` with each candidate database named relative to ``runs_root``.
+
+    Only the copy kept for responses changes; the exports and report written
+    to the output directory keep the full paths (#1311).
+    """
+    candidates = tuple(
+        (
+            candidate.model_copy(
+                update={"db_path": Path(relative_to_root(candidate.db_path, runs_root))}
+            )
+            if candidate.db_path is not None
+            else candidate
+        )
+        for candidate in run.candidates
+    )
+    return run.model_copy(update={"candidates": candidates})
+
+
 def _register_job() -> OptimizerJob:
     job = OptimizerJob(
         run_id=f"opt_{uuid4().hex[:12]}",
@@ -584,7 +603,9 @@ def start_optimizer_run(
         write_exports(run, output_dir)
         write_report(run, output_dir)
         _update_job(
-            job.run_id, result=run, output_dir=relative_to_root(output_dir, runs_root)
+            job.run_id,
+            result=_client_run(run, runs_root),
+            output_dir=relative_to_root(output_dir, runs_root),
         )
 
     _start_job_thread(job, _build, database_dir, output_dir, workspace_config)
