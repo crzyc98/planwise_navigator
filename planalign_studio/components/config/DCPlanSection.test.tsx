@@ -57,7 +57,7 @@ type ControlProps = { name?: string; id?: string; checked?: boolean; children?: 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<ControlProps>(child)) return [];
-    if (typeof child.type === 'function' && child.type.name === 'StepTable') return elements((child.type as (props: ControlProps) => ReactNode)(child.props));
+    if (typeof child.type === 'function' && /^(StepTable|(Match|Core)Formula(Control|Fields))$/.test(child.type.name)) return elements((child.type as (props: ControlProps) => ReactNode)(child.props));
     if (child.type === DistributionTable) return elements(DistributionTable(child.props as unknown as React.ComponentProps<typeof DistributionTable>));
     return [child, ...elements(child.props.children), ...elements(child.props.control)];
   });

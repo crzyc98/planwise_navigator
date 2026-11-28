@@ -2,7 +2,7 @@ import { NumericInput } from './NumericInput';
 import { X } from 'lucide-react';
 import type { TenureGradedBand, MatchTier } from './types';
 import { calculateTenureGradedBandCap } from './constants';
-import { validateMatchTiers } from './DCPlanSection';
+import { validateMatchTiers } from './formulaValidation';
 
 /**
  * Feature 099: editor for the tenure-graded multi-tier employer match mode.
