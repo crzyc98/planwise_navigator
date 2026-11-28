@@ -145,6 +145,37 @@ def test_run_returns_completed_job_with_candidates(
     assert (tmp_path / job["output_dir"] / "optimizer_results.json").exists()
 
 
+def test_candidate_database_paths_are_relative_to_runs_root(
+    client, monkeypatch, tmp_path
+) -> None:
+    """Responses name each candidate database below the runs root (#1311)."""
+    db_dir = tmp_path / "db"
+    db_path = db_dir / "candidates" / "candidate-0000" / "scenario.duckdb"
+    run = _sample_run()
+    run = run.model_copy(
+        update={
+            "candidates": (run.candidates[0].model_copy(update={"db_path": db_path}),)
+        }
+    )
+    monkeypatch.setattr(optimizer_router, "run_optimizer", lambda *a, **kw: (run, None))
+
+    resp = client.post(
+        "/api/optimizer/run",
+        json={"spec": _valid_spec(), "max_runs": 3, "database_dir": str(db_dir)},
+    )
+    run_id = resp.json()["run_id"]
+    job = _await_job(client, run_id)
+    detail = client.get(f"/api/optimizer/runs/{run_id}/candidates/candidate-0000")
+
+    expected = "db/candidates/candidate-0000/scenario.duckdb"
+    assert job["result"]["candidates"][0]["db_path"] == expected
+    assert detail.json()["db_path"] == expected
+    assert str(tmp_path) not in resp.text + str(job) + detail.text
+    # The exports on the server keep the full path for CLI users.
+    exported = (db_dir / "optimizer_results.json").read_text()
+    assert str(db_path) in exported
+
+
 def test_run_rejects_invalid_spec_yaml(client) -> None:
     bad_spec = _valid_spec()
     bad_spec["design_space"]["levers"][0]["name"] = "not_a_real_lever"
