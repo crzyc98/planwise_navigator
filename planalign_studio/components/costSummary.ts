@@ -19,6 +19,7 @@ import type {
   EmployerCostOffsetRow,
   GrandfatheredCostComparisonResponse,
 } from '../services/api';
+import { UNAVAILABLE_YEAR_NOTE, unavailableYears } from './effectiveYear';
 
 export type SummaryField = Exclude<keyof CostSummaryFiguresPayload, 'notes'>;
 export type SummaryNotes = Partial<Record<SummaryField, string>>;
@@ -142,11 +143,14 @@ function setNetYear(figures: SummaryYear, scenarioId: string, net: NetInput): vo
 }
 
 function yearFigures(
-  analytics: DCPlanAnalytics, year: number, inputs: CostSummaryInputs,
+  analytics: DCPlanAnalytics, year: number, inputs: CostSummaryInputs, gaps: Set<number>,
 ): SummaryYear {
   const yearData = analytics.contribution_by_year.find(item => item.year === year);
-  const figures: SummaryYear = { ...emptyFigures(), year, has_data: yearData !== undefined };
-  if (!yearData) {
+  // #791: a year the supplying run never simulated is unavailable, not empty.
+  const figures: SummaryYear = { ...emptyFigures(), year, has_data: yearData !== undefined || gaps.has(year) };
+  if (gaps.has(year)) {
+    FIELDS.forEach(field => { figures.notes[field] = UNAVAILABLE_YEAR_NOTE; });
+  } else if (!yearData) {
     const note = inputs.cohort !== 'all' ? 'No employees in cohort' : 'No cost data for this year';
     FIELDS.forEach(field => { figures.notes[field] = note; });
   } else {
@@ -177,7 +181,9 @@ function costTotal(years: SummaryYear[], grandfather: GrandfatherInput | null): 
     ? 'Loading grandfathered employer cost.'
     : 'Employer cost is unavailable for at least one year.';
   set(totals, 'employer_cost', total, note);
-  totals.total_compensation = sum(present.map(year => year.total_compensation ?? 0));
+  const pay = present.map(year => year.total_compensation);
+  set(totals, 'total_compensation', pay.some(value => value === null) ? null : sum(pay as number[]),
+    'Compensation is unavailable for at least one year.');
   return totals;
 }
 
@@ -197,15 +203,17 @@ function setNetTotals(totals: SummaryFigures, years: SummaryYear[], net: NetInpu
 }
 
 function scenarioTotals(
-  analytics: DCPlanAnalytics, years: SummaryYear[], inputs: CostSummaryInputs,
+  analytics: DCPlanAnalytics, years: SummaryYear[], inputs: CostSummaryInputs, gaps: Set<number>,
 ): SummaryFigures {
   const totals = costTotal(years, inputs.grandfather);
   const cappedPay = sum(analytics.contribution_by_year.map(year => year.total_capped_compensation));
   set(totals, 'cost_pct_of_capped_pay', costPctOfCappedPay(totals.employer_cost, cappedPay),
     totals.notes.employer_cost ?? '');
   if (inputs.split) {
-    totals.employer_match = sum(analytics.contribution_by_year.map(year => year.total_employer_match));
-    totals.employer_core = sum(analytics.contribution_by_year.map(year => year.total_employer_core));
+    const component = (key: 'total_employer_match' | 'total_employer_core') => (gaps.size > 0
+      ? null : sum(analytics.contribution_by_year.map(year => year[key])));
+    set(totals, 'employer_match', component('total_employer_match'), UNAVAILABLE_YEAR_NOTE);
+    set(totals, 'employer_core', component('total_employer_core'), UNAVAILABLE_YEAR_NOTE);
   }
   if (inputs.net) setNetTotals(totals, years, inputs.net);
   return totals;
@@ -262,16 +270,50 @@ export function buildCostSummary(inputs: CostSummaryInputs): ScenarioSummary[] {
   const scenarios = inputs.scenarioIds.flatMap(id => {
     const analytics = byId.get(id);
     if (!analytics) return [];
-    const years = inputs.years.map(year => yearFigures(analytics, year, inputs));
+    const gaps = unavailableYears(analytics);
+    const years = inputs.years.map(year => yearFigures(analytics, year, inputs, gaps));
     return [{
       scenario_id: id,
       is_anchor: id === inputs.anchorId,
       years,
-      totals: scenarioTotals(analytics, years, inputs),
+      totals: scenarioTotals(analytics, years, inputs, gaps),
     }];
   });
   const anchor = scenarios.find(item => item.is_anchor);
   return scenarios.map(item => withAnchorDifferences(item, anchor, inputs.net !== null));
+}
+
+/**
+ * Running totals of the annual chart rows. A scenario's first unavailable
+ * (null) year makes it, and its difference from the anchor, null from then on.
+ */
+export function cumulativeCostRows(
+  rows: Array<Record<string, number | null>>, scenarioIds: string[], anchorId: string,
+): Array<Record<string, number | null>> {
+  const runningTotals: Record<string, number> = {};
+  const unavailable: Record<string, boolean> = {};
+  scenarioIds.forEach(id => {
+    runningTotals[id] = 0;
+  });
+
+  return rows.map(yearRow => {
+    const newRow: Record<string, number | null> = { year: yearRow.year };
+
+    scenarioIds.forEach(id => {
+      if (yearRow[id] === null) unavailable[id] = true;
+      else runningTotals[id] += yearRow[id] ?? 0;
+      newRow[id] = unavailable[id] ? null : runningTotals[id];
+
+      if (anchorId && id !== anchorId) {
+        newRow[`${id}_delta`] = differenceFromAnchor(
+          unavailable[id] ? null : runningTotals[id],
+          unavailable[anchorId] ? null : runningTotals[anchorId],
+        );
+      }
+    });
+
+    return newRow;
+  });
 }
 
 /** The run each scenario's figures were read from (carried by the analytics response itself). */
@@ -371,7 +413,7 @@ export function compensationMatrixTSV(
     const { totals } = scenario;
     lines.push([names[scenario.scenario_id] ?? scenario.scenario_id,
       ...scenario.years.map(year => cellText(year, year.total_compensation, formatCurrency)),
-      formatCurrency(totals.total_compensation ?? 0),
+      totals.total_compensation === null ? 'unavailable' : formatCurrency(totals.total_compensation),
       totals.total_compensation_vs_anchor === null ? '--' : formatSigned(totals.total_compensation_vs_anchor),
     ].join('\t'));
   });

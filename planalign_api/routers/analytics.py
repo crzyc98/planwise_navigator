@@ -31,9 +31,11 @@ from ..services.analytics_service import AnalyticsService
 from ..services.census_tie_out import CensusTieOutService
 from ..services.comparison_integrity import ComparisonIntegrityService
 from ..services.current_result import CurrentResultIntegrityError
+from ..services.effective_year import history_warnings
 from ..services.comparison_export_service import (
     ComparisonExportError,
     ComparisonExportService,
+    ExportEffectiveYear,
     ExportFormat,
     ExportScenario,
     HyperUnavailableError,
@@ -44,6 +46,7 @@ from ..services.comparison_summary_export import (
     StaleSummaryError,
     SummaryExportError,
     build_summary_workbook,
+    effective_year_active,
     validate_request,
 )
 from ..services.vesting_service import SCHEDULE_INFO
@@ -356,6 +359,19 @@ def compare_dc_plan_analytics(
             "that contribution. By default non-participants count as 0."
         ),
     ),
+    anchor: Optional[str] = Query(
+        None, description="Scenario whose years come before the effective year"
+    ),
+    effective_year: Optional[int] = Query(
+        None,
+        ge=1900,
+        le=2200,
+        description=(
+            "Year the other scenarios' designs take effect (#791). Before it they "
+            "show the anchor's contribution years. On or before the anchor's first "
+            "simulation year it changes nothing."
+        ),
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanComparisonResponse:
@@ -417,10 +433,62 @@ def compare_dc_plan_analytics(
             detail="Failed to generate analytics for comparison",
         )
 
-    return DCPlanComparisonResponse(
+    response = DCPlanComparisonResponse(
         scenarios=scenario_ids,
         scenario_names=scenario_names,
         analytics=analytics_list,
+    )
+    if effective_year is None:
+        return response
+    return _with_effective_year(
+        analytics_service, workspace_id, response, anchor, effective_year
+    )
+
+
+def _effective_year_anchor(anchor: Optional[str], names: Dict[str, str]) -> str:
+    if anchor is None or anchor not in names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An effective year needs an anchor among the compared scenarios",
+        )
+    return anchor
+
+
+def _with_effective_year(
+    analytics_service: AnalyticsService,
+    workspace_id: str,
+    response: DCPlanComparisonResponse,
+    anchor: Optional[str],
+    effective_year: int,
+) -> DCPlanComparisonResponse:
+    """Combine non-anchor scenarios with the anchor before ``effective_year``."""
+    anchor_id = _effective_year_anchor(anchor, response.scenario_names)
+    try:
+        combined = analytics_service.apply_effective_year(
+            workspace_id, response.analytics, anchor_id, effective_year
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Scenario result not found: {exc}"
+        ) from exc
+    if combined is None:
+        return response
+    return response.model_copy(
+        update={
+            "analytics": combined,
+            "effective_year": effective_year,
+            "warnings": history_warnings(
+                analytics_service.db_resolver,
+                workspace_id,
+                anchor_id,
+                response.scenario_names,
+                effective_year,
+            ),
+        }
     )
 
 
@@ -467,9 +535,12 @@ def _build_export(
     workspace_name: str,
     export_format: ExportFormat,
     output_dir: Path,
+    effective_year: Optional[ExportEffectiveYear] = None,
 ) -> Path:
     try:
-        return export_service.build(selected, workspace_name, export_format, output_dir)
+        return export_service.build(
+            selected, workspace_name, export_format, output_dir, effective_year
+        )
     except ComparisonExportError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
@@ -478,6 +549,31 @@ def _build_export(
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)
         ) from exc
+
+
+def _export_effective_year(
+    export_service: ComparisonExportService,
+    workspace_id: str,
+    names: Dict[str, str],
+    anchor: Optional[str],
+    effective_year: Optional[int],
+) -> Optional[ExportEffectiveYear]:
+    if effective_year is None:
+        return None
+    anchor_id = _effective_year_anchor(anchor, names)
+    return ExportEffectiveYear(
+        anchor_scenario_id=anchor_id,
+        year=effective_year,
+        notes=tuple(
+            history_warnings(
+                export_service.db_resolver,
+                workspace_id,
+                anchor_id,
+                names,
+                effective_year,
+            )
+        ),
+    )
 
 
 _EXPORT_MEDIA_TYPES = {
@@ -510,6 +606,15 @@ def export_scenario_comparison(
         None,
         description="Scenario the like-for-like verdicts use (default: first)",
     ),
+    effective_year: Optional[int] = Query(
+        None,
+        ge=1900,
+        le=2200,
+        description=(
+            "Year the other scenarios' designs take effect (#791): their rows "
+            "before it come from the anchor's run. Needs anchor."
+        ),
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     export_service: ComparisonExportService = Depends(get_comparison_export_service),
     integrity_service: ComparisonIntegrityService = Depends(
@@ -532,6 +637,9 @@ def export_scenario_comparison(
             detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios to export",
         )
     names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+    requested_year = _export_effective_year(
+        export_service, workspace_id, names, anchor, effective_year
+    )
 
     output_dir = Path(tempfile.mkdtemp(prefix="planalign-compare-export-"))
     try:
@@ -540,7 +648,12 @@ def export_scenario_comparison(
             selected, integrity_service, workspace, names, anchor
         )
         path = _build_export(
-            export_service, selected, workspace.name, format, output_dir
+            export_service,
+            selected,
+            workspace.name,
+            format,
+            output_dir,
+            requested_year,
         )
     except BaseException:
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -600,7 +713,20 @@ def export_comparison_summary(
     except StaleSummaryError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    content = build_summary_workbook(request, sources, workspace.name)
+    notes: tuple[str, ...] = ()
+    if request.view.effective_year is not None and effective_year_active(request.view):
+        notes = tuple(
+            history_warnings(
+                service.db_resolver,
+                workspace_id,
+                request.view.anchor_scenario_id,
+                names,
+                request.view.effective_year,
+            )
+        )
+    content = build_summary_workbook(
+        request, sources, workspace.name, accuracy_notes=notes
+    )
     date_str = datetime.now().strftime("%Y%m%d")
     filename = (
         f"{workspace.name.replace(' ', '_')}_cost_comparison_summary_{date_str}.xlsx"

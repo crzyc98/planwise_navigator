@@ -103,6 +103,15 @@ class CostSummaryView(APIModel):
         le=2200,
         description="Set when existing employees are grandfathered on the anchor design",
     )
+    effective_year: Optional[int] = Field(
+        None,
+        ge=1900,
+        le=2200,
+        description=(
+            "Set when scenarios other than the anchor show the anchor's figures "
+            "before this year (#791); null when designs apply from the first year"
+        ),
+    )
 
 
 class CostSummaryExportRequest(APIModel):

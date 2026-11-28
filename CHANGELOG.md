@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cost Comparison has an **Effective year** control (#791). Pick the year the non-anchor designs take effect: before it, every other scenario shows the anchor's figures; from it on, its own. Charts, tables, totals, cumulative views and the Excel, Tableau, Parquet and summary exports all follow it, and the exports record the year and which run supplied each year. A warning shows when scenarios differ from the anchor in auto-enrollment, deferral escalation, eligibility or vesting, since those runs carry history a mid-run switch wouldn't have. The default, the first simulation year, leaves every figure as before. It can't yet be combined with grandfathering or net of forfeitures.
+
 ## [3.7.0] - 2026-11-25
 
 ### Added

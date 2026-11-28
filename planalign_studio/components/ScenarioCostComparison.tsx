@@ -32,11 +32,21 @@ import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
 import ComparisonIntegrityBanner from './ComparisonIntegrityBanner';
 import CostBreakdownTooltip from './CostBreakdownTooltip';
+import EffectiveYearControl from './EffectiveYearControl';
+import {
+  GRANDFATHER_BLOCKED,
+  NET_BLOCKED,
+  effectiveYearBlockedReason,
+  effectiveYearOptions,
+  restoreEffectiveYear,
+  unavailableYears,
+} from './effectiveYear';
 import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
 import { buildSeedRangeView, seedRangeHiddenReason, SEED_RANGE_FOOTNOTE } from './seedRanges';
 import { useEnsembleCostRanges } from '../hooks/useEnsembleCostRanges';
 import {
   buildCostSummary,
+  cumulativeCostRows,
   runIdsFromAnalytics,
   compensationMatrixTSV,
   costMatrixTSV,
@@ -51,6 +61,7 @@ import ReportExportButtons, { type ReportExportFormat } from './ReportExportButt
 import { reportBasisNote, reportRequest } from './reportExport';
 import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
+  ApiError,
   listScenarios,
   compareDCPlanAnalytics,
   compareGrandfatheredCost,
@@ -174,6 +185,7 @@ interface ComparisonPrefs {
   forfeiturePolicy?: ForfeiturePolicy;
   grandfatherExisting?: boolean;
   grandfatherCutoffYear?: number;
+  effectiveYear?: number;
 }
 
 function saveComparisonPrefs(
@@ -199,6 +211,7 @@ function loadComparisonPrefs(
   forfeiturePolicy?: unknown;
   grandfatherExisting?: unknown;
   grandfatherCutoffYear?: unknown;
+  effectiveYear?: unknown;
 } | null {
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
@@ -450,6 +463,10 @@ export default function ScenarioCostComparison() {
   const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
+  // #791: null is the first simulation year, where the page is unchanged.
+  const [effectiveYear, setEffectiveYear] = useState<number | null>(null);
+  const effectiveYearBlocked = effectiveYearBlockedReason(grandfatherExisting, costView);
+  const requestedEffectiveYear = effectiveYearBlocked === null ? effectiveYear : null;
   const [exporting, setExporting] = useState<ComparisonExportFormat | 'summary' | null>(null);
   const [reportBusy, setReportBusy] = useState<ReportExportFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -494,6 +511,8 @@ export default function ScenarioCostComparison() {
     const allYears = new Set<number>();
     comparisonData.analytics.forEach(a => {
       a.contribution_by_year.forEach(y => allYears.add(y.year));
+      // #791: a combined year with no result still gets its column.
+      (a.year_sources ?? []).forEach(source => allYears.add(source.year));
     });
     return Array.from(allYears).sort((a, b) => a - b);
   }, [comparisonData]);
@@ -507,7 +526,23 @@ export default function ScenarioCostComparison() {
   );
   const ensembleRanges = useEnsembleCostRanges(activeWorkspace?.id, loadedScenarioIds, anchorScenarioId);
   const seedRanges = useMemo(() => buildSeedRangeView(ensembleRanges), [ensembleRanges]);
-  const seedRangesHidden = seedRangeHiddenReason(cohort, grandfatherExisting);
+  /** The effective year the API applied; null when designs apply from the first year. */
+  const appliedEffectiveYear = comparisonData?.effective_year ?? null;
+  const effectiveYearChoices = useMemo(
+    () => effectiveYearOptions(anchorAnalytics?.resolved_first_simulation_year, years),
+    [anchorAnalytics, years]
+  );
+  // #791: a saved year outside these runs' years falls back to the first year.
+  useEffect(() => {
+    if (effectiveYear !== null && effectiveYearChoices.length > 0
+        && !effectiveYearChoices.includes(effectiveYear)) {
+      setEffectiveYear(null);
+    }
+  }, [effectiveYear, effectiveYearChoices]);
+  const unavailableByScenario = useMemo(() => new Map(
+    (comparisonData?.analytics ?? []).map(a => [a.scenario_id, unavailableYears(a)])
+  ), [comparisonData]);
+  const seedRangesHidden = seedRangeHiddenReason(cohort, grandfatherExisting, appliedEffectiveYear !== null);
   const seedRangeFor = (id: string) => (seedRangesHidden === null ? seedRanges.rows.get(id) : undefined);
 
   useEffect(() => {
@@ -535,7 +570,9 @@ export default function ScenarioCostComparison() {
     grandfatherExisting ? grandfatherData !== null : forfeitureData !== null
   );
 
-  const reportNote = reportBasisNote({ cohort, costView, grandfatherExisting });
+  const reportNote = reportBasisNote({
+    cohort, costView, grandfatherExisting, effectiveYearApplied: appliedEffectiveYear !== null,
+  });
 
   const policyReducesCost = POLICY_REDUCES_EMPLOYER_COST[forfeiturePolicy];
 
@@ -599,7 +636,8 @@ export default function ScenarioCostComparison() {
       const row: Record<string, number | null> = { year };
 
       selectedScenarioIds.forEach(id => {
-        row[id] = yearMap.get(id) ?? (grandfatherExisting ? null : 0);
+        row[id] = yearMap.get(id)
+          ?? (grandfatherExisting || unavailableByScenario.get(id)?.has(year) ? null : 0);
         // Calculate delta from anchor
         if (anchorScenarioId && id !== anchorScenarioId) {
           const anchorValue = yearMap.get(anchorScenarioId)
@@ -613,35 +651,12 @@ export default function ScenarioCostComparison() {
 
     // Apply cumulative transformation if needed
     if (viewMode === 'cumulative') {
-      const runningTotals: Record<string, number> = {};
-      const unavailable: Record<string, boolean> = {};
-      selectedScenarioIds.forEach(id => {
-        runningTotals[id] = 0;
-      });
-
-      data = data.map(yearRow => {
-        const newRow: Record<string, number | null> = { year: yearRow.year };
-
-        selectedScenarioIds.forEach(id => {
-          if (yearRow[id] === null) unavailable[id] = true;
-          else runningTotals[id] += yearRow[id] ?? 0;
-          newRow[id] = unavailable[id] ? null : runningTotals[id];
-
-          if (anchorScenarioId && id !== anchorScenarioId) {
-            newRow[`${id}_delta`] = differenceFromAnchor(
-              unavailable[id] ? null : runningTotals[id],
-              unavailable[anchorScenarioId] ? null : runningTotals[anchorScenarioId],
-            );
-          }
-        });
-
-        return newRow;
-      });
+      data = cumulativeCostRows(data, selectedScenarioIds, anchorScenarioId);
     }
 
     return data;
   }, [comparisonData, selectedScenarioIds, anchorScenarioId, viewMode, years,
-      displayedCostFor, grandfatherExisting]);
+      displayedCostFor, grandfatherExisting, unavailableByScenario]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Chart rows augmented with offset / net series (#444)
@@ -776,7 +791,14 @@ export default function ScenarioCostComparison() {
         setCohort(isValidCohort(savedPrefs.cohort) ? savedPrefs.cohort : 'all');
         // #444: same tolerance as the cohort — a corrupted value falls back to
         // the default rather than blocking the selection restore.
-        setCostView(isValidCostView(savedPrefs.costView) ? savedPrefs.costView : 'gross');
+        const restoredCostView = isValidCostView(savedPrefs.costView) ? savedPrefs.costView : 'gross';
+        setCostView(restoredCostView);
+        // #791: a later effective year never restores alongside a view it can't combine with.
+        setEffectiveYear(
+          savedPrefs.grandfatherExisting === true || restoredCostView === 'net'
+            ? null
+            : restoreEffectiveYear(savedPrefs.effectiveYear)
+        );
         setForfeiturePolicy(
           isValidPolicy(savedPrefs.forfeiturePolicy)
             ? savedPrefs.forfeiturePolicy
@@ -848,13 +870,14 @@ export default function ScenarioCostComparison() {
         selectedScenarioIds,
         format,
         selectedScenarioIds.includes(anchorScenarioId) ? anchorScenarioId : undefined,
+        appliedEffectiveYear ?? undefined,
       );
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setExporting(null);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId]);
+  }, [activeWorkspace?.id, selectedScenarioIds, anchorScenarioId, appliedEffectiveYear]);
 
   const handleReportExport = useCallback(async (format: ReportExportFormat) => {
     const request = reportRequest(selectedScenarioIds, anchorScenarioId, format);
@@ -887,6 +910,7 @@ export default function ScenarioCostComparison() {
       vesting_schedule: netActive ? vestingSchedule : null,
       forfeiture_policy: netActive ? forfeiturePolicy : null,
       grandfather_cutoff_year: grandfatherExisting ? grandfatherCutoffYear : null,
+      effective_year: appliedEffectiveYear,
     };
     const runIds = runIdsFromAnalytics(comparisonData?.analytics ?? []);
     try {
@@ -900,7 +924,10 @@ export default function ScenarioCostComparison() {
     }
   }, [activeWorkspace?.id, costSummary, anchorScenarioId, cohort, anchorAnalytics, netActive,
       splitActive, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear,
-      comparisonData]);
+      comparisonData, appliedEffectiveYear]);
+
+  // Only a set effective year makes the comparison depend on the anchor.
+  const effectiveAnchorId = requestedEffectiveYear === null ? '' : anchorScenarioId;
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
@@ -916,17 +943,27 @@ export default function ScenarioCostComparison() {
         selectedScenarioIds,
         false,
         false,
-        cohort
+        cohort,
+        undefined,
+        false,
+        effectiveAnchorId && requestedEffectiveYear !== null
+          ? { anchorId: effectiveAnchorId, year: requestedEffectiveYear }
+          : undefined,
       );
       setComparisonData(data);
     } catch (err) {
+      // #791: a saved year these runs can't use falls back to the first year (refetches).
+      if (requestedEffectiveYear !== null && err instanceof ApiError && err.status === 400) {
+        setEffectiveYear(null);
+        return;
+      }
       console.error('Failed to fetch comparison:', err);
       setError(err instanceof Error ? err.message : 'Failed to load comparison data');
       setComparisonData(null);
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds, cohort]);
+  }, [activeWorkspace?.id, selectedScenarioIds, cohort, effectiveAnchorId, requestedEffectiveYear]);
 
   /**
    * #444: the forfeiture offset comes from the endpoint the Vesting screens
@@ -1074,10 +1111,12 @@ export default function ScenarioCostComparison() {
         forfeiturePolicy,
         grandfatherExisting,
         grandfatherCutoffYear: grandfatherCutoffYear ?? undefined,
+        effectiveYear: effectiveYear ?? undefined,
       });
     }
   }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort,
-      costView, costBreakdown, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear]);
+      costView, costBreakdown, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear,
+      effectiveYear]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -1145,8 +1184,11 @@ export default function ScenarioCostComparison() {
     if (includeNet && netActive) {
       lines.push(`# Net of forfeitures: ${vestingSchedule} schedule, ${POLICY_LABELS[forfeiturePolicy]}`);
     }
+    if (appliedEffectiveYear !== null) {
+      lines.push(`# Effective year: ${appliedEffectiveYear} (earlier years show ${anchorAnalytics?.scenario_name ?? 'the anchor'}'s figures)`);
+    }
     return lines;
-  }, [cohort, anchorAnalytics, netActive, vestingSchedule, forfeiturePolicy]);
+  }, [cohort, anchorAnalytics, netActive, vestingSchedule, forfeiturePolicy, appliedEffectiveYear]);
 
   const handleCopy = useCallback(() => {
     if (costSummary.length === 0 || years.length === 0) return;
@@ -1487,6 +1529,8 @@ export default function ScenarioCostComparison() {
                       <button
                         key={value}
                         onClick={() => setCostView(value)}
+                        disabled={value === 'net' && effectiveYear !== null}
+                        title={value === 'net' && effectiveYear !== null ? NET_BLOCKED : undefined}
                         className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${costView === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                       >
                         {COST_VIEW_LABELS[value]}
@@ -1522,10 +1566,15 @@ export default function ScenarioCostComparison() {
                     type="checkbox"
                     checked={grandfatherExisting}
                     onChange={event => setGrandfatherExisting(event.target.checked)}
-                    className="h-4 w-4 rounded border-border text-brand-ink"
+                    disabled={effectiveYear !== null && !grandfatherExisting}
+                    aria-describedby={effectiveYear !== null ? 'grandfather-blocked' : undefined}
+                    className="h-4 w-4 rounded border-border text-brand-ink disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   Grandfather existing employees
                 </label>
+                {effectiveYear !== null && !grandfatherExisting && (
+                  <span id="grandfather-blocked" className="text-xs text-ink-muted">{GRANDFATHER_BLOCKED}</span>
+                )}
                 {grandfatherExisting && (
                   <>
                     <label className="flex items-center gap-2 text-xs font-bold text-ink-muted uppercase tracking-wide">
@@ -1564,6 +1613,17 @@ export default function ScenarioCostComparison() {
                   ))}
                 </div>
               )}
+
+              <EffectiveYearControl
+                value={effectiveYear}
+                firstYear={anchorAnalytics?.resolved_first_simulation_year}
+                options={effectiveYearChoices}
+                anchorName={anchorAnalytics?.scenario_name}
+                blockedReason={effectiveYearBlocked}
+                warnings={comparisonData.warnings ?? []}
+                applied={appliedEffectiveYear !== null}
+                onChange={setEffectiveYear}
+              />
 
               {/* Vesting schedule + forfeiture policy selectors (#444) */}
               {costView === 'net' && (

@@ -273,7 +273,7 @@ export function CompensationMatrixTable({ summary, years, names }: Readonly<{
               </td>
             ))}
             <td className={`${VALUE_CELL} text-ink font-bold font-mono ${TOTAL_CELL}`}>
-              {formatCurrency(scenario.totals.total_compensation ?? 0)}
+              {scenario.totals.total_compensation === null ? 'unavailable' : formatCurrency(scenario.totals.total_compensation)}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right">
               <Variance value={scenario.totals.total_compensation_vs_anchor} text={formatSigned} />

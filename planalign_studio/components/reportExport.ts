@@ -27,12 +27,19 @@ export interface ReportViewBasis {
   cohort: DCPlanCohort;
   costView: 'gross' | 'net';
   grandfatherExisting: boolean;
+  /** A later effective year (#791) is combining runs on the page. */
+  effectiveYearApplied?: boolean;
 }
 
 export const REPORT_BASIS_NOTE = 'Report covers all employees, gross of forfeitures.';
+export const REPORT_EFFECTIVE_YEAR_NOTE = "Report applies each scenario's design from the first simulation year.";
 
-/** The report is always all employees, gross, no grandfathering; says so when the page's view differs. */
+/** The report is always all employees, gross, no grandfathering, designs from year one; says so when the page's view differs. */
 export function reportBasisNote(view: ReportViewBasis): string | null {
   const matches = view.cohort === 'all' && view.costView === 'gross' && !view.grandfatherExisting;
-  return matches ? null : REPORT_BASIS_NOTE;
+  const notes = [
+    ...(matches ? [] : [REPORT_BASIS_NOTE]),
+    ...(view.effectiveYearApplied ? [REPORT_EFFECTIVE_YEAR_NOTE] : []),
+  ];
+  return notes.length > 0 ? notes.join(' ') : null;
 }

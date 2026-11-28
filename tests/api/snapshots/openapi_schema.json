@@ -5833,6 +5833,46 @@
         "title": "ConstraintSpec",
         "type": "object"
       },
+      "ContributionYearSource": {
+        "description": "The run that supplied one year of a combined series (#791).",
+        "properties": {
+          "available": {
+            "description": "False when that run has no result for this year: the year is unavailable, never zero",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Run that supplied this year",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "description": "Scenario whose run supplied this year",
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "year": {
+            "description": "Simulation year",
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "scenario_id",
+          "run_id",
+          "available"
+        ],
+        "title": "ContributionYearSource",
+        "type": "object"
+      },
       "ContributionYearSummary": {
         "description": "Contribution summary for a single year.",
         "properties": {
@@ -6312,6 +6352,20 @@
             ],
             "title": "Cost View",
             "type": "string"
+          },
+          "effective_year": {
+            "anyOf": [
+              {
+                "maximum": 2200.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when scenarios other than the anchor show the anchor's figures before this year (#791); null when designs apply from the first year",
+            "title": "Effective Year"
           },
           "first_simulation_year": {
             "anyOf": [
@@ -7127,6 +7181,14 @@
             ],
             "description": "Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up",
             "title": "Total Roth Contributions"
+          },
+          "year_sources": {
+            "description": "Set only when an effective year combines runs (#791): the run that supplied each contribution year. contribution_by_year and the contribution totals use the combined years; other fields are this scenario's own run",
+            "items": {
+              "$ref": "#/components/schemas/ContributionYearSource"
+            },
+            "title": "Year Sources",
+            "type": "array"
           }
         },
         "required": [
@@ -7140,6 +7202,7 @@
           "participation_rate",
           "participation_by_method",
           "contribution_by_year",
+          "year_sources",
           "total_employee_contributions",
           "total_pre_tax_contributions",
           "total_roth_contributions",
@@ -7176,6 +7239,18 @@
             "title": "Analytics",
             "type": "array"
           },
+          "effective_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when scenarios other than the anchor show the anchor's contribution years before this year and their own from it on (#791)",
+            "title": "Effective Year"
+          },
           "scenario_names": {
             "additionalProperties": {
               "type": "string"
@@ -7191,12 +7266,22 @@
             },
             "title": "Scenarios",
             "type": "array"
+          },
+          "warnings": {
+            "description": "Accuracy warnings for the effective year, one per scenario",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
           "scenarios",
           "scenario_names",
-          "analytics"
+          "analytics",
+          "effective_year",
+          "warnings"
         ],
         "title": "DCPlanComparisonResponse",
         "type": "object"
@@ -25306,6 +25391,26 @@
               "description": "Scenario the like-for-like verdicts use (default: first)",
               "title": "Anchor"
             }
+          },
+          {
+            "description": "Year the other scenarios' designs take effect (#791): their rows before it come from the anchor's run. Needs anchor.",
+            "in": "query",
+            "name": "effective_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2200,
+                  "minimum": 1900,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Year the other scenarios' designs take effect (#791): their rows before it come from the anchor's run. Needs anchor.",
+              "title": "Effective Year"
+            }
           }
         ],
         "responses": {
@@ -25625,6 +25730,44 @@
               "description": "If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0.",
               "title": "Exclude Zeros",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Scenario whose years come before the effective year",
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scenario whose years come before the effective year",
+              "title": "Anchor"
+            }
+          },
+          {
+            "description": "Year the other scenarios' designs take effect (#791). Before it they show the anchor's contribution years. On or before the anchor's first simulation year it changes nothing.",
+            "in": "query",
+            "name": "effective_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2200,
+                  "minimum": 1900,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Year the other scenarios' designs take effect (#791). Before it they show the anchor's contribution years. On or before the anchor's first simulation year it changes nothing.",
+              "title": "Effective Year"
             }
           }
         ],

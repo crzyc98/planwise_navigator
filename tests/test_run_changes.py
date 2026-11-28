@@ -279,7 +279,7 @@ def test_selected_run_files_are_read_once_per_request(
     manifests: list[str] = []
     configs: list[str] = []
     real_manifest = service_module.read_run_manifest
-    real_config = service_module._read_run_config
+    real_config = service_module.read_run_config
 
     def counting_manifest(run_dir: Path) -> Any:
         manifests.append(run_dir.name)
@@ -290,7 +290,7 @@ def test_selected_run_files_are_read_once_per_request(
         return real_config(path)
 
     monkeypatch.setattr(service_module, "read_run_manifest", counting_manifest)
-    monkeypatch.setattr(service_module, "_read_run_config", counting_config)
+    monkeypatch.setattr(service_module, "read_run_config", counting_config)
     _evaluate(runs)
 
     # Each run directory (two selected, two previous) is read exactly once.

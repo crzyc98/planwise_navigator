@@ -164,6 +164,20 @@ class OptOutYearSummary(APIModel):
     realized_rate: float | None
 
 
+class ContributionYearSource(APIModel):
+    """The run that supplied one year of a combined series (#791)."""
+
+    year: int = Field(description="Simulation year")
+    scenario_id: str = Field(description="Scenario whose run supplied this year")
+    run_id: Optional[str] = Field(None, description="Run that supplied this year")
+    available: bool = Field(
+        description=(
+            "False when that run has no result for this year: the year is "
+            "unavailable, never zero"
+        )
+    )
+
+
 class DCPlanAnalytics(APIModel):
     """Complete DC Plan analytics for a scenario."""
 
@@ -197,6 +211,15 @@ class DCPlanAnalytics(APIModel):
     # Contribution totals by year
     contribution_by_year: List[ContributionYearSummary] = Field(
         description="Year-by-year contribution summary"
+    )
+    year_sources: List[ContributionYearSource] = Field(
+        default_factory=list,
+        description=(
+            "Set only when an effective year combines runs (#791): the run that "
+            "supplied each contribution year. contribution_by_year and the "
+            "contribution totals use the combined years; other fields are this "
+            "scenario's own run"
+        ),
     )
 
     # Grand totals (sum across all years)
@@ -290,6 +313,17 @@ class DCPlanComparisonResponse(APIModel):
     scenarios: List[str] = Field(description="List of scenario IDs in comparison")
     scenario_names: Dict[str, str] = Field(description="Scenario ID to name mapping")
     analytics: List[DCPlanAnalytics] = Field(description="Analytics for each scenario")
+    effective_year: Optional[int] = Field(
+        None,
+        description=(
+            "Set when scenarios other than the anchor show the anchor's "
+            "contribution years before this year and their own from it on (#791)"
+        ),
+    )
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Accuracy warnings for the effective year, one per scenario",
+    )
 
 
 class GrandfatheredCostYear(APIModel):

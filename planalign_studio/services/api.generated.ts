@@ -5736,6 +5736,32 @@ export interface components {
             threshold: number;
         };
         /**
+         * ContributionYearSource
+         * @description The run that supplied one year of a combined series (#791).
+         */
+        ContributionYearSource: {
+            /**
+             * Available
+             * @description False when that run has no result for this year: the year is unavailable, never zero
+             */
+            available: boolean;
+            /**
+             * Run Id
+             * @description Run that supplied this year
+             */
+            run_id: string | null;
+            /**
+             * Scenario Id
+             * @description Scenario whose run supplied this year
+             */
+            scenario_id: string;
+            /**
+             * Year
+             * @description Simulation year
+             */
+            year: number;
+        };
+        /**
          * ContributionYearSummary
          * @description Contribution summary for a single year.
          */
@@ -5974,6 +6000,11 @@ export interface components {
              * @enum {string}
              */
             cost_view?: "gross" | "net";
+            /**
+             * Effective Year
+             * @description Set when scenarios other than the anchor show the anchor's figures before this year (#791); null when designs apply from the first year
+             */
+            effective_year?: number | null;
             /** First Simulation Year */
             first_simulation_year?: number | null;
             forfeiture_policy?: components["schemas"]["ForfeiturePolicy"] | null;
@@ -6317,6 +6348,11 @@ export interface components {
              * @description Estimated Roth share of employee deferrals under the run's assumed source split, plus any required Roth catch-up the run modeled; null when the archive has no source columns. Pre-tax plus Roth can fall short of total deferrals by disallowed catch-up
              */
             total_roth_contributions: number | null;
+            /**
+             * Year Sources
+             * @description Set only when an effective year combines runs (#791): the run that supplied each contribution year. contribution_by_year and the contribution totals use the combined years; other fields are this scenario's own run
+             */
+            year_sources: components["schemas"]["ContributionYearSource"][];
         };
         /**
          * DCPlanComparisonResponse
@@ -6329,6 +6365,11 @@ export interface components {
              */
             analytics: components["schemas"]["DCPlanAnalytics"][];
             /**
+             * Effective Year
+             * @description Set when scenarios other than the anchor show the anchor's contribution years before this year and their own from it on (#791)
+             */
+            effective_year: number | null;
+            /**
              * Scenario Names
              * @description Scenario ID to name mapping
              */
@@ -6340,6 +6381,11 @@ export interface components {
              * @description List of scenario IDs in comparison
              */
             scenarios: string[];
+            /**
+             * Warnings
+             * @description Accuracy warnings for the effective year, one per scenario
+             */
+            warnings: string[];
         };
         /**
          * DCPlanComparisonYear
@@ -14981,6 +15027,8 @@ export interface operations {
                 format?: "xlsx" | "hyper" | "parquet";
                 /** @description Scenario the like-for-like verdicts use (default: first) */
                 anchor?: string | null;
+                /** @description Year the other scenarios' designs take effect (#791): their rows before it come from the anchor's run. Needs anchor. */
+                effective_year?: number | null;
             };
             header?: never;
             path: {
@@ -15117,6 +15165,10 @@ export interface operations {
                 cohort?: "all" | "new_hires" | "baseline";
                 /** @description If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0. */
                 exclude_zeros?: boolean;
+                /** @description Scenario whose years come before the effective year */
+                anchor?: string | null;
+                /** @description Year the other scenarios' designs take effect (#791). Before it they show the anchor's contribution years. On or before the anchor's first simulation year it changes nothing. */
+                effective_year?: number | null;
             };
             header?: never;
             path: {

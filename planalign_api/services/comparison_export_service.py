@@ -7,6 +7,10 @@ the simulations read.
 
 All scenario databases are ATTACHed read-only to one in-memory DuckDB
 connection, so all writers stream from the same SQL.
+
+With an effective year (#791), each non-anchor scenario's snapshot rows before
+that year come from the anchor's run, labelled with the scenario's name, and
+the metadata records the year and which run supplied each year.
 """
 
 from __future__ import annotations
@@ -59,6 +63,16 @@ class ExportScenario:
     engine_version: str | None = None
     # "anchor", or this scenario's like-for-like verdict against the anchor.
     like_for_like: str | None = None
+
+
+@dataclass(frozen=True)
+class ExportEffectiveYear:
+    """Before ``year``, other scenarios' snapshot rows come from the anchor's run (#791)."""
+
+    anchor_scenario_id: str
+    year: int
+    # Accuracy warnings written to the metadata.
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -129,12 +143,14 @@ class ComparisonExportService:
         workspace_name: str,
         export_format: ExportFormat,
         output_dir: Path,
+        effective_year: ExportEffectiveYear | None = None,
     ) -> Path:
         """Write the export into ``output_dir`` and return the file path."""
         extension = "zip" if export_format == "parquet" else export_format
         path = output_dir / f"scenario_comparison.{extension}"
         with _attached(scenarios) as conn:
-            _create_metadata_table(conn, scenarios, workspace_name)
+            applied = _apply_effective_year(conn, scenarios, effective_year)
+            _create_metadata_table(conn, scenarios, workspace_name, applied)
             if export_format == "hyper":
                 _write_hyper(conn, _hyper_tables(conn, scenarios), path)
             elif export_format == "parquet":
@@ -178,6 +194,25 @@ def _attached(scenarios: list[ExportScenario]) -> Iterator[duckdb.DuckDBPyConnec
 def _create_labelled_view(
     conn: duckdb.DuckDBPyConnection, index: int, scenario: ExportScenario, table: str
 ) -> None:
+    conn.execute(
+        f"CREATE TEMP VIEW {_view(index, table)} AS "
+        f"SELECT {_labels(index, scenario)}, {_select_list(conn, index, scenario, table)} "
+        f"FROM {_alias(index)}.main.{table}"
+    )
+
+
+def _labels(index: int, scenario: ExportScenario) -> str:
+    return (
+        f"{_literal(scenario.name)} AS scenario_name, "
+        f"{_literal(scenario.scenario_id)} AS scenario_id, "
+        f"{index} AS _scenario_order"
+    )
+
+
+def _select_list(
+    conn: duckdb.DuckDBPyConnection, index: int, scenario: ExportScenario, table: str
+) -> str:
+    """The table's own columns, minus the labels the export adds."""
     columns = conn.execute(
         "SELECT column_name FROM duckdb_columns() "
         "WHERE database_name = ? AND schema_name = 'main' AND table_name = ? "
@@ -186,17 +221,85 @@ def _create_labelled_view(
     ).fetchall()
     if not columns:
         raise ComparisonExportError(f"{scenario.name} has no {table} table to export")
-    select_list = ", ".join(
+    return ", ".join(
         '"' + name.replace('"', '""') + '"'
         for (name,) in columns
         if name not in _LABEL_COLUMNS
     )
+
+
+@dataclass(frozen=True)
+class _AppliedEffectiveYear:
+    anchor_index: int
+    year: int
+    notes: tuple[str, ...]
+
+
+def _apply_effective_year(
+    conn: duckdb.DuckDBPyConnection,
+    scenarios: list[ExportScenario],
+    requested: ExportEffectiveYear | None,
+) -> _AppliedEffectiveYear | None:
+    """Relabel the anchor's early snapshot rows as each other scenario's.
+
+    ``None`` (and an unchanged export) when no year is requested or it is on or
+    before the anchor's first simulation year.
+    """
+    if requested is None:
+        return None
+    ids = [scenario.scenario_id for scenario in scenarios]
+    if requested.anchor_scenario_id not in ids:
+        raise ComparisonExportError("An effective year needs an anchor in the export")
+    anchor_index = ids.index(requested.anchor_scenario_id)
+    first, last = _year_range(conn, len(scenarios), anchor_index)
+    if first is None or requested.year <= first:
+        return None
+    if requested.year > last:
+        raise ComparisonExportError(
+            f"Effective year {requested.year} is after the last simulated year ({last})"
+        )
+    applied = _AppliedEffectiveYear(anchor_index, requested.year, requested.notes)
+    for index, scenario in enumerate(scenarios):
+        if index != anchor_index:
+            _create_combined_snapshot_view(conn, index, scenario, scenarios, applied)
+    return applied
+
+
+def _year_range(
+    conn: duckdb.DuckDBPyConnection, count: int, anchor_index: int
+) -> tuple[int | None, int]:
+    """The anchor's first simulated year and the last year any scenario simulated."""
+    first = conn.execute(
+        f"SELECT MIN(simulation_year) FROM {_view(anchor_index, _SNAPSHOT)}"
+    ).fetchone()
+    lasts = [
+        conn.execute(
+            f"SELECT MAX(simulation_year) FROM {_view(index, _SNAPSHOT)}"
+        ).fetchone()
+        for index in range(count)
+    ]
+    last = max((int(row[0]) for row in lasts if row and row[0] is not None), default=0)
+    return (int(first[0]) if first and first[0] is not None else None), last
+
+
+def _create_combined_snapshot_view(
+    conn: duckdb.DuckDBPyConnection,
+    index: int,
+    scenario: ExportScenario,
+    scenarios: list[ExportScenario],
+    applied: _AppliedEffectiveYear,
+) -> None:
+    anchor = applied.anchor_index
+    anchor_columns = _select_list(conn, anchor, scenarios[anchor], _SNAPSHOT)
+    own_columns = _select_list(conn, index, scenario, _SNAPSHOT)
     conn.execute(
-        f"CREATE TEMP VIEW {_view(index, table)} AS "
-        f"SELECT {_literal(scenario.name)} AS scenario_name, "
-        f"{_literal(scenario.scenario_id)} AS scenario_id, "
-        f"{index} AS _scenario_order, {select_list} "
-        f"FROM {_alias(index)}.main.{table}"
+        f"CREATE OR REPLACE TEMP VIEW {_view(index, _SNAPSHOT)} AS "
+        f"SELECT {_labels(index, scenario)}, * FROM ("
+        f"SELECT {anchor_columns} FROM {_alias(anchor)}.main.{_SNAPSHOT} "
+        f"WHERE simulation_year < {int(applied.year)} "
+        "UNION ALL BY NAME "
+        f"SELECT {own_columns} FROM {_alias(index)}.main.{_SNAPSHOT} "
+        f"WHERE simulation_year >= {int(applied.year)})"
     )
 
 
@@ -266,12 +369,16 @@ def _create_metadata_table(
     conn: duckdb.DuckDBPyConnection,
     scenarios: list[ExportScenario],
     workspace_name: str,
+    effective_year: _AppliedEffectiveYear | None = None,
 ) -> None:
     rows = [
         ("exported_at_utc", datetime.now(timezone.utc).isoformat(timespec="seconds")),
         ("workspace", workspace_name),
     ]
-    for scenario in scenarios:
+    if effective_year is not None:
+        rows.append(("effective_year", str(effective_year.year)))
+        rows.extend(("accuracy_note", note) for note in effective_year.notes)
+    for index, scenario in enumerate(scenarios):
         rows.extend(
             [
                 ("scenario_name", scenario.name),
@@ -282,8 +389,26 @@ def _create_metadata_table(
                 ("like_for_like", scenario.like_for_like or ""),
             ]
         )
+        if effective_year is not None and index != effective_year.anchor_index:
+            rows.append(
+                ("supplied_by", _supplied_by(scenario, scenarios, effective_year))
+            )
     conn.execute("CREATE TEMP TABLE export_metadata (field VARCHAR, value VARCHAR)")
     conn.executemany("INSERT INTO export_metadata VALUES (?, ?)", rows)
+
+
+def _supplied_by(
+    scenario: ExportScenario,
+    scenarios: list[ExportScenario],
+    effective_year: _AppliedEffectiveYear,
+) -> str:
+    """Which run supplied each year of a combined scenario's snapshot rows."""
+    anchor = scenarios[effective_year.anchor_index]
+    year = effective_year.year
+    return (
+        f"simulation_year < {year}: {anchor.name} run {anchor.run_id or 'unknown'}; "
+        f"simulation_year >= {year}: {scenario.name} run {scenario.run_id or 'unknown'}"
+    )
 
 
 _METADATA_QUERY = "SELECT field, value FROM export_metadata ORDER BY rowid"
@@ -320,9 +445,7 @@ def _excel_sheets(
 
 
 def _row_count(conn: duckdb.DuckDBPyConnection, index: int) -> int:
-    row = conn.execute(
-        f"SELECT COUNT(*) FROM {_alias(index)}.main.{_SNAPSHOT}"
-    ).fetchone()
+    row = conn.execute(f"SELECT COUNT(*) FROM {_view(index, _SNAPSHOT)}").fetchone()
     return int(row[0]) if row else 0
 
 
@@ -334,7 +457,7 @@ def _scenario_sheets(
     if rows <= EXCEL_MAX_DATA_ROWS:
         return [ExportTable(scenario.name, _snapshot_query(single))]
     years = conn.execute(
-        f"SELECT DISTINCT simulation_year FROM {_alias(index)}.main.{_SNAPSHOT} "
+        f"SELECT DISTINCT simulation_year FROM {_view(index, _SNAPSHOT)} "
         "ORDER BY simulation_year"
     ).fetchall()
     base = sanitize_sheet_name(scenario.name)[: _SHEET_NAME_MAX - 5]
