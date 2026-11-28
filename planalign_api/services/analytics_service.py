@@ -35,6 +35,7 @@ from .employer_cost_service import (
     build_employer_cost_offsets,
     query_gross_employer_cost,
 )
+from .effective_year import combine_contribution_years, effective_year_applies
 from .vesting_service import project_forfeitures_for_connection
 from .database_path_resolver import (
     DatabasePathResolver,
@@ -283,6 +284,33 @@ class AnalyticsService:
                 employer_cost_pct_of_capped_compensation
             ),
             **rates,
+        }
+
+    @staticmethod
+    def _total_fields(totals: dict) -> dict:
+        """``DCPlanAnalytics`` grand-total fields from ``_compute_grand_totals``."""
+        return {
+            "total_employee_contributions": totals["total_employee"],
+            "total_pre_tax_contributions": totals["total_pre_tax"],
+            "total_roth_contributions": totals["total_roth"],
+            "total_employer_match": totals["total_match"],
+            "total_employer_core": totals["total_core"],
+            "total_all_contributions": totals["total_all"],
+            "average_deferral_rate": round(totals["avg_deferral_rate"], 4),
+            "total_employer_cost": totals["total_employer_cost"],
+            "total_compensation": totals["total_compensation"],
+            "total_capped_compensation": totals["total_capped_compensation"],
+            "employer_cost_rate": round(totals["employer_cost_rate"], 2),
+            "employer_cost_pct_of_capped_compensation": round(
+                totals["employer_cost_pct_of_capped_compensation"], 2
+            ),
+            # E066: Contribution rate percentages
+            "employee_contribution_rate": round(
+                totals["employee_contribution_rate"], 2
+            ),
+            "match_contribution_rate": round(totals["match_contribution_rate"], 2),
+            "core_contribution_rate": round(totals["core_contribution_rate"], 2),
+            "total_contribution_rate": round(totals["total_contribution_rate"], 2),
         }
 
     @staticmethod
@@ -609,6 +637,80 @@ class AnalyticsService:
             warnings=warnings,
         )
 
+    def apply_effective_year(
+        self,
+        workspace_id: str,
+        analytics: List[DCPlanAnalytics],
+        anchor_id: str,
+        effective_year: int,
+    ) -> Optional[List[DCPlanAnalytics]]:
+        """Combine each non-anchor scenario with the anchor before ``effective_year``.
+
+        Returns ``None`` when the year is on or before the anchor's first
+        simulation year, where nothing changes. Raises ``ValueError`` for a
+        year after every simulated year or an anchor without results. Same combining rule as the
+        grandfathered splice: years come from one run or the other, never zero.
+        """
+        anchor = next(
+            (item for item in analytics if item.scenario_id == anchor_id), None
+        )
+        if anchor is None:
+            raise ValueError("The anchor scenario has no results to combine with")
+        if not effective_year_applies(
+            anchor.resolved_first_simulation_year, effective_year
+        ):
+            return None
+        simulated = {
+            item.scenario_id: self.simulated_years(workspace_id, item.scenario_id)
+            for item in analytics
+        }
+        last_year = max(max(years, default=0) for years in simulated.values())
+        if effective_year > last_year:
+            raise ValueError(
+                f"Effective year {effective_year} is after the last simulated "
+                f"year ({last_year})"
+            )
+        return [
+            (
+                item
+                if item.scenario_id == anchor_id
+                else self._combined_analytics(anchor, item, effective_year, simulated)
+            )
+            for item in analytics
+        ]
+
+    def _combined_analytics(
+        self,
+        anchor: DCPlanAnalytics,
+        scenario: DCPlanAnalytics,
+        effective_year: int,
+        simulated: Dict[str, set[int]],
+    ) -> DCPlanAnalytics:
+        rows, sources = combine_contribution_years(
+            anchor, scenario, effective_year, simulated
+        )
+        totals = self._compute_grand_totals(rows, exclude_zeros=scenario.exclude_zeros)
+        return scenario.model_copy(
+            update={
+                "contribution_by_year": rows,
+                "year_sources": sources,
+                **self._total_fields(totals),
+            }
+        )
+
+    def simulated_years(self, workspace_id: str, scenario_id: str) -> set[int]:
+        """Every year the scenario's selected run simulated."""
+        import duckdb
+
+        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        if not resolved.exists:
+            raise FileNotFoundError(resolved.path)
+        with duckdb.connect(str(resolved.path), read_only=True) as conn:
+            rows = conn.execute(
+                f"SELECT DISTINCT simulation_year FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}"
+            ).fetchall()
+        return {int(year) for (year,) in rows}
+
     def get_employer_cost_summary(
         self, database_path: Path, workspace_id: str, scenario_id: str
     ) -> EmployerCostSummary:
@@ -709,32 +811,12 @@ class AnalyticsService:
                 participation_rate=participation["participation_rate"],
                 participation_by_method=participation["by_method"],
                 contribution_by_year=contribution_by_year,
-                total_employee_contributions=totals["total_employee"],
-                total_pre_tax_contributions=totals["total_pre_tax"],
-                total_roth_contributions=totals["total_roth"],
-                total_employer_match=totals["total_match"],
-                total_employer_core=totals["total_core"],
-                total_all_contributions=totals["total_all"],
                 deferral_rate_distribution=deferral_distribution,
                 deferral_distribution_by_year=deferral_distribution_by_year,
                 escalation_metrics=escalation,
                 irs_limit_metrics=irs_limits,
-                average_deferral_rate=round(totals["avg_deferral_rate"], 4),
                 exclude_zeros=exclude_zeros,
-                total_employer_cost=totals["total_employer_cost"],
-                total_compensation=totals["total_compensation"],
-                total_capped_compensation=totals["total_capped_compensation"],
-                employer_cost_rate=round(totals["employer_cost_rate"], 2),
-                employer_cost_pct_of_capped_compensation=round(
-                    totals["employer_cost_pct_of_capped_compensation"], 2
-                ),
-                # E066: Contribution rate percentages
-                employee_contribution_rate=round(
-                    totals["employee_contribution_rate"], 2
-                ),
-                match_contribution_rate=round(totals["match_contribution_rate"], 2),
-                core_contribution_rate=round(totals["core_contribution_rate"], 2),
-                total_contribution_rate=round(totals["total_contribution_rate"], 2),
+                **self._total_fields(totals),
             )
 
         except Exception as e:

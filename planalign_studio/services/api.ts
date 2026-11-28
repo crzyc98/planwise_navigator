@@ -579,9 +579,12 @@ export async function downloadComparisonExport(
   scenarioIds: string[],
   format: ComparisonExportFormat,
   anchorId?: string,
+  effectiveYear?: number,
 ): Promise<void> {
   const params = new URLSearchParams({ scenarios: scenarioIds.join(','), format });
   if (anchorId) params.set('anchor', anchorId);
+  // #791: rows before this year come from the anchor's run.
+  if (anchorId && effectiveYear !== undefined) params.set('effective_year', String(effectiveYear));
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
   );
@@ -1255,6 +1258,12 @@ export async function getCensusTieOut(workspaceId: string, scenarioId: string): 
   return handleResponse<CensusTieOut>(response);
 }
 
+/** #791: non-anchor scenarios show the anchor's years before `year`. */
+export interface EffectiveYearRequest {
+  anchorId: string;
+  year: number;
+}
+
 export async function compareDCPlanAnalytics(
   workspaceId: string,
   scenarioIds: string[],
@@ -1262,11 +1271,16 @@ export async function compareDCPlanAnalytics(
   effectiveRate: boolean = false,
   cohort: DCPlanCohort = 'all',
   population?: DCPlanPopulation,
-  excludeZeros: boolean = false
+  excludeZeros: boolean = false,
+  effectiveYear?: EffectiveYearRequest,
 ): Promise<DCPlanComparisonResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
   });
+  if (effectiveYear) {
+    params.set('anchor', effectiveYear.anchorId);
+    params.set('effective_year', String(effectiveYear.year));
+  }
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
   if (cohort !== 'all') params.set('cohort', cohort);

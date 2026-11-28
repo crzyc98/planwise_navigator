@@ -33,8 +33,10 @@ export const SEED_RANGE_FOOTNOTE =
 export function seedRangeHiddenReason(
   cohort: DCPlanCohort,
   grandfatherExisting: boolean,
+  effectiveYearApplied: boolean = false,
 ): string | null {
   if (grandfatherExisting) return 'Seed ranges are for cost without grandfathering, so they are hidden while grandfathering is on.';
+  if (effectiveYearApplied) return "Seed ranges are for each scenario's own run, so they are hidden while a later effective year is set.";
   if (cohort !== 'all') return 'Seed ranges cover all employees, so they are hidden for a cohort.';
   return null;
 }

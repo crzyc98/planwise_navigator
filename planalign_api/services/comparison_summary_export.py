@@ -25,6 +25,7 @@ from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
 )
+from .effective_year import effective_year_applies
 from .run_trust import read_run_trust
 from .vesting_service import SCHEDULE_INFO
 
@@ -44,6 +45,16 @@ POLICY_LABELS: dict[ForfeiturePolicy, str] = {
     ForfeiturePolicy.PAY_PLAN_EXPENSES: "Pay plan expenses",
     ForfeiturePolicy.REALLOCATE_TO_PARTICIPANTS: "Reallocate to participants",
 }
+
+
+EFFECTIVE_YEAR_WITH_GRANDFATHER = (
+    "An effective year later than the first simulation year can't be combined "
+    "with grandfathering existing employees yet. Use one or the other."
+)
+EFFECTIVE_YEAR_WITH_NET = (
+    "An effective year later than the first simulation year can't be combined "
+    "with net of forfeitures yet. Use the gross view."
+)
 
 
 class SummaryExportError(ValueError):
@@ -139,6 +150,17 @@ def validate_request(request: CostSummaryExportRequest) -> None:
         raise SummaryExportError(
             "Net of forfeitures needs a vesting schedule and forfeiture policy"
         )
+    if effective_year_active(view) and view.grandfather_cutoff_year is not None:
+        raise SummaryExportError(EFFECTIVE_YEAR_WITH_GRANDFATHER)
+    if effective_year_active(view) and view.cost_view == "net":
+        raise SummaryExportError(EFFECTIVE_YEAR_WITH_NET)
+
+
+def effective_year_active(view: CostSummaryView) -> bool:
+    """An effective year on or before the first simulation year changes nothing."""
+    if view.first_simulation_year is None:
+        return view.effective_year is not None
+    return effective_year_applies(view.first_simulation_year, view.effective_year)
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +240,7 @@ def build_summary_workbook(
     sources: list[SummaryScenarioSource],
     workspace_name: str,
     exported_at: datetime | None = None,
+    accuracy_notes: tuple[str, ...] = (),
 ) -> bytes:
     """Summary, By year and Notes sheets as an .xlsx file."""
     from openpyxl import Workbook
@@ -233,7 +256,15 @@ def build_summary_workbook(
     _write_summary(summary, request, names, columns, blanks)
     _write_by_year(workbook.create_sheet("By year"), request, names, columns, blanks)
     notes = workbook.create_sheet("Notes")
-    _write_notes(notes, request, sources, workspace_name, blanks, exported_at)
+    _write_notes(
+        notes,
+        request,
+        sources,
+        workspace_name,
+        blanks,
+        exported_at,
+        accuracy_notes,
+    )
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
@@ -329,6 +360,8 @@ def view_rows(
         ("Match and core", "Split" if view.breakdown == "split" else "Total only"),
         ("Grandfather existing employees", _grandfather_label(view)),
     ]
+    if effective_year_active(view):
+        rows.append(("Effective year", _effective_year_label(view, names)))
     if view.vesting_schedule is not None and view.cost_view == "net":
         rows.append(("Vesting schedule", SCHEDULE_INFO[view.vesting_schedule].name))
     if view.forfeiture_policy is not None and view.cost_view == "net":
@@ -355,6 +388,15 @@ def _grandfather_label(view: CostSummaryView) -> str:
     return (
         "Yes. Existing employees use the anchor design; hires in "
         f"{view.grandfather_cutoff_year} or later use each scenario's design."
+    )
+
+
+def _effective_year_label(view: CostSummaryView, names: dict[str, str]) -> str:
+    year = view.effective_year
+    anchor = names[view.anchor_scenario_id]
+    return (
+        f"{year}. Before {year}, every other scenario shows {anchor}'s figures, "
+        f"read from {anchor}'s run; from {year} on, each shows its own run."
     )
 
 
@@ -390,11 +432,13 @@ def _write_notes(
     workspace_name: str,
     blanks: list[_BlankCell],
     exported_at: datetime | None,
+    accuracy_notes: tuple[str, ...] = (),
 ) -> None:
     names = {source.scenario_id: source.name for source in sources}
     when = exported_at or datetime.now(timezone.utc)
     rows: list[tuple[Any, ...]] = [("View",)]
     rows += view_rows(request.view, workspace_name, names, when)
+    rows += [("Accuracy note", note) for note in accuracy_notes]
     rows += [(), ("Definitions",), *((line,) for line in DEFINITIONS)]
     rows += [(), ("Runs",), _RUN_HEADERS, *(_run_row(source) for source in sources)]
     rows += [(), ("Blank cells",), ("Sheet", "Scenario", "Year", "Column", "Reason")]

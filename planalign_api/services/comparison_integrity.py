@@ -269,7 +269,7 @@ class ComparisonIntegrityService:
             read_run_trust(resolved.path, resolved.run_id),
             self.storage.get_merged_config_for(workspace, scenario_id),
         )
-        config = _read_run_config(resolved.config_path)
+        config = read_run_config(resolved.config_path)
         record = RunRecord(
             scenario_id=scenario_id,
             name=name,
@@ -421,7 +421,7 @@ def read_run_files(run_dir: Path, scenario_id: str, name: str) -> RunRecord:
     manifest = read_run_manifest(run_dir)
     metadata = read_run_metadata(run_dir) or {}
     config_path = run_dir / "config.yaml"
-    config = _read_run_config(config_path if config_path.is_file() else None)
+    config = read_run_config(config_path if config_path.is_file() else None)
     seed = manifest.random_seed if manifest is not None else None
     return RunRecord(
         scenario_id=scenario_id,
@@ -717,7 +717,8 @@ def read_run_manifest(run_dir: Path) -> Optional[RunProvenanceManifest]:
         return None
 
 
-def _read_run_config(config_path: Optional[Path]) -> Optional[dict[str, Any]]:
+def read_run_config(config_path: Optional[Path]) -> Optional[dict[str, Any]]:
+    """A run's archived ``config.yaml``; ``None`` when absent or unreadable."""
     if config_path is None:
         return None
     try:
@@ -734,6 +735,7 @@ __all__ = [
     "RunRecord",
     "compare_records",
     "config_group",
+    "read_run_config",
     "read_run_files",
     "read_run_manifest",
 ]
