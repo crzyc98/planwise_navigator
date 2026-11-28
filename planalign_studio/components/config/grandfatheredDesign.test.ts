@@ -4,7 +4,7 @@ import { applyConfigToFormData, draftFromBaseline } from './ConfigContext';
 import { buildConfigPayload } from './buildConfigPayload';
 import { DEFAULT_FORM_DATA } from './constants';
 import { designParameters } from './designParameters';
-import { grandfatheredDesignFromConfig, grandfatheredDesignPayload, mergedDesignConfig, newGrandfatheredDesign } from './grandfatheredDesign';
+import { grandfatheredDesignFromConfig, grandfatheredDesignPayload, inheritedDesignIds, mergedDesignConfig, newGrandfatheredDesign } from './grandfatheredDesign';
 import { grandfatheredDesignErrors } from './grandfatheredDesignValidation';
 import { newHireScope } from './newHireScope';
 import type { FormData, GrandfatheredDesignForm } from './types';
@@ -187,6 +187,17 @@ describe('grandfathered design validation', () => {
     expect(errors({ newHireDesignId: '  ' })).toEqual(['Enter a name for the new-hire design.']);
     expect(errors({ newHireDesignId: "new'hires" })[0]).toMatch(/new-hire design name "new'hires" can use only letters/);
     expect(errors({ newHireDesignId: 'existing_employees' })).toEqual(['Give the existing-employee and new-hire designs different names.']);
+  });
+
+  it('requires a scenario to reuse the design names its workspace defines', () => {
+    const workspace = json(payload(withDesign()));
+    const inherited = inheritedDesignIds(workspace, true);
+    expect(inherited).toEqual(['existing_employees', 'new_hires']);
+    expect(inheritedDesignIds(workspace, false)).toEqual([]);
+    expect(grandfatheredDesignErrors(withDesign(), inherited)).toEqual([]);
+    expect(grandfatheredDesignErrors(withDesign({ newHireDesignId: 'hired_2026' }), inherited)).toEqual([
+      'The workspace already defines plan designs named “existing_employees” and “new_hires”. Use the same names in this scenario: a scenario adds to the workspace’s designs rather than replacing them.',
+    ]);
   });
 
   it('requires something to differ for new hires', () => {

@@ -25,11 +25,15 @@ function idError(id: string, label: string): string | null {
   return null;
 }
 
-function idErrors(design: GrandfatheredDesignForm): string[] {
+function idErrors(design: GrandfatheredDesignForm, inherited: string[]): string[] {
   const errors = [idError(design.existingDesignId, 'existing-employee'), idError(design.newHireDesignId, 'new-hire')]
     .filter((error): error is string => error !== null);
   if (!errors.length && design.existingDesignId === design.newHireDesignId) {
     errors.push('Give the existing-employee and new-hire designs different names.');
+  }
+  const names = [design.existingDesignId, design.newHireDesignId].sort();
+  if (!errors.length && inherited.length && names.join('\n') !== inherited.join('\n')) {
+    errors.push(`The workspace already defines plan designs named ${inherited.map(id => `“${id}”`).join(' and ')}. Use the same names in this scenario: a scenario adds to the workspace’s designs rather than replacing them.`);
   }
   return errors;
 }
@@ -91,8 +95,11 @@ function formulaErrors(label: string, formula: DesignFormula, design: Grandfathe
   return [...match, ...core];
 }
 
-/** Problems that would stop a run, in plain words. Empty when the feature is off. */
-export function grandfatheredDesignErrors(form: FormData): string[] {
+/**
+ * Problems that would stop a run, in plain words. Empty when the feature is off.
+ * `inherited` lists design names a scenario inherits from its workspace.
+ */
+export function grandfatheredDesignErrors(form: FormData, inherited: string[] = []): string[] {
   const design = form.dcGrandfather;
   if (!design?.enabled) return [];
   const sameDesign = design.changeMatch || design.changeCore
@@ -101,7 +108,7 @@ export function grandfatheredDesignErrors(form: FormData): string[] {
     ? ['Automatic contribution increases: the yearly increase can’t be larger than the cap.'] : [];
   return [
     ...cutoffErrors(design),
-    ...idErrors(design),
+    ...idErrors(design, inherited),
     ...sameDesign,
     ...formulaErrors('Existing employees’', form, design, false),
     ...formulaErrors('New hires’', newHireFormula(form, design), design, true),

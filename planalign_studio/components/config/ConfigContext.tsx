@@ -11,7 +11,7 @@ import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
 import { minimumWageFromConfig, minimumWageSaveErrors } from './minimumWage';
 import { acquisitionSaveErrors, acquisitionsFromConfig } from './acquisitions';
-import { grandfatheredDesignFromConfig, mergedDesignConfig } from './grandfatheredDesign';
+import { grandfatheredDesignFromConfig, inheritedDesignIds, mergedDesignConfig } from './grandfatheredDesign';
 import { grandfatheredDesignErrors } from './grandfatheredDesignValidation';
 export { extractCensusPath } from './censusConfig';
 import {
@@ -785,7 +785,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       const errors = validateDeferralRateChangeSettings(current.formData);
       if (errors.length) throw new Error(errors.join(' '));
     }
-    const designErrors = grandfatheredDesignErrors(current.formData);
+    const designErrors = grandfatheredDesignErrors(current.formData, inheritedDesignIds(freshBaseConfig ?? {}, !!scenarioId));
     if (designErrors.length) throw new Error(designErrors.join(' '));
     const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };
     const baseline = copyBaseline ?? {

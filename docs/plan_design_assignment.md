@@ -48,7 +48,9 @@ the setup was saved; saving then writes `null` for both keys, so everyone uses
 the plan on the page, including when the setup came from the workspace. A setup
 Studio didn't write in this shape (more than one cutoff, designs differing in
 more than match and core, or an existing-employee design that differs from the
-page) loads read-only and is kept exactly as saved.
+page) loads read-only and is kept exactly as saved. A scenario adds to its
+workspace's designs rather than replacing them, so when the workspace already
+defines designs, a scenario must use the same design names.
 
 This is not Cost Comparison's **Grandfather existing employees** option, which
 combines results from two separately completed runs. Here both designs run

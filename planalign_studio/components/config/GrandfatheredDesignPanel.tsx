@@ -5,7 +5,7 @@ import { useConfigContext } from './ConfigContext';
 import { CoreFormulaFields } from './CoreFormulaFields';
 import { MatchFormulaFields } from './MatchFormulaFields';
 import type { FormScope } from './formScope';
-import { hasSavedDesigns, mergedDesignConfig, newGrandfatheredDesign, newHireFormula } from './grandfatheredDesign';
+import { hasSavedDesigns, inheritedDesignIds, mergedDesignConfig, newGrandfatheredDesign, newHireFormula } from './grandfatheredDesign';
 import { coreFormulaSummary, matchFormulaSummary } from './grandfatheredDesignSummary';
 import { grandfatheredDesignErrors } from './grandfatheredDesignValidation';
 import { newHireScope } from './newHireScope';
@@ -142,7 +142,8 @@ function CohortPreview({ form, design }: { form: FormData; design: Grandfathered
 }
 
 function DesignProblems({ form }: { form: FormData }) {
-  const errors = grandfatheredDesignErrors(form);
+  const { workspaceConfig, scenarioId } = useConfigContext();
+  const errors = grandfatheredDesignErrors(form, inheritedDesignIds(workspaceConfig, Boolean(scenarioId)));
   if (!errors.length) return null;
   return <div role="alert" className="sm:col-span-6 bg-warning-surface border border-warning-border rounded-md p-3">
     <p className="text-xs font-medium text-warning-ink mb-1">Fix these before saving or running:</p>

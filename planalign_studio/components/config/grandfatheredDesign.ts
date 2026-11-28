@@ -72,6 +72,14 @@ export function mergedDesignConfig(base: Json, overrides: Json | undefined): Jso
     .map(key => [key, merge(base[key], overrides?.[key])]));
 }
 
+/**
+ * Design names a scenario inherits from its workspace. Runs deep-merge scenario
+ * designs onto these, so a scenario must reuse the names rather than add new ones.
+ */
+export function inheritedDesignIds(workspace: Json, isScenario: boolean): string[] {
+  return isScenario ? Object.keys(asJson(workspace.plan_design_parameters)).sort() : [];
+}
+
 /** Whether a configuration defines plan designs (active, not cleared with null). */
 export function hasSavedDesigns(config: Json): boolean {
   return Object.keys(asJson(config.plan_design_assignment)).length > 0
