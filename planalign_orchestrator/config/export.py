@@ -276,8 +276,18 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if cfg.workforce.acquisitions:
             dbt_vars["acquisitions"] = [
                 # Plan settings go out resolved (#1227), so dbt never restates
-                # their defaults; unset starting rates are left out.
-                item.model_dump(mode="json", exclude={"name"}, exclude_none=True)
+                # their defaults; unset starting rates are left out. The hours
+                # credit (#1329) goes out only when set, so configs written
+                # before it keep their fingerprint.
+                item.model_dump(
+                    mode="json",
+                    exclude=(
+                        {"name", "join_year_hours_credit"}
+                        if item.join_year_hours_credit == "none"
+                        else {"name"}
+                    ),
+                    exclude_none=True,
+                )
                 for item in cfg.workforce.acquisitions
             ]
 

@@ -175,6 +175,13 @@ models:
           - accepted_values:
               arguments:
                 values: [true, false]
+      - name: join_year_hours_credited
+        description: >
+          True for a member of an acquisition with join_year_hours_credit
+          full_year in the year the group joins (#1329): the member meets the
+          match and core hours requirement whatever annual_hours_worked shows.
+        data_tests:
+          - not_null
       - name: current_tenure
         description: >
           Authoritative completed years of service copied exactly from

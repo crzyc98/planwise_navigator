@@ -14,7 +14,7 @@ export const AVERAGE_AGE_RANGE = { min: 18, max: 80 } as const;
 export const MAX_AVERAGE_SERVICE = 62;
 /** Keys this editor reads and writes; any other saved key is kept as is. */
 const EDITED_KEYS = new Set([
-  'id', 'name', 'headcount', 'effective_date', 'service_credit', 'plan_entry',
+  'id', 'name', 'headcount', 'effective_date', 'service_credit', 'plan_entry', 'join_year_hours_credit',
   'starting_participation_rate', 'starting_deferral_rate',
   'average_pay', 'relative_pay', 'average_age', 'average_service',
 ]);
@@ -26,11 +26,11 @@ export function newAcquisitionRowKey(): string {
   return `acquisition-row-${nextRowKey}`;
 }
 
-/** An empty row with the engine defaults: mirrors staff, prior service, entry on the date, auto-enrollment. */
+/** An empty row with the engine defaults: mirrors staff, prior service, hours from the date, entry on the date, auto-enrollment. */
 export function newAcquisitionRow(): AcquisitionRow {
   return {
     rowKey: newAcquisitionRowKey(), id: '', name: '', headcount: 0, effectiveDate: '',
-    serviceCredit: 'prior_service', planEntry: 'acquisition_date',
+    serviceCredit: 'prior_service', planEntry: 'acquisition_date', joinYearHoursCredit: 'none',
     startingParticipationPct: null, startingDeferralPct: null,
     pay: { kind: 'mirror' }, averageAge: null, averageService: null, extra: {},
   };
@@ -158,6 +158,7 @@ export function acquisitionsPayload(rows: AcquisitionRow[]) {
     effective_date: row.effectiveDate,
     ...(row.serviceCredit !== 'prior_service' ? { service_credit: row.serviceCredit } : {}),
     ...(row.planEntry !== 'acquisition_date' ? { plan_entry: row.planEntry } : {}),
+    ...(row.joinYearHoursCredit !== 'none' ? { join_year_hours_credit: row.joinYearHoursCredit } : {}),
     ...(row.startingParticipationPct !== null || row.startingDeferralPct !== null ? {
       starting_participation_rate: row.startingParticipationPct === null ? null : toFraction(row.startingParticipationPct),
       starting_deferral_rate: row.startingDeferralPct === null ? null : toFraction(row.startingDeferralPct),
@@ -195,6 +196,7 @@ export function acquisitionsFromConfig(value: unknown): AcquisitionRow[] | undef
       rowKey: newAcquisitionRowKey(), id, name, headcount: Number(item.headcount), effectiveDate: String(item.effective_date ?? ''),
       serviceCredit: item.service_credit === 'acquisition_date' ? 'acquisition_date' : 'prior_service',
       planEntry: item.plan_entry === 'waiting_period' ? 'waiting_period' : 'acquisition_date',
+      joinYearHoursCredit: item.join_year_hours_credit === 'full_year' ? 'full_year' : 'none',
       startingParticipationPct: percentOrNull(item.starting_participation_rate),
       startingDeferralPct: percentOrNull(item.starting_deferral_rate),
       pay: payFromConfig(item),
@@ -248,6 +250,7 @@ export function acquisitionDetails(row: AcquisitionRow): string[] {
   const details: string[] = [];
   if (row.serviceCredit === 'acquisition_date') details.push('service from the acquisition date');
   if (row.planEntry === 'waiting_period') details.push('waiting period before entry');
+  if (row.joinYearHoursCredit === 'full_year') details.push('full year of hours in the join year');
   if (row.startingParticipationPct !== null || row.startingDeferralPct !== null) {
     details.push(`${row.startingParticipationPct ?? '?'}% participating at ${row.startingDeferralPct ?? '?'}%`);
   }

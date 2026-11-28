@@ -70,6 +70,19 @@
 {% set match_allow_terminated_new_hires = match_eligibility.get('allow_terminated_new_hires', false) %}
 {% set match_allow_experienced_terminations = match_eligibility.get('allow_experienced_terminations', false) %}
 
+{#- #1329: members of these acquisitions meet the match and core hours rule in
+    the year they join. Without any, the hours test renders as before. -#}
+{% set hours_credited = acquisitions_where('join_year_hours_credit', 'full_year', 'none') %}
+{% if hours_credited %}
+    {% set meets_match_hours = '(annual_hours_worked >= ' ~ match_minimum_hours ~ ' OR join_year_hours_credited)' %}
+    {% set meets_core_hours = '(annual_hours_worked >= ' ~ core_minimum_hours ~ ' OR join_year_hours_credited)' %}
+    {% set meets_simple_hours = '(annual_hours_worked >= 1000 OR join_year_hours_credited)' %}
+{% else %}
+    {% set meets_match_hours = 'annual_hours_worked >= ' ~ match_minimum_hours %}
+    {% set meets_core_hours = 'annual_hours_worked >= ' ~ core_minimum_hours %}
+    {% set meets_simple_hours = 'annual_hours_worked >= 1000' %}
+{% endif %}
+
 -- Eligibility consumes canonical end-of-year workforce state. It no longer
 -- reconstructs workforce status, tenure, scheduling, or event dates independently.
 WITH hours_calculation AS (
@@ -92,6 +105,17 @@ WITH hours_calculation AS (
         AS is_new_hire_this_year,
 
     workforce.employment_status AS employment_status_eoy,
+
+    {% if hours_credited %}
+    -- COALESCE: acquisition_id is NULL for everyone else, which must read FALSE
+    COALESCE(
+        workforce.acquisition_id IN ({% for item in hours_credited %}'{{ item.id }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        AND EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }},
+        FALSE
+    ) AS join_year_hours_credited,
+    {% else %}
+    FALSE AS join_year_hours_credited,
+    {% endif %}
 
     -- Calculate prorated annual hours based on actual employment period
     CASE
@@ -140,11 +164,11 @@ SELECT
         -- Backward compatibility mode: use simple logic when apply_eligibility is false
         WHEN NOT {{ match_apply_eligibility }} THEN
             CASE
-                WHEN employment_status_eoy = 'active' AND annual_hours_worked >= 1000 THEN TRUE
+                WHEN employment_status_eoy = 'active' AND {{ meets_simple_hours }} THEN TRUE
                 ELSE FALSE
             END
         -- Sophisticated match eligibility logic when apply_eligibility is true
-        WHEN annual_hours_worked >= {{ match_minimum_hours }}
+        WHEN {{ meets_match_hours }}
          AND (
               -- Meets tenure normally
               current_tenure >= {{ match_minimum_tenure_years }}
@@ -192,7 +216,7 @@ SELECT
                 ELSE 'backward_compatibility_simple_rule'
             END
         -- Sophisticated eligibility mode reasons
-        WHEN annual_hours_worked < {{ match_minimum_hours }} THEN 'insufficient_hours'
+        WHEN NOT {{ meets_match_hours }} THEN 'insufficient_hours'
         WHEN current_tenure < {{ match_minimum_tenure_years }}
              AND NOT ({{ 'true' if match_allow_new_hires else 'false' }} AND is_new_hire_this_year) THEN 'insufficient_tenure'
         {% if match_require_active_eoy %}
@@ -211,7 +235,7 @@ SELECT
 
     -- Core eligibility: allow configurable exceptions for new hires and their terminations
     CASE
-        WHEN annual_hours_worked >= {{ core_minimum_hours }}
+        WHEN {{ meets_core_hours }}
          AND (
               -- Meets tenure normally
               current_tenure >= {{ core_minimum_tenure_years }}
@@ -247,6 +271,9 @@ SELECT
         THEN TRUE
         ELSE FALSE
     END AS eligible_for_core,
+
+    -- #1329: met the hours rule through the acquisition's join-year credit
+    join_year_hours_credited,
 
     -- Combined eligibility flag for convenience (uses match criteria for backward compatibility)
     CASE

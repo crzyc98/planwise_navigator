@@ -370,6 +370,7 @@ def test_schedule_list_vars_validate_keys_and_numbers(
                     "effective_date": "2026-06-01",
                     "service_credit": "prior_service",
                     "plan_entry": "acquisition_date",
+                    "join_year_hours_credit": "full_year",
                 }
             ],
             [
@@ -527,3 +528,21 @@ def test_plan_design_parameters_validated_for_types_and_extra_keys() -> None:
     assert [
         p["field"] for p in validate_dbt_vars({"plan_design_parameters": bad_nan})
     ] == ["plan_design_parameters"]
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("service_credit", "hire_date", "prior_service or acquisition_date"),
+        ("plan_entry", "next_quarter", "acquisition_date or waiting_period"),
+        ("join_year_hours_credit", "partial", "none or full_year"),
+    ],
+)
+def test_acquisition_plan_settings_name_their_allowed_values(
+    key: str, value: str, message: str
+) -> None:
+    entry = {"id": "acme", "headcount": 5, "effective_date": "2026-10-01"}
+    assert validate_dbt_vars({"acquisitions": [entry]}) == []
+    problems = validate_dbt_vars({"acquisitions": [{**entry, key: value}]})
+    assert len(problems) == 1
+    assert f"entry 0.{key} must be {message}" in str(problems[0])

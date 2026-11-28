@@ -14,6 +14,10 @@ const SERVICE_CREDIT: Choice<AcquisitionRow['serviceCredit']>[] = [
   { value: 'prior_service', label: 'Keep service from the acquired company', helper: 'Their years there count for eligibility, vesting and service-based contributions.' },
   { value: 'acquisition_date', label: 'Start service on the acquisition date', helper: 'Service counts from zero on the acquisition date, as for a new hire.' },
 ];
+const JOIN_YEAR_HOURS: Choice<AcquisitionRow['joinYearHoursCredit']>[] = [
+  { value: 'none', label: 'Count hours from the acquisition date', helper: "Only hours worked after joining count toward the plan's hours requirement for match and core in the join year." },
+  { value: 'full_year', label: 'Credit a full year of hours', helper: 'In the join year, members meet the match and core hours requirement; contributions still use their actual pay and deferrals.' },
+];
 const PLAN_ENTRY: Choice<AcquisitionRow['planEntry']>[] = [
   { value: 'acquisition_date', label: 'Enter the plan on the acquisition date', helper: 'Members can join the plan as soon as they arrive.' },
   { value: 'waiting_period', label: "Wait out the plan's waiting period", helper: "Members become eligible after the plan's usual waiting period, counted from the acquisition date." },
@@ -93,8 +97,9 @@ export function AcquisitionPlanFields({ row, index, onChange }: FieldsProps) {
     ? { startingParticipationPct: null, startingDeferralPct: null }
     : { startingParticipationPct: row.startingParticipationPct ?? 50, startingDeferralPct: row.startingDeferralPct ?? 6 });
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <ChoiceSelect label="Service credit" ariaLabel={`${name} service credit`} value={row.serviceCredit} choices={SERVICE_CREDIT} onChange={serviceCredit => onChange({ serviceCredit })} />
+      <ChoiceSelect label="Join-year hours" ariaLabel={`${name} join-year hours`} value={row.joinYearHoursCredit} choices={JOIN_YEAR_HOURS} onChange={joinYearHoursCredit => onChange({ joinYearHoursCredit })} />
       <ChoiceSelect label="Plan entry" ariaLabel={`${name} plan entry`} value={row.planEntry} choices={PLAN_ENTRY} onChange={planEntry => onChange({ planEntry })} />
       <ChoiceSelect label="Starting participation" ariaLabel={`${name} starting participation`} value={participation} choices={PARTICIPATION} onChange={setParticipation}>
         {participation === 'set' && (

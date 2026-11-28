@@ -153,7 +153,7 @@ describe('acquisitions in comparisons', () => {
 
 const FULL = {
   id: 'acme', name: 'Acme Corp', headcount: 250, effective_date: '2026-07-01',
-  service_credit: 'acquisition_date', plan_entry: 'waiting_period',
+  service_credit: 'acquisition_date', plan_entry: 'waiting_period', join_year_hours_credit: 'full_year',
   starting_participation_rate: 0.07, starting_deferral_rate: 0.055,
   relative_pay: 0.9, average_age: 44, average_service: 7.5,
 };
@@ -162,7 +162,7 @@ describe('acquisition plan settings and overrides', () => {
   it('reloads every setting and override and writes the same config', () => {
     const loaded = applyConfigToFormData({ workforce: { acquisitions: [FULL] } }, DEFAULT_FORM_DATA);
     expect(loaded.acquisitions[0]).toMatchObject({
-      serviceCredit: 'acquisition_date', planEntry: 'waiting_period', startingParticipationPct: 7, startingDeferralPct: 5.5,
+      serviceCredit: 'acquisition_date', planEntry: 'waiting_period', joinYearHoursCredit: 'full_year', startingParticipationPct: 7, startingDeferralPct: 5.5,
       pay: { kind: 'relative', percentOfStaff: 90 }, averageAge: 44, averageService: 7.5,
     });
     expect(buildConfigPayload(loaded, null, null).workforce.acquisitions).toEqual([FULL]);
@@ -234,6 +234,7 @@ describe('acquisitions editor, slice 2', () => {
     const html = renderToStaticMarkup(<AcquisitionsSection />);
     expect(html).toContain('Keep service from the acquired company');
     expect(html).toContain('Enter the plan on the acquisition date');
+    expect(html).toContain('Count hours from the acquisition date');
     expect(html).toContain('Auto-enroll like new hires');
     expect(html).toContain('Who they are: </span>Mirrors existing staff');
     expect(html).not.toContain('<details class="rounded-md border border-border p-3" open');
@@ -250,6 +251,6 @@ describe('acquisitions editor, slice 2', () => {
 describe('acquisition settings in comparisons', () => {
   it('names the settings that differ from the defaults', () => {
     expect(formatSetting('workforce.acquisitions', [FULL]))
-      .toBe('Acme Corp: 250 on 2026-07-01 (service from the acquisition date; waiting period before entry; 7% participating at 5.5%; pay 90% of staff, average age 44, average service 7.5 years)');
+      .toBe('Acme Corp: 250 on 2026-07-01 (service from the acquisition date; waiting period before entry; full year of hours in the join year; 7% participating at 5.5%; pay 90% of staff, average age 44, average service 7.5 years)');
   });
 });

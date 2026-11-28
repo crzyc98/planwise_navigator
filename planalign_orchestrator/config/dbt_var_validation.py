@@ -277,10 +277,16 @@ _ACQUISITION_NUMERIC_OPTIONAL = frozenset(
         "average_service",
     }
 )
+# Plan settings (#1227, #1329) and their values, in the order errors name them.
+_ACQUISITION_CHOICES: dict[str, tuple[str, ...]] = {
+    "service_credit": ("prior_service", "acquisition_date"),
+    "plan_entry": ("acquisition_date", "waiting_period"),
+    "join_year_hours_credit": ("none", "full_year"),
+}
 _ACQUISITION_ALLOWED = (
     _ACQUISITION_REQUIRED
     | _ACQUISITION_NUMERIC_OPTIONAL
-    | frozenset({"service_credit", "plan_entry"})
+    | frozenset(_ACQUISITION_CHOICES)
 )
 
 _PLAN_DESIGN_TOP_KEYS = frozenset(
@@ -557,16 +563,9 @@ def _validate_acquisition_item(item: Any, idx: int) -> str | None:
         return f"entry {idx}.headcount must be a positive integer"
     if not _is_iso_date(item["effective_date"]):
         return f"entry {idx}.effective_date must be an ISO date (YYYY-MM-DD)"
-    if "service_credit" in item and item["service_credit"] not in {
-        "prior_service",
-        "acquisition_date",
-    }:
-        return f"entry {idx}.service_credit must be prior_service or acquisition_date"
-    if "plan_entry" in item and item["plan_entry"] not in {
-        "acquisition_date",
-        "waiting_period",
-    }:
-        return f"entry {idx}.plan_entry must be acquisition_date or waiting_period"
+    for key, allowed in _ACQUISITION_CHOICES.items():
+        if key in item and item[key] not in allowed:
+            return f"entry {idx}.{key} must be {' or '.join(allowed)}"
     for key in _ACQUISITION_NUMERIC_OPTIONAL:
         if key in item and item[key] is not None and not _is_finite_number(item[key]):
             return f"entry {idx}.{key} must be a finite number"
