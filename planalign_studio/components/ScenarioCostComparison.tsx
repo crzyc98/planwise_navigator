@@ -61,6 +61,7 @@ import ReportExportButtons, { type ReportExportFormat } from './ReportExportButt
 import { reportBasisNote, reportRequest } from './reportExport';
 import { CompensationMatrixTable, CostMatrixTable } from './CostSummaryTables';
 import {
+  ApiError,
   listScenarios,
   compareDCPlanAnalytics,
   compareGrandfatheredCost,
@@ -531,6 +532,13 @@ export default function ScenarioCostComparison() {
     () => effectiveYearOptions(anchorAnalytics?.resolved_first_simulation_year, years),
     [anchorAnalytics, years]
   );
+  // #791: a saved year outside these runs' years falls back to the first year.
+  useEffect(() => {
+    if (effectiveYear !== null && effectiveYearChoices.length > 0
+        && !effectiveYearChoices.includes(effectiveYear)) {
+      setEffectiveYear(null);
+    }
+  }, [effectiveYear, effectiveYearChoices]);
   const unavailableByScenario = useMemo(() => new Map(
     (comparisonData?.analytics ?? []).map(a => [a.scenario_id, unavailableYears(a)])
   ), [comparisonData]);
@@ -944,6 +952,11 @@ export default function ScenarioCostComparison() {
       );
       setComparisonData(data);
     } catch (err) {
+      // #791: a saved year these runs can't use falls back to the first year (refetches).
+      if (requestedEffectiveYear !== null && err instanceof ApiError && err.status === 400) {
+        setEffectiveYear(null);
+        return;
+      }
       console.error('Failed to fetch comparison:', err);
       setError(err instanceof Error ? err.message : 'Failed to load comparison data');
       setComparisonData(null);
