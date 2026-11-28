@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-11-28
+
 ### Fixed
 
 - Studio stays readable on a phone-width window (#1251). Below 640px the sidebar starts collapsed and opens over the page instead of squeezing it; tap outside, press Escape or pick a page to close it. Desktop is unchanged.
