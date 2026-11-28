@@ -17,6 +17,8 @@ import { belowDefaultSummary, easyEnrollSummary, deferralRateChangesSummary } fr
 import { MatchFormulaControl, MatchFormulaFields } from './MatchFormulaFields';
 import { CoreFormulaControl, CoreFormulaFields } from './CoreFormulaFields';
 import type { FormScope } from './formScope';
+import { GrandfatheredDesignControl, GrandfatheredDesignFields, useLockedDesigns } from './GrandfatheredDesignPanel';
+import { grandfatheredDesignSummary } from './grandfatheredDesignSummary';
 
 // A blank cutoff is removed from the export, so dbt applies its default (dbt_project.yml).
 const ENGINE_DEFAULT_HIRE_CUTOFF = '2020-01-01';
@@ -540,10 +542,15 @@ export function DCPlanSection() {
 
   const scope: FormScope = { formData, setFormData, handleChange, inputProps };
   const matchControl = <MatchFormulaControl scope={scope} />;
-  const matchFields = <MatchFormulaFields scope={scope} eligibility={<EmployerEligibilityEditor kind="Match" config={displayConfig} />} />;
+  const grandfather = formData.dcGrandfather?.enabled ? formData.dcGrandfather : null;
+  const designNote = (part: string) => grandfather && <p className="sm:col-span-6 text-xs text-info-ink">
+    With the grandfathered design on, this {part} applies to employees hired before {grandfather.cutoff || 'the cutoff'}. Set the new-hire version under Grandfathered plan design below.
+  </p>;
+  const matchFields = <>{designNote('match')}<MatchFormulaFields scope={scope} eligibility={<EmployerEligibilityEditor kind="Match" config={displayConfig} />} /></>;
 
   const coreControl = <CoreFormulaControl scope={scope} />;
-  const coreFields = <CoreFormulaFields scope={scope} eligibility={<EmployerEligibilityEditor kind="Core" config={displayConfig} />} />;
+  const coreFields = <>{designNote('core contribution')}<CoreFormulaFields scope={scope} eligibility={<EmployerEligibilityEditor kind="Core" config={displayConfig} />} /></>;
+  const lockedDesigns = useLockedDesigns();
 
   const escalationControl = <div className="flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-ink">Auto-Escalation</h4>
@@ -609,6 +616,7 @@ export function DCPlanSection() {
         <DCPlanPanel id="dcplan-match-panel" title="Employer match" summary={matchSummary(formData, displayConfig)} enabled={formData.dcMatchEnabled} control={matchControl}>{matchFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-core-panel" title="Employer core contribution" summary={coreSummary(formData, displayConfig)} enabled={formData.dcCoreEnabled} control={coreControl}>{coreFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" enabled={formData.dcAutoEscalation} control={escalationControl} summary={formData.dcAutoEscalation ? `${formData.dcEscalationMode === 'participant_elected' ? 'Participant-elected (employees sign up)' : 'Automatic (everyone unless they opt out)'}; ${formData.dcEscalationRate} percentage points annually up to ${formData.dcEscalationCap}% on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}.` : 'Automatic contribution increases off; saved settings retained.'}>{escalationFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-grandfather-panel" title="Grandfathered plan design (advanced)" summary={grandfatheredDesignSummary(formData, lockedDesigns)} enabled={Boolean(grandfather)} control={<GrandfatheredDesignControl />}><GrandfatheredDesignFields /></DCPlanPanel>
       </section>
       <section aria-labelledby="dcplan-behavior" className="space-y-4">
         <h3 id="dcplan-behavior" className="font-bold text-ink">Employee behavior assumptions</h3>

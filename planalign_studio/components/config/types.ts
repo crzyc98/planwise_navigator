@@ -314,6 +314,10 @@ export interface FormData {
   dcEscalationDelayYears: number;
   dcEscalationHireDateCutoff: string;
 
+  // DC Plan - Grandfathered plan design (#646). Null until first turned on or
+  // loaded from a saved two-design configuration; null emits nothing.
+  dcGrandfather: GrandfatheredDesignForm | null;
+
   // Advanced
   engine: string;
   enableMultithreading: boolean;
@@ -321,4 +325,33 @@ export interface FormData {
   memoryLimitGB: number;
   logLevel: string;
   strictValidation: boolean;
+}
+
+/** Form fields that make up one design's match and core formula. */
+export const MATCH_FORMULA_KEYS = [
+  'dcMatchMode', 'dcMatchTemplate', 'dcMatchTiers', 'dcTenureMatchTiers', 'dcPointsMatchTiers', 'dcTenureGradedBands',
+] as const;
+export const CORE_FORMULA_KEYS = [
+  'dcCoreStatus', 'dcCoreContributionRate', 'dcCoreGradedSchedule', 'dcCorePointsSchedule', 'dcCoreAgeSchedule',
+  'dcCorePointsMinServiceEnabled', 'dcCorePointsMinServiceYears', 'dcCorePointsPreServiceRate',
+  'dcCoreIntegrationEnabled', 'dcCoreIntegrationLevelMode', 'dcCoreIntegrationLevelValue', 'dcCoreIntegrationDisparityRate',
+] as const;
+export type DesignFormula = Pick<FormData, (typeof MATCH_FORMULA_KEYS)[number] | (typeof CORE_FORMULA_KEYS)[number]>;
+
+/**
+ * Two plan designs in one run, split by hire date. Existing employees use the
+ * plan-wide settings on the DC Plan page; new hires use those settings with
+ * their own match and/or core formula.
+ */
+export interface GrandfatheredDesignForm {
+  enabled: boolean;
+  /** ISO date; employees hired on or after it get the new-hire design. */
+  cutoff: string;
+  existingDesignId: string;
+  newHireDesignId: string;
+  changeMatch: boolean;
+  changeCore: boolean;
+  newHireFormula: DesignFormula;
+  /** Loaded from saved configuration, so turning it off removes it on save. */
+  savedActive: boolean;
 }
