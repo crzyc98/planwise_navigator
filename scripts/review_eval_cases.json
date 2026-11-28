@@ -84,6 +84,16 @@
           "description": "When the two-dial calibration uses its whole evaluation budget with the horizon mean on target, it reports not_converged instead of best_achievable, so a search whose only miss is year-to-year swing looks like a failure."
         }
       ]
+    },
+    {
+      "id": "trusted-host-parsing",
+      "intro": "5570d473",
+      "bugs": [
+        {
+          "fix": "d83835f2",
+          "description": "The Host allowlist strips everything after the first colon, so a malformed Host like 'localhost:abc' passes as 'localhost', only the first of several Host headers is checked, and malformed allowlist entries are accepted silently."
+        }
+      ]
     }
   ],
   "controls": [
