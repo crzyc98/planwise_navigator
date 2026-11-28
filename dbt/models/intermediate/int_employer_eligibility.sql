@@ -70,9 +70,15 @@
 {% set match_allow_terminated_new_hires = match_eligibility.get('allow_terminated_new_hires', false) %}
 {% set match_allow_experienced_terminations = match_eligibility.get('allow_experienced_terminations', false) %}
 
-{#- #1329: members of these acquisitions meet the match and core hours rule in
-    the year they join. Without any, the hours test renders as before. -#}
-{% set hours_credited = acquisitions_where('join_year_hours_credit', 'full_year', 'none') %}
+{#- #1329: members of acquisitions joining this year with a full-year hours
+    credit meet the match and core hours rule. Without any, the hours test
+    renders as before. -#}
+{% set hours_credited = [] %}
+{% for item in acquisitions_where('join_year_hours_credit', 'full_year', 'none') %}
+    {% if ((item['effective_date'] | string)[:4] | int) == simulation_year %}
+        {% do hours_credited.append(item['id']) %}
+    {% endif %}
+{% endfor %}
 {% if hours_credited %}
     {% set meets_match_hours = '(annual_hours_worked >= ' ~ match_minimum_hours ~ ' OR join_year_hours_credited)' %}
     {% set meets_core_hours = '(annual_hours_worked >= ' ~ core_minimum_hours ~ ' OR join_year_hours_credited)' %}
@@ -109,8 +115,7 @@ WITH hours_calculation AS (
     {% if hours_credited %}
     -- COALESCE: acquisition_id is NULL for everyone else, which must read FALSE
     COALESCE(
-        workforce.acquisition_id IN ({% for item in hours_credited %}'{{ item.id }}'{% if not loop.last %}, {% endif %}{% endfor %})
-        AND EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }},
+        workforce.acquisition_id IN ('{{ hours_credited | join("', '") }}'),
         FALSE
     ) AS join_year_hours_credited,
     {% else %}
