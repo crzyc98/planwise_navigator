@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Studio can now give new hires a different employer match, core contribution, or both, inside one simulation, without editing YAML (#646). Turn on Grandfathered plan design (advanced) on the DC Plan page, pick a hire-date cutoff, and set the new-hire formula with the same editors as the plan. A preview shows which employees get which design, and problems are flagged before a run. It is off by default; scenarios that don't use it save exactly what they did before.
+
 ## [3.7.0] - 2026-11-25
 
 ### Added

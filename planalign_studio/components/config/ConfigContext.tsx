@@ -11,6 +11,8 @@ import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
 import { minimumWageFromConfig, minimumWageSaveErrors } from './minimumWage';
 import { acquisitionSaveErrors, acquisitionsFromConfig } from './acquisitions';
+import { grandfatheredDesignFromConfig, inheritedDesignIds, mergedDesignConfig } from './grandfatheredDesign';
+import { grandfatheredDesignErrors } from './grandfatheredDesignValidation';
 export { extractCensusPath } from './censusConfig';
 import {
   updateWorkspace as apiUpdateWorkspace,
@@ -481,16 +483,15 @@ async function loadFormFromConfig(
     resolved = false;
   }
   const censusFields = await resolveCensusFields(overrides, base, path => validateFilePath(workspaceId, path));
-  return {
-    form: {
-      ...form,
-      ...censusFields,
-      dcVoluntaryEnrollmentMode: enrollmentRateMode(raw, 'voluntary_enrollment_rate'),
-      dcNewHireOptOutMode: enrollmentRateMode(raw, 'new_hire_opt_out_rate'),
-    },
-    variables,
-    resolved,
+  form = {
+    ...form,
+    ...censusFields,
+    dcVoluntaryEnrollmentMode: enrollmentRateMode(raw, 'voluntary_enrollment_rate'),
+    dcNewHireOptOutMode: enrollmentRateMode(raw, 'new_hire_opt_out_rate'),
   };
+  // Read last: the existing-employee design must match the finished form to be editable.
+  const dcGrandfather = grandfatheredDesignFromConfig(mergedDesignConfig(base, overrides), form);
+  return { form: { ...form, dcGrandfather }, variables, resolved };
 }
 
 /** Raw config plus the editor state it produced; saves apply form edits onto it. */
@@ -784,6 +785,8 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       const errors = validateDeferralRateChangeSettings(current.formData);
       if (errors.length) throw new Error(errors.join(' '));
     }
+    const designErrors = grandfatheredDesignErrors(current.formData, inheritedDesignIds(freshBaseConfig ?? {}, !!scenarioId));
+    if (designErrors.length) throw new Error(designErrors.join(' '));
     const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };
     const baseline = copyBaseline ?? {
       config: originalConfig.current, form: savedFormData ?? formData,

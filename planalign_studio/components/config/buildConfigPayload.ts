@@ -6,6 +6,7 @@ import type { PromotionHazardConfig, BandConfig } from '../../services/api';
 import { calculateMatchCap } from './constants';
 import { minimumWagePayload } from './minimumWage';
 import { acquisitionsPayload } from './acquisitions';
+import { grandfatheredDesignPayload } from './grandfatheredDesign';
 
 function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], value: string) {
   if (mode === 'inherit') return {};
@@ -261,6 +262,8 @@ export function buildConfigPayload(
 
   return {
     ...configPayload,
+    // Two designs split by hire date; adds no keys unless the feature was used.
+    ...grandfatheredDesignPayload(formData),
     // Include seed configs in the unified payload.
     ...(promotionHazardConfig ? {
       promotion_hazard: {

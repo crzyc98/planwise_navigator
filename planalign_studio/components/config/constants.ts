@@ -313,6 +313,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcEscalationEffectiveDay: '01-01',
   dcEscalationDelayYears: 1,
   dcEscalationHireDateCutoff: '',
+  dcGrandfather: null,
 
   // Advanced
   engine: 'sql',

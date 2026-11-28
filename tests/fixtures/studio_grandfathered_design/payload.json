@@ -1,0 +1,107 @@
+{
+  "plan_design_assignment": {
+    "default_plan_design_id": "existing_employees",
+    "rules": [
+      {
+        "type": "hire_date_cutoff",
+        "cutoff": "2015-01-01",
+        "plan_design_id": "new_hires"
+      }
+    ]
+  },
+  "plan_design_parameters": {
+    "existing_employees": {
+      "match": {
+        "family": "deferral_based",
+        "match_template": "tiered",
+        "cap_percent": 0.04,
+        "tiers": [
+          {
+            "employee_min": 0,
+            "employee_max": 0.03,
+            "match_rate": 1
+          },
+          {
+            "employee_min": 0.03,
+            "employee_max": 0.05,
+            "match_rate": 0.5
+          }
+        ]
+      },
+      "employer_core": {
+        "family": "flat",
+        "contribution_rate": 0.01,
+        "integration_enabled": false,
+        "integration_level_mode": "ss_wage_base",
+        "integration_level_value": null,
+        "integration_disparity_rate": 0
+      },
+      "auto_enrollment": {
+        "default_deferral_rate": 0.03,
+        "window_days": 45,
+        "scope": "new_hires_only",
+        "reenrollment_sweep": {
+          "enabled": false,
+          "interval_years": 3,
+          "first_year": null,
+          "method": "enroll_at_default",
+          "include_non_contributors": true,
+          "include_below_default": false,
+          "include_below_aip_cap": false,
+          "decline_probability": 0.1
+        }
+      },
+      "deferral_escalation": {
+        "increment": 0.01,
+        "cap": 0.1
+      },
+      "eligibility": {
+        "waiting_period_days": 90
+      }
+    },
+    "new_hires": {
+      "match": {
+        "family": "deferral_based",
+        "match_template": "tiered",
+        "cap_percent": 0.03,
+        "tiers": [
+          {
+            "employee_min": 0,
+            "employee_max": 0.06,
+            "match_rate": 0.5
+          }
+        ]
+      },
+      "employer_core": {
+        "family": "flat",
+        "contribution_rate": 0.03,
+        "integration_enabled": false,
+        "integration_level_mode": "ss_wage_base",
+        "integration_level_value": null,
+        "integration_disparity_rate": 0
+      },
+      "auto_enrollment": {
+        "default_deferral_rate": 0.03,
+        "window_days": 45,
+        "scope": "new_hires_only",
+        "reenrollment_sweep": {
+          "enabled": false,
+          "interval_years": 3,
+          "first_year": null,
+          "method": "enroll_at_default",
+          "include_non_contributors": true,
+          "include_below_default": false,
+          "include_below_aip_cap": false,
+          "decline_probability": 0.1
+        }
+      },
+      "deferral_escalation": {
+        "increment": 0.01,
+        "cap": 0.1
+      },
+      "eligibility": {
+        "waiting_period_days": 90
+      }
+    }
+  }
+}

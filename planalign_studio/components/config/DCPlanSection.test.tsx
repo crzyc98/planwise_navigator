@@ -13,6 +13,8 @@ import { belowDefaultSummary, validateBelowDefaultSettings, easyEnrollSummary, v
 import type { FormData } from './types';
 import { buildConfigPayload } from './buildConfigPayload';
 import { applyConfigEdits } from './configEdits';
+import { GrandfatheredDesignControl } from './GrandfatheredDesignPanel';
+import { newGrandfatheredDesign } from './grandfatheredDesign';
 
 const state = vi.hoisted(() => ({ formData: {} as FormData, savedFormData: null as FormData | null, config: {} as Record<string, unknown>, resolved: null as Record<string, unknown> | null, draftError: false, scenarioId: undefined as string | undefined }));
 vi.mock('./ConfigContext', () => ({
@@ -57,7 +59,7 @@ type ControlProps = { name?: string; id?: string; checked?: boolean; children?: 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<ControlProps>(child)) return [];
-    if (typeof child.type === 'function' && child.type.name === 'StepTable') return elements((child.type as (props: ControlProps) => ReactNode)(child.props));
+    if (typeof child.type === 'function' && /^(StepTable|(Match|Core)Formula(Control|Fields))$/.test(child.type.name)) return elements((child.type as (props: ControlProps) => ReactNode)(child.props));
     if (child.type === DistributionTable) return elements(DistributionTable(child.props as unknown as React.ComponentProps<typeof DistributionTable>));
     return [child, ...elements(child.props.children), ...elements(child.props.control)];
   });
@@ -1023,5 +1025,75 @@ describe('points-based core service minimum', () => {
     expect(coreSummary(state.formData)).toMatch(/^0–30 points: 1%; 30–50 points: 2%; 50–∞ points: 3%\./);
     state.formData = { ...state.formData, dcCorePointsMinServiceEnabled: true, dcCorePointsMinServiceYears: 3, dcCorePointsPreServiceRate: 1 };
     expect(coreSummary(state.formData)).toMatch(/^1% until 3 years of service, then 0–30 points: 1%; 30–50 points: 2%; 50–∞ points: 3%\./);
+  });
+});
+
+describe('grandfathered plan design panel', () => {
+  const control = () => elements(GrandfatheredDesignControl()).find(element => element.props.id === 'dcplan-grandfather-enabled')!;
+  const enable = () => { state.formData = { ...state.formData, dcGrandfather: { ...newGrandfatheredDesign(state.formData), cutoff: '2015-01-01' } }; };
+
+  it('is off by default and adds no new-hire editors', () => {
+    const html = render();
+    expect(html).toContain('id="dcplan-grandfather-panel"');
+    expect(html).toContain('Off. Everyone uses the plan on this page.');
+    expect(html).toContain('Not the same as Cost Comparison.');
+    expect(html).not.toContain('dcplan-newhire-match-mode');
+    expect(html).not.toContain('Who gets which design');
+  });
+
+  it('turning it on starts new hires from the current formula', () => {
+    control().props.onChange!({ target: { checked: true } } as React.ChangeEvent<HTMLInputElement>);
+    expect(state.formData.dcGrandfather).toMatchObject({ enabled: true, changeMatch: true, changeCore: false,
+      existingDesignId: 'existing_employees', newHireDesignId: 'new_hires' });
+  });
+
+  it('shows the cutoff, both match editors and the cohort preview when on', () => {
+    enable();
+    const html = render();
+    expect(html).toContain('id="dcplan-grandfather-cutoff"');
+    expect(html).toContain('value="2015-01-01"');
+    expect(html).toContain('id="dcplan-match-mode"');
+    expect(html).toContain('id="dcplan-newhire-match-mode"');
+    expect(html).not.toContain('id="dcplan-newhire-core-type"');
+    expect(html).toContain('Who gets which design');
+    expect(html).toContain('Hired on or after 2015-01-01');
+    expect(html).toContain('Same as existing employees');
+    expect(html).toContain('this match applies to employees hired before 2015-01-01');
+    expect(html).not.toContain('Fix these before saving or running');
+  });
+
+  it('lists problems before a run', () => {
+    enable();
+    state.formData.dcGrandfather = { ...state.formData.dcGrandfather!, cutoff: '', newHireDesignId: '' };
+    const html = render();
+    expect(html).toContain('Fix these before saving or running');
+    expect(html).toContain('Enter the hire-date cutoff as a full date');
+    expect(html).toContain('Enter a name for the new-hire design.');
+  });
+
+  it('asks before turning off a saved setup and keeps the entries', () => {
+    enable();
+    state.formData.dcGrandfather = { ...state.formData.dcGrandfather!, savedActive: true };
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('window', { confirm });
+    try {
+      control().props.onChange!({ target: { checked: false } } as React.ChangeEvent<HTMLInputElement>);
+      expect(state.formData.dcGrandfather!.enabled).toBe(true);
+      confirm.mockReturnValue(true);
+      control().props.onChange!({ target: { checked: false } } as React.ChangeEvent<HTMLInputElement>);
+      expect(state.formData.dcGrandfather).toMatchObject({ enabled: false, cutoff: '2015-01-01', savedActive: true });
+      expect(confirm).toHaveBeenCalledTimes(2);
+      expect(render()).toContain('Off. Saving removes the new-hire design');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps saved designs it cannot edit and locks the switch', () => {
+    state.config = { plan_design_assignment: { default_plan_design_id: 'a', rules: [
+      { cutoff: '2015-01-01', plan_design_id: 'b' }, { cutoff: '2020-01-01', plan_design_id: 'c' }] } };
+    const html = render();
+    expect(html).toContain('Studio keeps them exactly as saved');
+    expect(control().props).toMatchObject({ disabled: true });
   });
 });

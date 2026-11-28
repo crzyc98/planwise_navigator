@@ -24,6 +24,38 @@ The config fingerprint covers the complete ordered assignment block. The
 append-only `run_metadata.design_set_json` column also records the sorted set of
 design IDs that the run can assign.
 
+## Setting it up in Studio
+
+On the DC Plan page, turn on **Grandfathered plan design (advanced)**. It is
+off by default and adds nothing to the saved configuration until you use it.
+
+- **Hire-date cutoff.** Employees hired on or after this date get the new-hire
+  design. Everyone hired earlier keeps the plan set on the page.
+- **Design names.** The plan design IDs shown in results (defaults
+  `existing_employees` and `new_hires`).
+- **What is different for new hires.** The employer match, the core
+  contribution, or both. Each uses the same editor as the plan-wide formula.
+  Eligibility rules, automatic enrollment, automatic increases and employee
+  behavior stay the same for both designs.
+- **Who gets which design** previews both cohorts and their formulas before a
+  run. Problems that would stop a run (a missing or invalid cutoff or name,
+  identical designs, empty or overlapping tiers, match rates above 100%, a
+  missing integration level) block saving with a message.
+
+Studio saves `plan_design_assignment` with one `hire_date_cutoff` rule and two
+complete `plan_design_parameters` entries. Turning the panel off asks first if
+the setup was saved; saving then writes `null` for both keys, so everyone uses
+the plan on the page, including when the setup came from the workspace. A setup
+Studio didn't write in this shape (more than one cutoff, designs differing in
+more than match and core, or an existing-employee design that differs from the
+page) loads read-only and is kept exactly as saved. A scenario adds to its
+workspace's designs rather than replacing them, so when the workspace already
+defines designs, a scenario must use the same design names.
+
+This is not Cost Comparison's **Grandfather existing employees** option, which
+combines results from two separately completed runs. Here both designs run
+inside one simulation.
+
 ## Per-design benefits in 3.0.0
 
 Assignment and benefit terms are separate. `plan_design_parameters` maps design
